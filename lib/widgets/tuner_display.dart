@@ -138,7 +138,7 @@ class _TunerDisplayState extends State<TunerDisplay>
   }
 }
 
-const _maxPlotGapMs = 50;
+const _maxPlotGapMs = 150;
 
 class _NoteRow {
   const _NoteRow({
@@ -174,7 +174,7 @@ class _TunerPainter extends CustomPainter {
   static const labelWidth = 58.0;
   static const timeSpan = Duration(milliseconds: 6400);
   static const plotRightPadding = 12.0;
-  static const lineWidth = 4.0;
+  static const lineWidth = 2.0;
   static const lineStrokeWidth = 1.0;
   static final List<_NoteRow> _rows = _buildRows();
 
@@ -305,6 +305,7 @@ class _TunerPainter extends CustomPainter {
       final startMs = startTime.millisecondsSinceEpoch;
       final spanMs = timeSpan.inMilliseconds;
       final plotWidth = size.width - labelWidth - plotRightPadding;
+      final dynamicGapMs = _computeDynamicGapMs(history, startMs, now);
       final linePaint = Paint()
         ..color = Colors.white
         ..strokeWidth = lineStrokeWidth
@@ -322,7 +323,7 @@ class _TunerPainter extends CustomPainter {
         if (timeMs > now.millisecondsSinceEpoch) {
           break;
         }
-        if (lastMs != null && timeMs - lastMs > _maxPlotGapMs) {
+        if (lastMs != null && timeMs - lastMs > dynamicGapMs) {
           started = false;
         }
         final midi = _midiFromFrequency(point.frequency);
@@ -369,6 +370,37 @@ double _midiToHz(int midi) {
 
 double _midiFromFrequency(double frequency) {
   return 69 + 12 * (log(frequency / 440.0) / ln2);
+}
+
+int _computeDynamicGapMs(List<PitchPoint> history, int startMs, DateTime now) {
+  if (history.length < 2) {
+    return _maxPlotGapMs;
+  }
+  final endMs = now.millisecondsSinceEpoch;
+  final deltas = <int>[];
+  var previous = history.first;
+  for (final point in history.skip(1)) {
+    final timeMs = point.time.millisecondsSinceEpoch;
+    if (timeMs < startMs || timeMs > endMs) {
+      previous = point;
+      continue;
+    }
+    final prevMs = previous.time.millisecondsSinceEpoch;
+    if (prevMs >= startMs && prevMs <= endMs) {
+      final delta = timeMs - prevMs;
+      if (delta > 0) {
+        deltas.add(delta);
+      }
+    }
+    previous = point;
+  }
+  if (deltas.isEmpty) {
+    return _maxPlotGapMs;
+  }
+  deltas.sort();
+  final median = deltas[deltas.length ~/ 2];
+  final threshold = median * 4;
+  return threshold < _maxPlotGapMs ? _maxPlotGapMs : threshold;
 }
 
 (int, double) _rowPositionForMidi(double midi, List<_NoteRow> rows) {
