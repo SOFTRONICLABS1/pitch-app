@@ -138,7 +138,7 @@ class _TunerDisplayState extends State<TunerDisplay>
   }
 }
 
-const _maxPlotGapMs = 1000000;
+const _maxPlotGapMs = 50;
 
 class _NoteRow {
   const _NoteRow({
