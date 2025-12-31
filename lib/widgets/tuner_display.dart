@@ -16,12 +16,10 @@ class TunerDisplay extends StatefulWidget {
 }
 
 class _TunerDisplayState extends State<TunerDisplay> {
-  static const _sampleCount = 1024;
-  static const _minUpdateInterval = Duration(milliseconds: 33);
+  static const _sampleCount = 2048;
 
   ui.FragmentProgram? _program;
   ui.Image? _dataImage;
-  DateTime _lastUpdate = DateTime.fromMillisecondsSinceEpoch(0);
   bool _updating = false;
   bool _pending = false;
 
@@ -64,11 +62,12 @@ class _TunerDisplayState extends State<TunerDisplay> {
       _pending = true;
       return;
     }
-    final now = DateTime.now();
-    if (now.difference(_lastUpdate) < _minUpdateInterval) {
-      return;
-    }
-    _updateDataImage();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _updateDataImage();
+    });
   }
 
   Future<void> _updateDataImage() async {
@@ -77,7 +76,6 @@ class _TunerDisplayState extends State<TunerDisplay> {
     }
     _updating = true;
     _pending = false;
-    _lastUpdate = DateTime.now();
     final pixels = _buildDataPixels(
       widget.history,
       sampleCount: _sampleCount,
@@ -347,8 +345,23 @@ Uint8List _buildDataPixels(
   final startTime = now.subtract(_TunerPainter.timeSpan);
   final startMs = startTime.millisecondsSinceEpoch;
   final spanMs = _TunerPainter.timeSpan.inMilliseconds;
-  const maxGapMs = 200;
+  const maxGapMs = 350;
   const maxJumpSemitones = 4.0;
+  final effectiveHistory = List<PitchPoint>.from(history);
+  if (history.isNotEmpty) {
+    final last = history.last;
+    final tailGap = now.millisecondsSinceEpoch -
+        last.time.millisecondsSinceEpoch;
+    if (tailGap > 0 && tailGap <= maxGapMs) {
+      effectiveHistory.add(
+        PitchPoint(
+          time: now,
+          frequency: last.frequency,
+          clarity: last.clarity,
+        ),
+      );
+    }
+  }
   final times = List<int>.generate(
     sampleCount,
     (i) => startMs + ((i / (sampleCount - 1)) * spanMs).round(),
@@ -365,11 +378,12 @@ Uint8List _buildDataPixels(
   double? lastAcceptedMidi;
   for (var i = 0; i < sampleCount; i++) {
     final target = times[i];
-    while (historyIndex + 1 < history.length &&
-        history[historyIndex + 1].time.millisecondsSinceEpoch < target) {
+    while (historyIndex + 1 < effectiveHistory.length &&
+        effectiveHistory[historyIndex + 1].time.millisecondsSinceEpoch <
+            target) {
       historyIndex++;
     }
-    final prev = history[historyIndex];
+    final prev = effectiveHistory[historyIndex];
     final prevTime = prev.time.millisecondsSinceEpoch;
     if (prevTime > target || prevTime < startMs || prevTime > startMs + spanMs) {
       stableCount = 0;
@@ -381,8 +395,8 @@ Uint8List _buildDataPixels(
     }
 
     double frequency = prev.frequency;
-    if (historyIndex + 1 < history.length) {
-      final next = history[historyIndex + 1];
+    if (historyIndex + 1 < effectiveHistory.length) {
+      final next = effectiveHistory[historyIndex + 1];
       final nextTime = next.time.millisecondsSinceEpoch;
       if (nextTime - prevTime > maxGapMs) {
         stableCount = 0;
@@ -428,7 +442,7 @@ Uint8List _buildDataPixels(
     previousRowIndex = rowIndex;
   }
 
-  const smoothWindow = 7;
+  const smoothWindow = 11;
   final half = smoothWindow ~/ 2;
   final smoothed = List<double>.from(yNorms);
   for (var i = 0; i < sampleCount; i++) {
