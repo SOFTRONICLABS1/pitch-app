@@ -1,0 +1,9 @@
+/Users/softroniclabs-mac-mini-004/Desktop/jeevanl/new-engine/pitch-app/native/pitch_ffi/target/x86_64-linux-android/release/deps/primal_check-431abf8de571e87c.d: /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/primal-check-0.3.4/src/lib.rs /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/primal-check-0.3.4/src/perfect_power.rs /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/primal-check-0.3.4/src/is_prime.rs
+
+/Users/softroniclabs-mac-mini-004/Desktop/jeevanl/new-engine/pitch-app/native/pitch_ffi/target/x86_64-linux-android/release/deps/libprimal_check-431abf8de571e87c.rlib: /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/primal-check-0.3.4/src/lib.rs /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/primal-check-0.3.4/src/perfect_power.rs /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/primal-check-0.3.4/src/is_prime.rs
+
+/Users/softroniclabs-mac-mini-004/Desktop/jeevanl/new-engine/pitch-app/native/pitch_ffi/target/x86_64-linux-android/release/deps/libprimal_check-431abf8de571e87c.rmeta: /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/primal-check-0.3.4/src/lib.rs /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/primal-check-0.3.4/src/perfect_power.rs /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/primal-check-0.3.4/src/is_prime.rs
+
+/Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/primal-check-0.3.4/src/lib.rs:
+/Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/primal-check-0.3.4/src/perfect_power.rs:
+/Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/primal-check-0.3.4/src/is_prime.rs:

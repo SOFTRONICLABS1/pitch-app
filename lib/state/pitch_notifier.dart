@@ -1,0 +1,134 @@
+import 'package:flutter/foundation.dart';
+
+import '../dsp/pitch_detection.dart';
+import '../native/pitch_bridge.dart';
+import '../native/pitch_ffi.dart';
+import '../services/audio_pitch_service.dart';
+
+class PitchPoint {
+  PitchPoint({
+    required this.time,
+    required this.frequency,
+    required this.clarity,
+  });
+
+  final DateTime time;
+  final double frequency;
+  final double clarity;
+}
+
+class PitchNotifier extends ChangeNotifier {
+  PitchNotifier();
+
+  static const defaultSampleRate = 44100;
+  static const _historySpan = Duration(seconds: 12);
+
+  double? frequency;
+  double? clarity;
+  String? errorMessage;
+
+  bool listening = false;
+  String detectorName = 'mcleod'; // or autocorrelation
+  int windowSize = 2048;
+  double clarityThreshold = 0.6;
+  double powerThreshold = 0.15;
+  String displayMode = 'timeline'; // or circle
+
+  List<PitchPoint> history = [];
+
+  AudioPitchService? _service;
+
+  Future<void> start() async {
+    if (listening) return;
+    errorMessage = null;
+    _service = AudioPitchService(
+      onResult: _onResult,
+      detectorFactory: _buildDetector,
+      sampleRate: defaultSampleRate,
+      windowSize: windowSize,
+      hopSize: windowSize ~/ 4,
+      powerThreshold: powerThreshold,
+      clarityThreshold: clarityThreshold,
+    );
+    try {
+      await _service!.start();
+      listening = true;
+    } catch (e) {
+      errorMessage = e.toString();
+      listening = false;
+    }
+    notifyListeners();
+  }
+
+  Future<void> stop() async {
+    await _service?.stop();
+    listening = false;
+    frequency = null;
+    clarity = null;
+    notifyListeners();
+  }
+
+  Future<void> restartIfNeeded() async {
+    if (!listening) return;
+    await stop();
+    await start();
+  }
+
+  void setDetector(String value) {
+    detectorName = value;
+    restartIfNeeded();
+    notifyListeners();
+  }
+
+  void setWindowSize(int value) {
+    windowSize = value;
+    restartIfNeeded();
+    notifyListeners();
+  }
+
+  void setClarityThreshold(double value) {
+    clarityThreshold = value;
+    restartIfNeeded();
+    notifyListeners();
+  }
+
+  void setDisplayMode(String value) {
+    displayMode = value;
+    notifyListeners();
+  }
+
+  void _onResult(PitchDetectionResult? result) {
+    if (result == null) {
+      frequency = null;
+      clarity = null;
+    } else {
+      frequency = result.frequency;
+      clarity = result.clarity;
+      final now = DateTime.now();
+      history.add(
+        PitchPoint(
+          time: now,
+          frequency: result.frequency,
+          clarity: result.clarity,
+        ),
+      );
+      history = history
+          .where((p) => p.time.isAfter(now.subtract(_historySpan)))
+          .toList();
+    }
+    notifyListeners();
+  }
+
+  PitchDetector _buildDetector() {
+    switch (detectorName) {
+      case 'autocorrelation':
+        return RustPitchDetector(NativeDetector.autocorrelation);
+      case 'yin':
+        return RustPitchDetector(NativeDetector.yin);
+      case 'mcleod':
+        return RustPitchDetector(NativeDetector.mcleod);
+      default:
+        return RustPitchDetector(NativeDetector.mcleod);
+    }
+  }
+}

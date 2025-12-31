@@ -1,0 +1,9 @@
+/Users/softroniclabs-mac-mini-004/Desktop/jeevanl/new-engine/pitch-app/native/pitch_ffi/target/aarch64-apple-ios/release/deps/transpose-f2619447145880e5.d: /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/transpose-0.2.3/src/lib.rs /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/transpose-0.2.3/src/in_place.rs /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/transpose-0.2.3/src/out_of_place.rs
+
+/Users/softroniclabs-mac-mini-004/Desktop/jeevanl/new-engine/pitch-app/native/pitch_ffi/target/aarch64-apple-ios/release/deps/libtranspose-f2619447145880e5.rlib: /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/transpose-0.2.3/src/lib.rs /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/transpose-0.2.3/src/in_place.rs /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/transpose-0.2.3/src/out_of_place.rs
+
+/Users/softroniclabs-mac-mini-004/Desktop/jeevanl/new-engine/pitch-app/native/pitch_ffi/target/aarch64-apple-ios/release/deps/libtranspose-f2619447145880e5.rmeta: /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/transpose-0.2.3/src/lib.rs /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/transpose-0.2.3/src/in_place.rs /Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/transpose-0.2.3/src/out_of_place.rs
+
+/Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/transpose-0.2.3/src/lib.rs:
+/Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/transpose-0.2.3/src/in_place.rs:
+/Users/softroniclabs-mac-mini-004/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/transpose-0.2.3/src/out_of_place.rs:
