@@ -33,7 +33,7 @@ class PitchNotifier extends ChangeNotifier {
   int hopSize = 256;
   double clarityThreshold = 0.70;
   double powerThreshold = 0.15;
-  String displayMode = 'timeline'; // or circle
+  String displayMode = 'timeline';
 
   List<PitchPoint> history = [];
 
@@ -95,10 +95,6 @@ class PitchNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setDisplayMode(String value) {
-    displayMode = value;
-    notifyListeners();
-  }
 
   void _onResult(PitchDetectionResult? result) {
     if (result == null || result.clarity < clarityThreshold) {

@@ -61,20 +61,9 @@ class PitchControls extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             _SectionTitle('Display'),
-            Wrap(
-              spacing: 8,
-              children: [
-                ChoiceChip(
-                  label: const Text('Timeline'),
-                  selected: state.displayMode == 'timeline',
-                  onSelected: (_) => state.setDisplayMode('timeline'),
-                ),
-                ChoiceChip(
-                  label: const Text('Circle'),
-                  selected: state.displayMode == 'circle',
-                  onSelected: (_) => state.setDisplayMode('circle'),
-                ),
-              ],
+            Text(
+              'Timeline',
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
           ],
         ),
