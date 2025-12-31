@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -16,12 +17,13 @@ class TunerDisplay extends StatefulWidget {
 }
 
 class _TunerDisplayState extends State<TunerDisplay> {
-  static const _sampleCount = 1024;
-  static const _minUpdateInterval = Duration(milliseconds: 33);
+  static const _sampleCount = 2048;
+  static const _minUpdateInterval = Duration(milliseconds: 16);
 
   ui.FragmentProgram? _program;
   ui.Image? _dataImage;
   DateTime _lastUpdate = DateTime.fromMillisecondsSinceEpoch(0);
+  Timer? _throttleTimer;
   bool _updating = false;
   bool _pending = false;
 
@@ -39,6 +41,7 @@ class _TunerDisplayState extends State<TunerDisplay> {
 
   @override
   void dispose() {
+    _throttleTimer?.cancel();
     _dataImage?.dispose();
     super.dispose();
   }
@@ -65,7 +68,10 @@ class _TunerDisplayState extends State<TunerDisplay> {
       return;
     }
     final now = DateTime.now();
-    if (now.difference(_lastUpdate) < _minUpdateInterval) {
+    final elapsed = now.difference(_lastUpdate);
+    if (elapsed < _minUpdateInterval) {
+      _throttleTimer?.cancel();
+      _throttleTimer = Timer(_minUpdateInterval - elapsed, _scheduleUpdate);
       return;
     }
     _updateDataImage();
@@ -343,11 +349,14 @@ Uint8List _buildDataPixels(
     return pixels;
   }
 
-  final now = DateTime.now();
+  final wallNow = DateTime.now();
+  final latestTime = history.last.time;
+  final now =
+      wallNow.difference(latestTime).inMilliseconds <= 500 ? latestTime : wallNow;
   final startTime = now.subtract(_TunerPainter.timeSpan);
   final startMs = startTime.millisecondsSinceEpoch;
   final spanMs = _TunerPainter.timeSpan.inMilliseconds;
-  const maxGapMs = 200;
+  const maxGapMs = 160;
   const maxJumpSemitones = 4.0;
   final times = List<int>.generate(
     sampleCount,
@@ -428,7 +437,7 @@ Uint8List _buildDataPixels(
     previousRowIndex = rowIndex;
   }
 
-  const smoothWindow = 7;
+  const smoothWindow = 11;
   final half = smoothWindow ~/ 2;
   final smoothed = List<double>.from(yNorms);
   for (var i = 0; i < sampleCount; i++) {
