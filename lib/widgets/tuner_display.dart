@@ -115,6 +115,7 @@ class _TunerDisplayState extends State<TunerDisplay> {
           history: widget.history,
           program: _program,
           dataImage: _dataImage,
+          sampleCount: _sampleCount,
         ),
         isComplex: true,
         willChange: true,
@@ -147,11 +148,13 @@ class _TunerPainter extends CustomPainter {
     required this.history,
     required this.program,
     required this.dataImage,
+    required this.sampleCount,
   });
 
   final List<PitchPoint> history;
   final ui.FragmentProgram? program;
   final ui.Image? dataImage;
+  final int sampleCount;
 
   static const labelWidth = 58.0;
   static const timeSpan = Duration(milliseconds: 6400);
@@ -275,14 +278,15 @@ class _TunerPainter extends CustomPainter {
       ..setFloat(4, lineWidth)
       ..setFloat(5, rowHeight)
       ..setFloat(6, max(10.0, rowHeight * 0.6))
-      ..setFloat(7, 1.0)
+      ..setFloat(7, sampleCount.toDouble())
       ..setFloat(8, 1.0)
       ..setFloat(9, 1.0)
       ..setFloat(10, 1.0)
-      ..setFloat(11, 0xF0 / 255.0)
-      ..setFloat(12, 0x8A / 255.0)
-      ..setFloat(13, 0x00 / 255.0)
-      ..setFloat(14, 1.0)
+      ..setFloat(11, 1.0)
+      ..setFloat(12, 0xF0 / 255.0)
+      ..setFloat(13, 0x8A / 255.0)
+      ..setFloat(14, 0x00 / 255.0)
+      ..setFloat(15, 1.0)
       ..setImageSampler(0, dataImage!);
     final plotPaint = Paint()..shader = shader;
     canvas.drawRect(
@@ -344,6 +348,7 @@ Uint8List _buildDataPixels(
   final startMs = startTime.millisecondsSinceEpoch;
   final spanMs = _TunerPainter.timeSpan.inMilliseconds;
   const maxGapMs = 200;
+  const maxJumpSemitones = 4.0;
   final times = List<int>.generate(
     sampleCount,
     (i) => startMs + ((i / (sampleCount - 1)) * spanMs).round(),
@@ -357,6 +362,7 @@ Uint8List _buildDataPixels(
   int historyIndex = 0;
   int? previousRowIndex;
   var stableCount = 0;
+  double? lastAcceptedMidi;
   for (var i = 0; i < sampleCount; i++) {
     final target = times[i];
     while (historyIndex + 1 < history.length &&
@@ -390,6 +396,16 @@ Uint8List _buildDataPixels(
     }
 
     final midi = _midiFromFrequency(frequency);
+    final prevMidi = _midiFromFrequency(prev.frequency);
+    if ((midi - prevMidi).abs() > maxJumpSemitones) {
+      stableCount = 0;
+      continue;
+    }
+    if (lastAcceptedMidi != null &&
+        (midi - lastAcceptedMidi!).abs() > maxJumpSemitones) {
+      stableCount = 0;
+      continue;
+    }
     final (rowIndex, ratio) = _rowPositionForMidi(midi, rows);
     final yNorm = ((rowIndex + (1 - ratio)) / rows.length)
         .clamp(0.0, 1.0)
@@ -408,6 +424,7 @@ Uint8List _buildDataPixels(
     yNorms[i] = yNorm;
     blockCenters[i] = rowCenterNorm;
     hasBlocks[i] = hasBlock;
+    lastAcceptedMidi = midi;
     previousRowIndex = rowIndex;
   }
 
