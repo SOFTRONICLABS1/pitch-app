@@ -37,27 +37,28 @@ class _TunerPainter extends CustomPainter {
 
   final List<PitchPoint> history;
 
-  static const labelWidth = 74.0;
+  static const labelWidth = 58.0;
   static const timeSpan = Duration(seconds: 8);
 
   List<_NoteRow> _noteRows() {
-    const naturals = <int>[0, 2, 4, 5, 7, 9, 11];
     const noteLabels = <int, String>{
       0: 'C',
+      1: 'C#',
       2: 'D',
+      3: 'D#',
       4: 'E',
       5: 'F',
+      6: 'F#',
       7: 'G',
+      8: 'G#',
       9: 'A',
+      10: 'A#',
       11: 'B',
     };
 
     final rows = <_NoteRow>[];
     for (var midi = 33; midi <= 62; midi++) {
       final semitone = midi % 12;
-      if (!naturals.contains(semitone)) {
-        continue;
-      }
       final octave = (midi / 12).floor() - 1;
       final label = '${noteLabels[semitone]}$octave';
       final minHz = _midiToHz(midi);
@@ -67,17 +68,21 @@ class _TunerPainter extends CustomPainter {
     return rows.reversed.toList();
   }
 
-  int _rowIndexForFrequency(double frequency, List<_NoteRow> rows) {
+  (int, double) _rowPositionForFrequency(
+    double frequency,
+    List<_NoteRow> rows,
+  ) {
     for (var i = 0; i < rows.length; i++) {
       final row = rows[i];
       if (frequency >= row.minHz && frequency < row.maxHz) {
-        return i;
+        final ratio = (frequency - row.minHz) / (row.maxHz - row.minHz);
+        return (i, ratio.clamp(0.0, 1.0));
       }
     }
     if (frequency >= rows.first.maxHz) {
-      return 0;
+      return (0, 1.0);
     }
-    return rows.length - 1;
+    return (rows.length - 1, 0.0);
   }
 
   @override
@@ -107,14 +112,16 @@ class _TunerPainter extends CustomPainter {
     for (var i = 0; i < rows.length; i++) {
       final row = rows[i];
       final rect = Rect.fromLTWH(0, i * rowHeight, labelWidth, rowHeight);
-      final labelBg = Paint()..color = const Color(0xFFCBD1D6);
+      final isSharp = row.label.contains('#');
+      final labelBg = Paint()
+        ..color = isSharp ? Colors.black : const Color(0xFFCBD1D6);
       canvas.drawRect(rect, labelBg);
 
       final textPainter = TextPainter(
         text: TextSpan(
           text: row.label,
-          style: const TextStyle(
-            color: Colors.black87,
+          style: TextStyle(
+            color: isSharp ? Colors.white : Colors.black87,
             fontSize: 14,
             fontWeight: FontWeight.w600,
           ),
@@ -141,8 +148,9 @@ class _TunerPainter extends CustomPainter {
       return;
     }
 
-    final path = Path();
-    var started = false;
+    final points = <Offset>[];
+    int? previousRowIndex;
+    var stableCount = 0;
     for (final point in history) {
       final timeMs = point.time.millisecondsSinceEpoch;
       final startMs = startTime.millisecondsSinceEpoch;
@@ -151,33 +159,40 @@ class _TunerPainter extends CustomPainter {
         continue;
       }
       final x = labelWidth + t * (size.width - labelWidth - 12);
-      final rowIndex = _rowIndexForFrequency(point.frequency, rows);
-      final y = rowIndex * rowHeight + rowHeight / 2;
+      final (rowIndex, ratio) = _rowPositionForFrequency(point.frequency, rows);
+      final rowTop = rowIndex * rowHeight;
+      final y = rowTop + (1 - ratio) * rowHeight;
 
-      if (!started) {
-        path.moveTo(x, y);
-        started = true;
+      points.add(Offset(x, y));
+
+      if (previousRowIndex == rowIndex) {
+        stableCount += 1;
       } else {
-        path.lineTo(x, y);
+        stableCount = 1;
       }
 
-      final barPaint = Paint()
-        ..color = const Color(0xFFF08A00)
-        ..style = PaintingStyle.fill;
-      final barHeight = rowHeight * 0.75;
-      final barRect = Rect.fromCenter(
-        center: Offset(x, y),
-        width: 14,
-        height: barHeight,
-      );
-      canvas.drawRect(barRect, barPaint);
+      if (stableCount >= 2) {
+        final barPaint = Paint()
+          ..color = const Color(0xFFF08A00)
+          ..style = PaintingStyle.fill;
+        final barHeight = rowHeight;
+        final barCenterY = rowTop + rowHeight / 2;
+        final barWidth = max(10.0, rowHeight * 0.6);
+        final barRect = Rect.fromCenter(
+          center: Offset(x, barCenterY),
+          width: barWidth,
+          height: barHeight,
+        );
+        canvas.drawRect(barRect, barPaint);
+      }
+      previousRowIndex = rowIndex;
     }
 
     final line = Paint()
       ..color = Colors.white
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
-    canvas.drawPath(path, line);
+    canvas.drawPath(_smoothPath(points), line);
   }
 
   @override
@@ -186,4 +201,36 @@ class _TunerPainter extends CustomPainter {
 
 double _midiToHz(int midi) {
   return 440.0 * pow(2, (midi - 69) / 12);
+}
+
+Path _smoothPath(List<Offset> points) {
+  if (points.length < 2) {
+    return Path();
+  }
+  if (points.length == 2) {
+    return Path()
+      ..moveTo(points.first.dx, points.first.dy)
+      ..lineTo(points.last.dx, points.last.dy);
+  }
+
+  final path = Path()..moveTo(points[0].dx, points[0].dy);
+
+  for (var i = 0; i < points.length - 1; i++) {
+    final p0 = i == 0 ? points[0] : points[i - 1];
+    final p1 = points[i];
+    final p2 = points[i + 1];
+    final p3 = i + 2 < points.length ? points[i + 2] : p2;
+
+    final cp1 = Offset(
+      p1.dx + (p2.dx - p0.dx) / 6,
+      p1.dy + (p2.dy - p0.dy) / 6,
+    );
+    final cp2 = Offset(
+      p2.dx - (p3.dx - p1.dx) / 6,
+      p2.dy - (p3.dy - p1.dy) / 6,
+    );
+    path.cubicTo(cp1.dx, cp1.dy, cp2.dx, cp2.dy, p2.dx, p2.dy);
+  }
+
+  return path;
 }

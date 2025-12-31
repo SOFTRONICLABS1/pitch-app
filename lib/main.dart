@@ -43,7 +43,6 @@ class PitchHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<PitchNotifier>();
     final frequency = state.frequency;
-    final cents = frequency == null ? 0.0 : _centsOffset(frequency);
     final note = frequency == null ? '--' : _noteLabel(frequency);
 
     return Scaffold(
@@ -51,7 +50,7 @@ class PitchHomePage extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 12),
-            _TunerHeader(note: note, cents: cents),
+            _NoteBadge(note: note),
             const SizedBox(height: 12),
             Expanded(
               child: Padding(
@@ -88,120 +87,23 @@ class PitchHomePage extends StatelessWidget {
   }
 }
 
-class _TunerHeader extends StatelessWidget {
-  const _TunerHeader({required this.note, required this.cents});
+class _NoteBadge extends StatelessWidget {
+  const _NoteBadge({required this.note});
 
   final String note;
-  final double cents;
-
-  @override
-  Widget build(BuildContext context) {
-    final sliderWidth = min(
-      MediaQuery.of(context).size.width - 48,
-      340,
-    ).toDouble();
-    return Column(
-      children: [
-        Container(
-          width: 180,
-          height: 42,
-          decoration: BoxDecoration(
-            color: Colors.black,
-            borderRadius: BorderRadius.circular(22),
-          ),
-          child: const Align(alignment: Alignment.center, child: _AmberDot()),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          width: sliderWidth,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF2C3136),
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black45,
-                blurRadius: 8,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('-50C', style: TextStyle(color: Colors.white70)),
-                  Text(note, style: const TextStyle(fontSize: 18)),
-                  const Text('+50C', style: TextStyle(color: Colors.white70)),
-                ],
-              ),
-              const SizedBox(height: 8),
-              _CentsSlider(cents: cents),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AmberDot extends StatelessWidget {
-  const _AmberDot();
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 10,
-      height: 10,
-      decoration: const BoxDecoration(
-        color: Color(0xFFF08A00),
-        shape: BoxShape.circle,
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2C3136),
+        borderRadius: BorderRadius.circular(20),
       ),
-    );
-  }
-}
-
-class _CentsSlider extends StatelessWidget {
-  const _CentsSlider({required this.cents});
-
-  final double cents;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final trackWidth = constraints.maxWidth;
-        final clamped = cents.clamp(-50.0, 50.0);
-        final pos = (clamped + 50) / 100 * trackWidth;
-        return SizedBox(
-          height: 18,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white24,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: pos - 10,
-                child: Container(
-                  width: 20,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+      child: Text(
+        note,
+        style: const TextStyle(fontSize: 16, letterSpacing: 0.5),
+      ),
     );
   }
 }
@@ -237,17 +139,6 @@ class _BottomBar extends StatelessWidget {
           ],
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                color: const Color(0xFFF08A00),
-                child: const Text(
-                  'Upgrade',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.skip_previous, size: 30),

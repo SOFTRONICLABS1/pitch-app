@@ -28,15 +28,17 @@ class PitchNotifier extends ChangeNotifier {
   String? errorMessage;
 
   bool listening = false;
-  String detectorName = 'mcleod'; // or autocorrelation
+  String detectorName = 'autocorrelation'; // or mcleod/yin
   int windowSize = 2048;
-  double clarityThreshold = 0.6;
+  double clarityThreshold = 0.70;
   double powerThreshold = 0.15;
   String displayMode = 'timeline'; // or circle
 
   List<PitchPoint> history = [];
 
   AudioPitchService? _service;
+  double? _smoothedFrequency;
+  final List<double> _recentFrequencies = [];
 
   Future<void> start() async {
     if (listening) return;
@@ -98,25 +100,38 @@ class PitchNotifier extends ChangeNotifier {
   }
 
   void _onResult(PitchDetectionResult? result) {
-    if (result == null) {
+    if (result == null || result.clarity < clarityThreshold) {
       frequency = null;
       clarity = null;
     } else {
-      frequency = result.frequency;
+      final cleaned = _smoothFrequency(result.frequency);
+      frequency = cleaned;
       clarity = result.clarity;
       final now = DateTime.now();
       history.add(
-        PitchPoint(
-          time: now,
-          frequency: result.frequency,
-          clarity: result.clarity,
-        ),
+        PitchPoint(time: now, frequency: cleaned, clarity: result.clarity),
       );
       history = history
           .where((p) => p.time.isAfter(now.subtract(_historySpan)))
           .toList();
     }
     notifyListeners();
+  }
+
+  double _smoothFrequency(double next) {
+    _recentFrequencies.add(next);
+    if (_recentFrequencies.length > 5) {
+      _recentFrequencies.removeAt(0);
+    }
+    final sorted = List<double>.from(_recentFrequencies)..sort();
+    final median = sorted[sorted.length ~/ 2];
+    final previous = _smoothedFrequency;
+    const alpha = 0.25;
+    final smoothed = previous == null
+        ? median
+        : previous + alpha * (median - previous);
+    _smoothedFrequency = smoothed;
+    return smoothed;
   }
 
   PitchDetector _buildDetector() {
