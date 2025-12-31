@@ -138,6 +138,8 @@ class _TunerDisplayState extends State<TunerDisplay>
   }
 }
 
+const _maxPlotGapMs = 1000000;
+
 class _NoteRow {
   const _NoteRow({
     required this.label,
@@ -172,7 +174,8 @@ class _TunerPainter extends CustomPainter {
   static const labelWidth = 58.0;
   static const timeSpan = Duration(milliseconds: 6400);
   static const plotRightPadding = 12.0;
-  static const lineWidth = 2.6;
+  static const lineWidth = 4.0;
+  static const lineStrokeWidth = 1.0;
   static final List<_NoteRow> _rows = _buildRows();
 
   static List<_NoteRow> _buildRows() {
@@ -267,17 +270,6 @@ class _TunerPainter extends CustomPainter {
       );
     }
 
-    // Guideline at "now"
-    final nowX = size.width - 10;
-    final linePaint = Paint()
-      ..color = const Color(0xFFEAEAEA)
-      ..strokeWidth = 1.5;
-    canvas.drawLine(Offset(nowX, 0), Offset(nowX, size.height), linePaint);
-
-    if (history.isEmpty) {
-      return;
-    }
-
     if (program == null || dataImage == null) {
       return;
     }
@@ -295,7 +287,7 @@ class _TunerPainter extends CustomPainter {
       ..setFloat(8, 1.0)
       ..setFloat(9, 1.0)
       ..setFloat(10, 1.0)
-      ..setFloat(11, 1.0)
+      ..setFloat(11, 0.0)
       ..setFloat(12, 0xF0 / 255.0)
       ..setFloat(13, 0x8A / 255.0)
       ..setFloat(14, 0x00 / 255.0)
@@ -305,6 +297,65 @@ class _TunerPainter extends CustomPainter {
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
       plotPaint,
+    );
+
+    if (history.isNotEmpty) {
+      final now = DateTime.now();
+      final startTime = now.subtract(timeSpan);
+      final startMs = startTime.millisecondsSinceEpoch;
+      final spanMs = timeSpan.inMilliseconds;
+      final plotWidth = size.width - labelWidth - plotRightPadding;
+      final linePaint = Paint()
+        ..color = Colors.white
+        ..strokeWidth = lineStrokeWidth
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+      final path = Path();
+      int? lastMs;
+      var started = false;
+      for (final point in history) {
+        final timeMs = point.time.millisecondsSinceEpoch;
+        if (timeMs < startMs) {
+          continue;
+        }
+        if (timeMs > now.millisecondsSinceEpoch) {
+          break;
+        }
+        if (lastMs != null && timeMs - lastMs > _maxPlotGapMs) {
+          started = false;
+        }
+        final midi = _midiFromFrequency(point.frequency);
+        final (rowIndex, ratio) = _rowPositionForMidi(midi, _rows);
+        final yNorm = ((rowIndex + (1 - ratio)) / _rows.length)
+            .clamp(0.0, 1.0)
+            .toDouble();
+        final x = labelWidth + ((timeMs - startMs) / spanMs) * plotWidth;
+        final y = yNorm * size.height;
+        if (!started) {
+          path.moveTo(x, y);
+          started = true;
+        } else {
+          path.lineTo(x, y);
+        }
+        lastMs = timeMs;
+      }
+      canvas.save();
+      canvas.clipRect(
+        Rect.fromLTWH(labelWidth, 0, plotWidth, size.height),
+      );
+      canvas.drawPath(path, linePaint);
+      canvas.restore();
+    }
+
+    final nowX = size.width - 10;
+    final guidelinePaint = Paint()
+      ..color = const Color(0xFFEAEAEA)
+      ..strokeWidth = 3;
+    canvas.drawLine(
+      Offset(nowX, 0),
+      Offset(nowX, size.height),
+      guidelinePaint,
     );
   }
 
@@ -360,7 +411,7 @@ Uint8List _buildDataPixels(
   final startTime = now.subtract(_TunerPainter.timeSpan);
   final startMs = startTime.millisecondsSinceEpoch;
   final spanMs = _TunerPainter.timeSpan.inMilliseconds;
-  const maxGapMs = 350;
+  const maxGapMs = _maxPlotGapMs;
   const holdMs = 100;
   const maxJumpSemitones = 4.0;
   final effectiveHistory = List<PitchPoint>.from(history);
