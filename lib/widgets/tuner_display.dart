@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 
 import '../state/pitch_notifier.dart';
 
@@ -15,18 +16,23 @@ class TunerDisplay extends StatefulWidget {
   State<TunerDisplay> createState() => _TunerDisplayState();
 }
 
-class _TunerDisplayState extends State<TunerDisplay> {
+class _TunerDisplayState extends State<TunerDisplay>
+    with SingleTickerProviderStateMixin {
   static const _sampleCount = 2048;
+  static const _frameInterval = Duration(milliseconds: 16);
 
   ui.FragmentProgram? _program;
   ui.Image? _dataImage;
   bool _updating = false;
   bool _pending = false;
+  late final Ticker _ticker;
+  Duration _lastFrameTime = Duration.zero;
 
   @override
   void initState() {
     super.initState();
     _loadProgram();
+    _ticker = createTicker(_onTick)..start();
   }
 
   @override
@@ -37,8 +43,17 @@ class _TunerDisplayState extends State<TunerDisplay> {
 
   @override
   void dispose() {
+    _ticker.dispose();
     _dataImage?.dispose();
     super.dispose();
+  }
+
+  void _onTick(Duration elapsed) {
+    if (elapsed - _lastFrameTime < _frameInterval) {
+      return;
+    }
+    _lastFrameTime = elapsed;
+    _scheduleUpdate();
   }
 
   Future<void> _loadProgram() async {
@@ -256,7 +271,7 @@ class _TunerPainter extends CustomPainter {
     final nowX = size.width - 10;
     final linePaint = Paint()
       ..color = const Color(0xFFEAEAEA)
-      ..strokeWidth = 2;
+      ..strokeWidth = 3;
     canvas.drawLine(Offset(nowX, 0), Offset(nowX, size.height), linePaint);
 
     if (history.isEmpty) {
@@ -346,13 +361,14 @@ Uint8List _buildDataPixels(
   final startMs = startTime.millisecondsSinceEpoch;
   final spanMs = _TunerPainter.timeSpan.inMilliseconds;
   const maxGapMs = 350;
+  const holdMs = 100;
   const maxJumpSemitones = 4.0;
   final effectiveHistory = List<PitchPoint>.from(history);
   if (history.isNotEmpty) {
     final last = history.last;
     final tailGap = now.millisecondsSinceEpoch -
         last.time.millisecondsSinceEpoch;
-    if (tailGap > 0 && tailGap <= maxGapMs) {
+    if (tailGap > 0 && tailGap <= holdMs) {
       effectiveHistory.add(
         PitchPoint(
           time: now,
