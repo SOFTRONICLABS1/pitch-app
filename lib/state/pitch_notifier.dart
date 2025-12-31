@@ -31,7 +31,7 @@ class PitchNotifier extends ChangeNotifier {
   String detectorName = 'autocorrelation'; // or mcleod/yin
   int windowSize = 2048;
   int hopSize = 256;
-  double clarityThreshold = 0.70;
+  double clarityThreshold = 0.75;
   double powerThreshold = 0.15;
   String displayMode = 'timeline'; // or circle
 

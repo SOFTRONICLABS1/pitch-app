@@ -176,6 +176,7 @@ class _TunerPainter extends CustomPainter {
   static const plotRightPadding = 12.0;
   static const lineWidth = 2.0;
   static const lineStrokeWidth = 1.0;
+  static const lineSmoothingAlpha = 0.35;
   static final List<_NoteRow> _rows = _buildRows();
 
   static List<_NoteRow> _buildRows() {
@@ -315,6 +316,7 @@ class _TunerPainter extends CustomPainter {
       final path = Path();
       int? lastMs;
       var started = false;
+      double? smoothedY;
       for (final point in history) {
         final timeMs = point.time.millisecondsSinceEpoch;
         if (timeMs < startMs) {
@@ -325,6 +327,7 @@ class _TunerPainter extends CustomPainter {
         }
         if (lastMs != null && timeMs - lastMs > dynamicGapMs) {
           started = false;
+          smoothedY = null;
         }
         final midi = _midiFromFrequency(point.frequency);
         final (rowIndex, ratio) = _rowPositionForMidi(midi, _rows);
@@ -333,11 +336,16 @@ class _TunerPainter extends CustomPainter {
             .toDouble();
         final x = labelWidth + ((timeMs - startMs) / spanMs) * plotWidth;
         final y = yNorm * size.height;
+        if (!started || smoothedY == null) {
+          smoothedY = y;
+        } else {
+          smoothedY = smoothedY! + lineSmoothingAlpha * (y - smoothedY!);
+        }
         if (!started) {
-          path.moveTo(x, y);
+          path.moveTo(x, smoothedY!);
           started = true;
         } else {
-          path.lineTo(x, y);
+          path.lineTo(x, smoothedY!);
         }
         lastMs = timeMs;
       }
