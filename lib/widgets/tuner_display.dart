@@ -38,7 +38,7 @@ class _TunerPainter extends CustomPainter {
   final List<PitchPoint> history;
 
   static const labelWidth = 58.0;
-  static const timeSpan = Duration(seconds: 8);
+  static const timeSpan = Duration(milliseconds: 6400);
 
   List<_NoteRow> _noteRows() {
     const noteLabels = <int, String>{
@@ -171,7 +171,7 @@ class _TunerPainter extends CustomPainter {
         stableCount = 1;
       }
 
-      if (stableCount >= 2) {
+      if (stableCount >= 3) {
         final barPaint = Paint()
           ..color = const Color(0xFFF08A00)
           ..style = PaintingStyle.fill;
@@ -192,7 +192,8 @@ class _TunerPainter extends CustomPainter {
       ..color = Colors.white
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
-    canvas.drawPath(_smoothPath(points), line);
+    final smoothedPoints = _smoothPoints(points, window: 5);
+    canvas.drawPath(_smoothPath(smoothedPoints), line);
   }
 
   @override
@@ -233,4 +234,25 @@ Path _smoothPath(List<Offset> points) {
   }
 
   return path;
+}
+
+List<Offset> _smoothPoints(List<Offset> points, {int window = 5}) {
+  if (points.length <= 2 || window <= 1) {
+    return points;
+  }
+  final half = window ~/ 2;
+  final smoothed = <Offset>[];
+  for (var i = 0; i < points.length; i++) {
+    final start = (i - half).clamp(0, points.length - 1);
+    final end = (i + half).clamp(0, points.length - 1);
+    var sumY = 0.0;
+    var count = 0;
+    for (var j = start; j <= end; j++) {
+      sumY += points[j].dy;
+      count += 1;
+    }
+    final avgY = sumY / count;
+    smoothed.add(Offset(points[i].dx, avgY));
+  }
+  return smoothed;
 }

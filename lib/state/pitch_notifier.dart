@@ -30,6 +30,7 @@ class PitchNotifier extends ChangeNotifier {
   bool listening = false;
   String detectorName = 'autocorrelation'; // or mcleod/yin
   int windowSize = 2048;
+  int hopSize = 256;
   double clarityThreshold = 0.70;
   double powerThreshold = 0.15;
   String displayMode = 'timeline'; // or circle
@@ -48,7 +49,7 @@ class PitchNotifier extends ChangeNotifier {
       detectorFactory: _buildDetector,
       sampleRate: defaultSampleRate,
       windowSize: windowSize,
-      hopSize: windowSize ~/ 4,
+      hopSize: hopSize,
       powerThreshold: powerThreshold,
       clarityThreshold: clarityThreshold,
     );
