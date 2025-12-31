@@ -403,10 +403,14 @@ Uint8List _buildDataPixels(
     final prevTime = prev.time.millisecondsSinceEpoch;
     if (prevTime > target || prevTime < startMs || prevTime > startMs + spanMs) {
       stableCount = 0;
+      lastAcceptedMidi = null;
+      previousRowIndex = null;
       continue;
     }
     if (target - prevTime > maxGapMs) {
       stableCount = 0;
+      lastAcceptedMidi = null;
+      previousRowIndex = null;
       continue;
     }
 
@@ -416,6 +420,8 @@ Uint8List _buildDataPixels(
       final nextTime = next.time.millisecondsSinceEpoch;
       if (nextTime - prevTime > maxGapMs) {
         stableCount = 0;
+        lastAcceptedMidi = null;
+        previousRowIndex = null;
         continue;
       }
       if (nextTime >= target && nextTime != prevTime) {
@@ -429,11 +435,15 @@ Uint8List _buildDataPixels(
     final prevMidi = _midiFromFrequency(prev.frequency);
     if ((midi - prevMidi).abs() > maxJumpSemitones) {
       stableCount = 0;
+      lastAcceptedMidi = null;
+      previousRowIndex = null;
       continue;
     }
     if (lastAcceptedMidi != null &&
         (midi - lastAcceptedMidi!).abs() > maxJumpSemitones) {
       stableCount = 0;
+      lastAcceptedMidi = null;
+      previousRowIndex = null;
       continue;
     }
     final (rowIndex, ratio) = _rowPositionForMidi(midi, rows);
