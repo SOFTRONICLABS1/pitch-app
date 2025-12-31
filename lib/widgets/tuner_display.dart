@@ -172,7 +172,7 @@ class _TunerPainter extends CustomPainter {
   static const labelWidth = 58.0;
   static const timeSpan = Duration(milliseconds: 6400);
   static const plotRightPadding = 12.0;
-  static const lineWidth = 1.4;
+  static const lineWidth = 2.6;
   static final List<_NoteRow> _rows = _buildRows();
 
   static List<_NoteRow> _buildRows() {
@@ -271,7 +271,7 @@ class _TunerPainter extends CustomPainter {
     final nowX = size.width - 10;
     final linePaint = Paint()
       ..color = const Color(0xFFEAEAEA)
-      ..strokeWidth = 3;
+      ..strokeWidth = 1.5;
     canvas.drawLine(Offset(nowX, 0), Offset(nowX, size.height), linePaint);
 
     if (history.isEmpty) {
