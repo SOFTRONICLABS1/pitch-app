@@ -357,10 +357,10 @@ class _TunerPainter extends CustomPainter {
       canvas.restore();
     }
 
-    final nowX = size.width - 10;
+    final nowX = size.width - 15;
     final guidelinePaint = Paint()
       ..color = const Color(0xFFEAEAEA)
-      ..strokeWidth = 3;
+      ..strokeWidth = 1;
     canvas.drawLine(
       Offset(nowX, 0),
       Offset(nowX, size.height),

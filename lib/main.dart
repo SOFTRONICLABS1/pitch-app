@@ -61,10 +61,7 @@ class PitchHomePage extends StatelessWidget {
             _NoteBadge(note: note),
             const SizedBox(height: 12),
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: TunerDisplay(history: state.history),
-              ),
+              child: TunerDisplay(history: state.history),
             ),
             const SizedBox(height: 6),
             _BottomBar(
