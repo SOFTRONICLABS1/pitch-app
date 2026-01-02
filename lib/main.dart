@@ -79,7 +79,7 @@ class PitchHomePage extends StatelessWidget {
                     ),
                   ),
                   builder: (_) => const Padding(
-                    padding: EdgeInsets.all(16),
+                    padding: EdgeInsets.symmetric(vertical: 16),
                     child: PitchControls(),
                   ),
                 );
@@ -142,30 +142,38 @@ class _BottomBar extends StatelessWidget {
             ),
             const SizedBox(height: 8),
           ],
-          Row(
+          Stack(
+            alignment: Alignment.center,
             children: [
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.skip_previous, size: 30),
-                onPressed: () {},
-              ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: Icon(
-                  listening ? Icons.pause : Icons.play_arrow,
-                  size: 36,
+              Align(
+                alignment: Alignment.center,
+                child: IconButton(
+                  icon: Icon(
+                    listening ? Icons.pause : Icons.play_arrow,
+                    size: 36,
+                  ),
+                  onPressed: listening ? onStop : onStart,
                 ),
-                onPressed: listening ? onStop : onStart,
               ),
-              const SizedBox(width: 4),
-              IconButton(
-                icon: const Icon(Icons.fiber_manual_record, color: Colors.red),
-                onPressed: listening ? onStop : onStart,
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.settings, size: 30),
-                onPressed: onOpenSettings,
+              Align(
+                alignment: Alignment.centerRight,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.fiber_manual_record,
+                        color: Colors.red,
+                      ),
+                      onPressed: listening ? onStop : onStart,
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.settings, size: 30),
+                      onPressed: onOpenSettings,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
