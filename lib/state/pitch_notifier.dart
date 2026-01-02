@@ -34,6 +34,8 @@ class PitchNotifier extends ChangeNotifier {
   double clarityThreshold = 0.75;
   double powerThreshold = 0.15;
   String displayMode = 'timeline'; // or circle
+  String tanpuraString = 'Sa';
+  String tanpuraNote = 'Sa';
 
   List<PitchPoint> history = [];
 
@@ -97,6 +99,16 @@ class PitchNotifier extends ChangeNotifier {
 
   void setDisplayMode(String value) {
     displayMode = value;
+    notifyListeners();
+  }
+
+  void setTanpuraString(String value) {
+    tanpuraString = value;
+    notifyListeners();
+  }
+
+  void setTanpuraNote(String value) {
+    tanpuraNote = value;
     notifyListeners();
   }
 

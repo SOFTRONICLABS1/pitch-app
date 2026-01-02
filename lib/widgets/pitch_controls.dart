@@ -9,13 +9,75 @@ class PitchControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<PitchNotifier>();
+    const notes = ['Sa', 'Re', 'Ga', 'Ma', 'Pa', 'Dha', 'Ni'];
+    const strings = ['Sa', 'Pa', 'Ma', 'Ni'];
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: _SettingsHeader(),
+            ),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _SectionTitle('First string'),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: DropdownButtonFormField<String>(
+                value: strings.contains(state.tanpuraString)
+                    ? state.tanpuraString
+                    : strings.first,
+                decoration: const InputDecoration(
+                  filled: true,
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  for (final value in strings)
+                    DropdownMenuItem(value: value, child: Text(value)),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  state.setTanpuraString(value);
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _SectionTitle('Note'),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: DropdownButtonFormField<String>(
+                value: state.tanpuraNote,
+                decoration: const InputDecoration(
+                  filled: true,
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  for (final note in notes)
+                    DropdownMenuItem(value: note, child: Text(note)),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  state.setTanpuraNote(value);
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Divider(height: 1),
+            ),
+            const SizedBox(height: 12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: _SectionTitle(
@@ -41,6 +103,33 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(text, style: Theme.of(context).textTheme.titleMedium);
+    return Text(
+      text,
+      style: Theme.of(context)
+          .textTheme
+          .labelLarge
+          ?.copyWith(color: Colors.white70, fontSize: 16),
+    );
+  }
+}
+
+class _SettingsHeader extends StatelessWidget {
+  const _SettingsHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(Icons.settings, size: 20),
+        const SizedBox(width: 8),
+        Text(
+          'Tanpura Settings',
+          style: Theme.of(context)
+              .textTheme
+              .titleMedium
+              ?.copyWith(fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
   }
 }
