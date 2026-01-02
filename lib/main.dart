@@ -7,6 +7,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'dsp/pitch_detection.dart';
 import 'state/pitch_notifier.dart';
 import 'screens/login_screen.dart';
+import 'screens/recordings_screen.dart';
+import 'widgets/control_bar.dart';
 import 'widgets/pitch_controls.dart';
 import 'widgets/tuner_display.dart';
 
@@ -64,11 +66,19 @@ class PitchHomePage extends StatelessWidget {
               child: TunerDisplay(history: state.history),
             ),
             const SizedBox(height: 6),
-            _BottomBar(
+            ControlBar(
               listening: state.listening,
               errorMessage: state.errorMessage,
               onStart: state.start,
               onStop: state.stop,
+              onOpenRecordings: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const RecordingsScreen(),
+                  ),
+                );
+              },
+              onOpenTanpura: () {},
               onOpenSettings: () {
                 showModalBottomSheet(
                   context: context,
@@ -108,91 +118,6 @@ class _NoteBadge extends StatelessWidget {
       child: Text(
         note,
         style: const TextStyle(fontSize: 16, letterSpacing: 0.5),
-      ),
-    );
-  }
-}
-
-class _BottomBar extends StatelessWidget {
-  const _BottomBar({
-    required this.listening,
-    required this.errorMessage,
-    required this.onStart,
-    required this.onStop,
-    required this.onOpenSettings,
-  });
-
-  final bool listening;
-  final String? errorMessage;
-  final VoidCallback onStart;
-  final VoidCallback onStop;
-  final VoidCallback onOpenSettings;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0xFF262B2F),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      child: Column(
-        children: [
-          if (errorMessage != null) ...[
-            Text(
-              errorMessage ?? '',
-              style: const TextStyle(color: Colors.redAccent),
-            ),
-            const SizedBox(height: 8),
-          ],
-          Row(
-            children: [
-              Expanded(
-                child: Center(
-                  child: IconButton(
-                    icon: const Icon(Icons.music_note, size: 30),
-                    onPressed: () {},
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: IconButton(
-                    icon: const Icon(Icons.queue_music, size: 30),
-                    onPressed: () {},
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: IconButton(
-                    icon: Icon(
-                      listening ? Icons.pause : Icons.play_arrow,
-                      size: 36,
-                    ),
-                    onPressed: listening ? onStop : onStart,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.fiber_manual_record,
-                      color: Colors.red,
-                    ),
-                    onPressed: listening ? onStop : onStart,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Center(
-                  child: IconButton(
-                    icon: const Icon(Icons.settings, size: 30),
-                    onPressed: onOpenSettings,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
       ),
     );
   }

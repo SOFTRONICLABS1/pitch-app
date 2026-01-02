@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../main.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
+import 'recordings_screen.dart';
 
 class MenuScreen extends StatelessWidget {
   const MenuScreen({super.key});
@@ -75,7 +76,12 @@ class MenuScreen extends StatelessWidget {
             ),
             _MenuTile(
               icon: Icons.library_music,
-              label: 'Lessons',
+              label: 'Recordings',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const RecordingsScreen()),
+                );
+              },
             ),
             _MenuTile(
               icon: Icons.timeline,
