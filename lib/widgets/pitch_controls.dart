@@ -9,7 +9,22 @@ class PitchControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<PitchNotifier>();
-    const notes = ['Sa', 'Re', 'Ga', 'Ma', 'Pa', 'Dha', 'Ni'];
+    const notes = [
+      'Sa',
+      'Sa#',
+      'Re',
+      'Re#',
+      'Ga',
+      'Ga#',
+      'Ma',
+      'Ma#',
+      'Pa',
+      'Pa#',
+      'Dha',
+      'Dha#',
+      'Ni',
+      'Ni#',
+    ];
     const strings = ['Sa', 'Pa', 'Ma', 'Ni'];
     return Container(
       color: Colors.black,

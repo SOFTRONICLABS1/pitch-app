@@ -1,3 +1,4 @@
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 
 import '../dsp/pitch_detection.dart';
@@ -36,12 +37,14 @@ class PitchNotifier extends ChangeNotifier {
   String displayMode = 'timeline'; // or circle
   String tanpuraString = 'Sa';
   String tanpuraNote = 'Sa';
+  bool tanpuraPlaying = false;
 
   List<PitchPoint> history = [];
 
   AudioPitchService? _service;
   double? _smoothedFrequency;
   final List<double> _recentFrequencies = [];
+  final AudioPlayer _tanpuraPlayer = AudioPlayer();
 
   Future<void> start() async {
     if (listening) return;
@@ -110,6 +113,56 @@ class PitchNotifier extends ChangeNotifier {
   void setTanpuraNote(String value) {
     tanpuraNote = value;
     notifyListeners();
+  }
+
+  Future<void> toggleTanpura() async {
+    if (tanpuraPlaying) {
+      await _tanpuraPlayer.stop();
+      tanpuraPlaying = false;
+      notifyListeners();
+      return;
+    }
+    final asset = _tanpuraAssetPath();
+    await _tanpuraPlayer.setReleaseMode(ReleaseMode.loop);
+    await _tanpuraPlayer.play(AssetSource(asset));
+    tanpuraPlaying = true;
+    notifyListeners();
+  }
+
+  String _tanpuraAssetPath() {
+    final stringPart = _normalizeForAsset(tanpuraString);
+    final notePart = _tanpuraNoteToken(tanpuraNote);
+    return 'tanpura-tones/${stringPart}_$notePart.wav';
+  }
+
+  String _normalizeForAsset(String value) {
+    return value.toLowerCase().replaceAll(' ', '');
+  }
+
+  String _tanpuraNoteToken(String value) {
+    const mapping = {
+      'Sa': 'c',
+      'Sa#': 'csharp',
+      'Re': 'd',
+      'Re#': 'dsharp',
+      'Ga': 'e',
+      'Ga#': 'esharp',
+      'Ma': 'f',
+      'Ma#': 'fsharp',
+      'Pa': 'g',
+      'Pa#': 'gsharp',
+      'Dha': 'a',
+      'Dha#': 'asharp',
+      'Ni': 'b',
+      'Ni#': 'bsharp',
+    };
+    return mapping[value] ?? _normalizeForAsset(value);
+  }
+
+  @override
+  void dispose() {
+    _tanpuraPlayer.dispose();
+    super.dispose();
   }
 
   void _onResult(PitchDetectionResult? result) {

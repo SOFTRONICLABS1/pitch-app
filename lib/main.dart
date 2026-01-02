@@ -78,7 +78,7 @@ class PitchHomePage extends StatelessWidget {
                   ),
                 );
               },
-              onOpenTanpura: () {},
+              onOpenTanpura: state.toggleTanpura,
               onOpenSettings: () {
                 showModalBottomSheet(
                   context: context,
