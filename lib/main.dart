@@ -82,12 +82,13 @@ class PitchHomePage extends StatelessWidget {
               onOpenSettings: () {
                 showModalBottomSheet(
                   context: context,
-                  backgroundColor: const Color(0xFF2C3136),
+                  backgroundColor: Colors.black,
                   shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.vertical(
                       top: Radius.circular(16),
                     ),
                   ),
+                  clipBehavior: Clip.antiAlias,
                   builder: (_) => const Padding(
                     padding: EdgeInsets.symmetric(vertical: 16),
                     child: PitchControls(),

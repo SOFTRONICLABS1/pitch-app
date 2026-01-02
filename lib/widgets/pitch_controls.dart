@@ -11,13 +11,12 @@ class PitchControls extends StatelessWidget {
     final state = context.watch<PitchNotifier>();
     const notes = ['Sa', 'Re', 'Ga', 'Ma', 'Pa', 'Dha', 'Ni'];
     const strings = ['Sa', 'Pa', 'Ma', 'Ni'];
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+    return Container(
+      color: Colors.black,
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: _SettingsHeader(),
@@ -36,6 +35,7 @@ class PitchControls extends StatelessWidget {
                     : strings.first,
                 decoration: const InputDecoration(
                   filled: true,
+                  fillColor: Colors.black,
                   border: OutlineInputBorder(),
                 ),
                 items: [
@@ -60,6 +60,7 @@ class PitchControls extends StatelessWidget {
                 value: state.tanpuraNote,
                 decoration: const InputDecoration(
                   filled: true,
+                  fillColor: Colors.black,
                   border: OutlineInputBorder(),
                 ),
                 items: [
@@ -90,8 +91,7 @@ class PitchControls extends StatelessWidget {
               max: 1.0,
               onChanged: (value) => state.setClarityThreshold(value),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
