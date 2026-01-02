@@ -136,15 +136,24 @@ class PitchNotifier extends ChangeNotifier {
   }
 
   PitchDetector _buildDetector() {
+    final useFfi = defaultTargetPlatform != TargetPlatform.iOS;
     switch (detectorName) {
       case 'autocorrelation':
-        return RustPitchDetector(NativeDetector.autocorrelation);
+        return useFfi
+            ? RustPitchDetector(NativeDetector.autocorrelation)
+            : AutocorrelationPitchDetector(size: windowSize);
       case 'yin':
-        return RustPitchDetector(NativeDetector.yin);
+        return useFfi
+            ? RustPitchDetector(NativeDetector.yin)
+            : McLeodPitchDetector(size: windowSize);
       case 'mcleod':
-        return RustPitchDetector(NativeDetector.mcleod);
+        return useFfi
+            ? RustPitchDetector(NativeDetector.mcleod)
+            : McLeodPitchDetector(size: windowSize);
       default:
-        return RustPitchDetector(NativeDetector.mcleod);
+        return useFfi
+            ? RustPitchDetector(NativeDetector.mcleod)
+            : McLeodPitchDetector(size: windowSize);
     }
   }
 }

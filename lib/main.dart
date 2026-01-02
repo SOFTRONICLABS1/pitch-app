@@ -2,13 +2,17 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'dsp/pitch_detection.dart';
 import 'state/pitch_notifier.dart';
+import 'screens/login_screen.dart';
 import 'widgets/pitch_controls.dart';
 import 'widgets/tuner_display.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp();
   runApp(const PitchApp());
 }
 
@@ -30,7 +34,7 @@ class PitchApp extends StatelessWidget {
             secondary: Color(0xFFECECEC),
           ),
         ),
-        home: const PitchHomePage(),
+        home: const LoginScreen(),
       ),
     );
   }
@@ -46,6 +50,10 @@ class PitchHomePage extends StatelessWidget {
     final note = frequency == null ? '--' : _noteLabel(frequency);
 
     return Scaffold(
+      appBar: AppBar(
+        leading: const BackButton(),
+        title: const Text('Tuner'),
+      ),
       body: SafeArea(
         child: Column(
           children: [

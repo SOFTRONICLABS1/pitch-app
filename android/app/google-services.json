@@ -1,0 +1,106 @@
+{
+  "project_info": {
+    "project_number": "60455306259",
+    "project_id": "signin-60f32",
+    "storage_bucket": "signin-60f32.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:60455306259:android:e6afae9f815dcbfca26be6",
+        "android_client_info": {
+          "package_name": "com.musicapp.android"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "60455306259-fldbtpf71m0m2ed8htvbaudltdp5lbs7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.musicapp.android",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "60455306259-ml12gn46kbaac5rmnsint4i88e0d7amj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPAPOy37WNjDYQWfijKZNu8MGp3o5h714"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "60455306259-ml12gn46kbaac5rmnsint4i88e0d7amj.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "60455306259-7h6ui3aq0lmu69915dj0til8q7a1j8pv.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.softroniclabs.shrutisadhana"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:60455306259:android:917797aad3595581a26be6",
+        "android_client_info": {
+          "package_name": "com.softroniclabs.shrutisadhana"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "60455306259-567us811uao6e8t1punmas770mmu6d17.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.softroniclabs.shrutisadhana",
+            "certificate_hash": "551e123e5b36ee924610b534ade739e3aa6462cb"
+          }
+        },
+        {
+          "client_id": "60455306259-pju55fibenon5htq1cgpea57pogiknjf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.softroniclabs.shrutisadhana",
+            "certificate_hash": "f5351ab5e882ac4d04d1cb651f867a0a8d1665ae"
+          }
+        },
+        {
+          "client_id": "60455306259-ml12gn46kbaac5rmnsint4i88e0d7amj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPAPOy37WNjDYQWfijKZNu8MGp3o5h714"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "60455306259-ml12gn46kbaac5rmnsint4i88e0d7amj.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "60455306259-7h6ui3aq0lmu69915dj0til8q7a1j8pv.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.softroniclabs.shrutisadhana"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

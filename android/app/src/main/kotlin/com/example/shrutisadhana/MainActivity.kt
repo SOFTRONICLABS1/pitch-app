@@ -1,4 +1,4 @@
-package com.example.pitch_app
+package com.softroniclabs.shrutisadhana
 
 import io.flutter.embedding.android.FlutterActivity
 
