@@ -132,7 +132,7 @@ class _BottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       color: const Color(0xFF262B2F),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       child: Column(
         children: [
           if (errorMessage != null) ...[
@@ -142,37 +142,52 @@ class _BottomBar extends StatelessWidget {
             ),
             const SizedBox(height: 8),
           ],
-          Stack(
-            alignment: Alignment.center,
+          Row(
             children: [
-              Align(
-                alignment: Alignment.center,
-                child: IconButton(
-                  icon: Icon(
-                    listening ? Icons.pause : Icons.play_arrow,
-                    size: 36,
+              Expanded(
+                child: Center(
+                  child: IconButton(
+                    icon: const Icon(Icons.music_note, size: 30),
+                    onPressed: () {},
                   ),
-                  onPressed: listening ? onStop : onStart,
                 ),
               ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(
-                        Icons.fiber_manual_record,
-                        color: Colors.red,
-                      ),
-                      onPressed: listening ? onStop : onStart,
+              Expanded(
+                child: Center(
+                  child: IconButton(
+                    icon: const Icon(Icons.queue_music, size: 30),
+                    onPressed: () {},
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: IconButton(
+                    icon: Icon(
+                      listening ? Icons.pause : Icons.play_arrow,
+                      size: 36,
                     ),
-                    const SizedBox(width: 4),
-                    IconButton(
-                      icon: const Icon(Icons.settings, size: 30),
-                      onPressed: onOpenSettings,
+                    onPressed: listening ? onStop : onStart,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: IconButton(
+                    icon: const Icon(
+                      Icons.fiber_manual_record,
+                      color: Colors.red,
                     ),
-                  ],
+                    onPressed: listening ? onStop : onStart,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: IconButton(
+                    icon: const Icon(Icons.settings, size: 30),
+                    onPressed: onOpenSettings,
+                  ),
                 ),
               ),
             ],
