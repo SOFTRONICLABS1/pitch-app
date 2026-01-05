@@ -28,6 +28,9 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   late final int _totalDurationMs;
   int _bpm = 60;
   DateTime? _frozenAt;
+  int _viewportBaseMidi = 33;
+  double _viewportOffset = 0.0;
+  static const _viewportRowCount = 30;
 
   @override
   void initState() {
@@ -101,6 +104,13 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                     history: state.history,
                     showBlocks: false,
                     nowOverride: _running ? null : _frozenAt,
+                    onViewportChanged: (base, offset) {
+                      if (!mounted) return;
+                      setState(() {
+                        _viewportBaseMidi = base;
+                        _viewportOffset = offset;
+                      });
+                    },
                   ),
                   _TargetNoteTrack(
                     targets: _targets,
@@ -108,6 +118,9 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                     totalDurationMs: _totalDurationMs,
                     running: _running,
                     bpm: _bpm,
+                    baseMidi: _viewportBaseMidi,
+                    rowCount: _viewportRowCount,
+                    baseOffset: _viewportOffset,
                   ),
                 ],
               ),
@@ -253,6 +266,9 @@ class _TargetNoteTrack extends StatelessWidget {
     required this.totalDurationMs,
     required this.running,
     required this.bpm,
+    required this.baseMidi,
+    required this.rowCount,
+    required this.baseOffset,
   });
 
   final List<_TargetBlock> targets;
@@ -260,6 +276,9 @@ class _TargetNoteTrack extends StatelessWidget {
   final int totalDurationMs;
   final bool running;
   final int bpm;
+  final int baseMidi;
+  final int rowCount;
+  final double baseOffset;
 
   @override
   Widget build(BuildContext context) {
@@ -271,6 +290,9 @@ class _TargetNoteTrack extends StatelessWidget {
           totalDurationMs: totalDurationMs,
           running: running,
           bpm: bpm,
+          baseMidi: baseMidi,
+          rowCount: rowCount,
+          baseOffset: baseOffset,
         ),
         child: const SizedBox.expand(),
       ),
@@ -393,6 +415,9 @@ class _TargetNotePainter extends CustomPainter {
     required this.totalDurationMs,
     required this.running,
     required this.bpm,
+    required this.baseMidi,
+    required this.rowCount,
+    required this.baseOffset,
   });
 
   final List<_TargetBlock> targets;
@@ -400,15 +425,14 @@ class _TargetNotePainter extends CustomPainter {
   final int totalDurationMs;
   final bool running;
   final int bpm;
+  final int baseMidi;
+  final int rowCount;
+  final double baseOffset;
 
   static const _labelWidth = 58.0;
   static const _plotRightPadding = 12.0;
   static const _trackWindowMs = 6400.0;
   static const _blockColor = Color(0xFF2B6BFF);
-
-  static final List<int> _rows = [
-    for (var midi = 33; midi <= 62; midi++) midi,
-  ].reversed.toList();
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -438,7 +462,7 @@ class _TargetNotePainter extends CustomPainter {
       return;
     }
 
-    final rowHeight = size.height / _rows.length;
+    final rowHeight = size.height / rowCount;
     final speed = plotWidth / _trackWindowMs;
     final elapsedMs = elapsed.inMilliseconds.toDouble();
     final scale = 60.0 / max(1, bpm).toDouble();
@@ -473,9 +497,9 @@ class _TargetNotePainter extends CustomPainter {
           continue;
         }
 
-        final rowIndex = _rowIndexForMidi(block.midi);
+      final rowIndex = _rowIndexForMidi(block.midi);
         final blockHeight = rowHeight;
-        final top = rowIndex * rowHeight;
+      final top = (rowIndex + baseOffset) * rowHeight;
         final rect = Rect.fromLTWH(leftEdge, top, blockWidth, blockHeight);
         canvas.drawRect(rect, paint);
 
@@ -498,16 +522,14 @@ class _TargetNotePainter extends CustomPainter {
   }
 
   int _rowIndexForMidi(int midi) {
-    var bestIndex = 0;
-    var bestDistance = double.infinity;
-    for (var i = 0; i < _rows.length; i++) {
-      final distance = (midi - _rows[i]).abs();
-      if (distance < bestDistance) {
-        bestDistance = distance.toDouble();
-        bestIndex = i;
-      }
+    final topMidi = baseMidi + rowCount - 1;
+    if (midi >= topMidi) {
+      return 0;
     }
-    return bestIndex;
+    if (midi <= baseMidi) {
+      return rowCount - 1;
+    }
+    return (topMidi - midi).clamp(0, rowCount - 1);
   }
 
   @override
@@ -516,7 +538,10 @@ class _TargetNotePainter extends CustomPainter {
         oldDelegate.targets != targets ||
         oldDelegate.totalDurationMs != totalDurationMs ||
         oldDelegate.running != running ||
-        oldDelegate.bpm != bpm;
+        oldDelegate.bpm != bpm ||
+        oldDelegate.baseMidi != baseMidi ||
+        oldDelegate.rowCount != rowCount ||
+        oldDelegate.baseOffset != baseOffset;
   }
 }
 
