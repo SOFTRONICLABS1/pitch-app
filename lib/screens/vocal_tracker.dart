@@ -27,6 +27,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   late final List<_TargetBlock> _targets;
   late final int _totalDurationMs;
   int _bpm = 60;
+  DateTime? _frozenAt;
 
   @override
   void initState() {
@@ -60,6 +61,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     setState(() {
       _elapsed = Duration.zero;
       _running = true;
+      _frozenAt = null;
     });
     _ticker.start();
   }
@@ -71,6 +73,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     if (!mounted) return;
     setState(() {
       _running = false;
+      _frozenAt = DateTime.now();
     });
   }
 
@@ -97,6 +100,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                   TunerDisplay(
                     history: state.history,
                     showBlocks: false,
+                    nowOverride: _running ? null : _frozenAt,
                   ),
                   _TargetNoteTrack(
                     targets: _targets,
@@ -408,6 +412,9 @@ class _TargetNotePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (!running) {
+      return;
+    }
     if (targets.isEmpty) {
       final tp = TextPainter(
         text: const TextSpan(
@@ -451,15 +458,15 @@ class _TargetNotePainter extends CustomPainter {
     final cycleWidth = speed * loopMs;
     final cyclesNeeded =
         (plotWidth / max(1.0, cycleWidth)).ceil() + 2;
-    for (var i = -1; i < cyclesNeeded; i++) {
+    final nowX = size.width - 15;
+    for (var i = 0; i < cyclesNeeded; i++) {
       final cycleOffset = i * loopMs;
       for (final block in targets) {
         final blockWidth = block.durationMs * scale * speed;
         if (blockWidth <= 0) {
           continue;
         }
-        final rightEdge = _labelWidth +
-            plotWidth -
+        final rightEdge = nowX -
             speed * (loopElapsed - (block.startOffsetMs * scale) + cycleOffset);
         final leftEdge = rightEdge - blockWidth;
         if (rightEdge < _labelWidth || leftEdge > _labelWidth + plotWidth) {
