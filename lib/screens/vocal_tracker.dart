@@ -26,6 +26,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   bool _running = false;
   late final List<_TargetBlock> _targets;
   late final int _totalDurationMs;
+  int _bpm = 60;
 
   @override
   void initState() {
@@ -103,6 +104,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                     elapsed: _elapsed,
                     totalDurationMs: _totalDurationMs,
                     active: _running,
+                    bpm: _bpm,
                   ),
                 ],
               ),
@@ -112,11 +114,111 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
               errorMessage: state.errorMessage,
               onStart: () => _handleStart(state),
               onStop: () => _handleStop(state),
+              onOpenSettings: _showBpmSettings,
             ),
           ],
         ),
       ),
     );
+  }
+
+  void _showBpmSettings() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF23272B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      builder: (context) {
+        var current = _bpm;
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'BPM',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '$current',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Slider(
+                    value: _bpmIndex(current).toDouble(),
+                    min: 0,
+                    max: 3,
+                    divisions: 3,
+                    label: '$current',
+                    onChanged: (value) {
+                      final next = _bpmFromIndex(value.round());
+                      setSheetState(() {
+                        current = next;
+                      });
+                      setState(() {
+                        _bpm = next;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('20'),
+                      Text('40'),
+                      Text('60'),
+                      Text('120'),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+int _bpmIndex(int bpm) {
+  switch (bpm) {
+    case 20:
+      return 0;
+    case 40:
+      return 1;
+    case 60:
+      return 2;
+    case 120:
+      return 3;
+    default:
+      return 2;
+  }
+}
+
+int _bpmFromIndex(int index) {
+  switch (index) {
+    case 0:
+      return 20;
+    case 1:
+      return 40;
+    case 2:
+      return 60;
+    case 3:
+      return 120;
+    default:
+      return 60;
   }
 }
 
@@ -147,12 +249,14 @@ class _TargetNoteTrack extends StatelessWidget {
     required this.elapsed,
     required this.totalDurationMs,
     required this.active,
+    required this.bpm,
   });
 
   final List<_TargetBlock> targets;
   final Duration elapsed;
   final int totalDurationMs;
   final bool active;
+  final int bpm;
 
   @override
   Widget build(BuildContext context) {
@@ -165,6 +269,7 @@ class _TargetNoteTrack extends StatelessWidget {
           targets: targets,
           elapsed: elapsed,
           totalDurationMs: totalDurationMs,
+          bpm: bpm,
         ),
         child: const SizedBox.expand(),
       ),
@@ -178,12 +283,14 @@ class _PlayPauseBar extends StatelessWidget {
     required this.errorMessage,
     required this.onStart,
     required this.onStop,
+    required this.onOpenSettings,
   });
 
   final bool listening;
   final String? errorMessage;
   final VoidCallback onStart;
   final VoidCallback onStop;
+  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -200,12 +307,22 @@ class _PlayPauseBar extends StatelessWidget {
             ),
             const SizedBox(height: 8),
           ],
-          IconButton(
-            icon: Icon(
-              listening ? Icons.pause : Icons.play_arrow,
-              size: 36,
-            ),
-            onPressed: listening ? onStop : onStart,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: Icon(
+                  listening ? Icons.pause : Icons.play_arrow,
+                  size: 36,
+                ),
+                onPressed: listening ? onStop : onStart,
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.tune),
+                onPressed: onOpenSettings,
+              ),
+            ],
           ),
         ],
       ),
@@ -269,11 +386,13 @@ class _TargetNotePainter extends CustomPainter {
     required this.targets,
     required this.elapsed,
     required this.totalDurationMs,
+    required this.bpm,
   });
 
   final List<_TargetBlock> targets;
   final Duration elapsed;
   final int totalDurationMs;
+  final int bpm;
 
   static const _labelWidth = 58.0;
   static const _plotRightPadding = 12.0;
@@ -312,7 +431,8 @@ class _TargetNotePainter extends CustomPainter {
     final rowHeight = size.height / _rows.length;
     final speed = plotWidth / _trackWindowMs;
     final elapsedMs = elapsed.inMilliseconds.toDouble();
-    final loopMs = max(1, totalDurationMs).toDouble();
+    final scale = 60.0 / max(1, bpm).toDouble();
+    final loopMs = max(1, totalDurationMs).toDouble() * scale;
     final loopElapsed = elapsedMs % loopMs;
     final paint = Paint()..color = _blockColor.withOpacity(0.4);
     const textStyle = TextStyle(
@@ -326,13 +446,13 @@ class _TargetNotePainter extends CustomPainter {
       Rect.fromLTWH(_labelWidth, 0, plotWidth, size.height),
     );
     for (final block in targets) {
-      final blockWidth = block.durationMs * speed;
+      final blockWidth = block.durationMs * scale * speed;
       if (blockWidth <= 0) {
         continue;
       }
       final rightEdge = _labelWidth +
           plotWidth -
-          speed * (loopElapsed - block.startOffsetMs);
+          speed * (loopElapsed - block.startOffsetMs * scale);
       final leftEdge = rightEdge - blockWidth;
       if (rightEdge < _labelWidth || leftEdge > _labelWidth + plotWidth) {
         continue;
@@ -378,7 +498,8 @@ class _TargetNotePainter extends CustomPainter {
   bool shouldRepaint(covariant _TargetNotePainter oldDelegate) {
     return oldDelegate.elapsed != elapsed ||
         oldDelegate.targets != targets ||
-        oldDelegate.totalDurationMs != totalDurationMs;
+        oldDelegate.totalDurationMs != totalDurationMs ||
+        oldDelegate.bpm != bpm;
   }
 }
 
