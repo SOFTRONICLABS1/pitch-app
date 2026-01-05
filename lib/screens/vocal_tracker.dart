@@ -308,8 +308,8 @@ class _PlayPauseBar extends StatelessWidget {
             const SizedBox(height: 8),
           ],
           Row(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
+              const Expanded(child: SizedBox()),
               IconButton(
                 icon: Icon(
                   listening ? Icons.pause : Icons.play_arrow,
@@ -317,10 +317,14 @@ class _PlayPauseBar extends StatelessWidget {
                 ),
                 onPressed: listening ? onStop : onStart,
               ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.tune),
-                onPressed: onOpenSettings,
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    icon: const Icon(Icons.tune),
+                    onPressed: onOpenSettings,
+                  ),
+                ),
               ),
             ],
           ),
@@ -445,37 +449,40 @@ class _TargetNotePainter extends CustomPainter {
     canvas.clipRect(
       Rect.fromLTWH(_labelWidth, 0, plotWidth, size.height),
     );
-    for (final block in targets) {
-      final blockWidth = block.durationMs * scale * speed;
-      if (blockWidth <= 0) {
-        continue;
-      }
-      final rightEdge = _labelWidth +
-          plotWidth -
-          speed * (loopElapsed - block.startOffsetMs * scale);
-      final leftEdge = rightEdge - blockWidth;
-      if (rightEdge < _labelWidth || leftEdge > _labelWidth + plotWidth) {
-        continue;
-      }
+    final cycleOffsets = [0.0, loopMs];
+    for (final cycleOffset in cycleOffsets) {
+      for (final block in targets) {
+        final blockWidth = block.durationMs * scale * speed;
+        if (blockWidth <= 0) {
+          continue;
+        }
+        final rightEdge = _labelWidth +
+            plotWidth -
+            speed * (loopElapsed - (block.startOffsetMs * scale) + cycleOffset);
+        final leftEdge = rightEdge - blockWidth;
+        if (rightEdge < _labelWidth || leftEdge > _labelWidth + plotWidth) {
+          continue;
+        }
 
-      final rowIndex = _rowIndexForMidi(block.midi);
-      final blockHeight = rowHeight;
-      final top = rowIndex * rowHeight;
-      final rect = Rect.fromLTWH(leftEdge, top, blockWidth, blockHeight);
-      canvas.drawRect(rect, paint);
+        final rowIndex = _rowIndexForMidi(block.midi);
+        final blockHeight = rowHeight;
+        final top = rowIndex * rowHeight;
+        final rect = Rect.fromLTWH(leftEdge, top, blockWidth, blockHeight);
+        canvas.drawRect(rect, paint);
 
-      final textPainter = TextPainter(
-        text: TextSpan(text: block.label, style: textStyle),
-        textDirection: TextDirection.ltr,
-        maxLines: 1,
-        ellipsis: '…',
-      )..layout(maxWidth: max(0, rect.width - 6));
-      if (textPainter.width > 0 && textPainter.height > 0) {
-        final textOffset = Offset(
-          rect.left + (rect.width - textPainter.width) / 2,
-          rect.top + (rect.height - textPainter.height) / 2,
-        );
-        textPainter.paint(canvas, textOffset);
+        final textPainter = TextPainter(
+          text: TextSpan(text: block.label, style: textStyle),
+          textDirection: TextDirection.ltr,
+          maxLines: 1,
+          ellipsis: '…',
+        )..layout(maxWidth: max(0, rect.width - 6));
+        if (textPainter.width > 0 && textPainter.height > 0) {
+          final textOffset = Offset(
+            rect.left + (rect.width - textPainter.width) / 2,
+            rect.top + (rect.height - textPainter.height) / 2,
+          );
+          textPainter.paint(canvas, textOffset);
+        }
       }
     }
     canvas.restore();
