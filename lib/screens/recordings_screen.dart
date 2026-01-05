@@ -57,6 +57,24 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     await _load();
   }
 
+  void _editRecording(RecordingEntry entry) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF23272B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      isScrollControlled: true,
+      builder: (context) => _EditRecordingSheet(
+        entry: entry,
+        onSaved: () async {
+          await _load();
+        },
+      ),
+    );
+  }
+
   void _showDetails(RecordingEntry entry) {
     final content = entry.notes
         .map((note) => '${note.note}:${note.durationMs}')
@@ -149,6 +167,10 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                           spacing: 4,
                           children: [
                             IconButton(
+                              icon: const Icon(Icons.edit_outlined),
+                              onPressed: () => _editRecording(recording),
+                            ),
+                            IconButton(
                               icon: const Icon(Icons.visibility_outlined),
                               onPressed: () => _showDetails(recording),
                             ),
@@ -184,9 +206,13 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
 }
 
 class _AddRecordingSheet extends StatefulWidget {
-  const _AddRecordingSheet({required this.onSaved});
+  const _AddRecordingSheet({
+    required this.onSaved,
+    this.initialEntry,
+  });
 
   final VoidCallback onSaved;
+  final RecordingEntry? initialEntry;
 
   @override
   State<_AddRecordingSheet> createState() => _AddRecordingSheetState();
@@ -223,6 +249,20 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
           '$note$octave',
       ],
   };
+
+  @override
+  void initState() {
+    super.initState();
+    final entry = widget.initialEntry;
+    if (entry != null) {
+      for (final note in entry.notes) {
+        _selectedNotes.add(note.note.toUpperCase());
+        _durationControllers.add(
+          TextEditingController(text: note.durationMs.toString()),
+        );
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -302,36 +342,6 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       _saving = true;
     });
     try {
-      final existing = await RecordingStore.instance.load();
-      final nameController = TextEditingController(
-        text: 'Recording ${existing.length + 1}',
-      );
-      final name = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Save recording'),
-          content: TextField(
-            controller: nameController,
-            autofocus: true,
-            decoration: const InputDecoration(labelText: 'Recording name'),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop(nameController.text.trim());
-              },
-              child: const Text('Save'),
-            ),
-          ],
-        ),
-      );
-      if (name == null || name.isEmpty) {
-        return;
-      }
       final notes = <RecordedNote>[];
       for (var i = 0; i < _selectedNotes.length; i++) {
         final duration =
@@ -344,13 +354,54 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
           ),
         );
       }
-      final entry = RecordingEntry(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: name,
-        createdAt: DateTime.now(),
-        notes: notes,
-      );
-      await RecordingStore.instance.save(entry);
+      final existingEntry = widget.initialEntry;
+      if (existingEntry != null) {
+        final updated = RecordingEntry(
+          id: existingEntry.id,
+          name: existingEntry.name,
+          createdAt: existingEntry.createdAt,
+          notes: notes,
+        );
+        await RecordingStore.instance.update(updated);
+      } else {
+        final existing = await RecordingStore.instance.load();
+        final nameController = TextEditingController(
+          text: 'Recording ${existing.length + 1}',
+        );
+        final name = await showDialog<String>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Save recording'),
+            content: TextField(
+              controller: nameController,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Recording name'),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(context).pop(nameController.text.trim());
+                },
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+        );
+        if (name == null || name.isEmpty) {
+          return;
+        }
+        final entry = RecordingEntry(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: name,
+          createdAt: DateTime.now(),
+          notes: notes,
+        );
+        await RecordingStore.instance.save(entry);
+      }
       widget.onSaved();
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -391,7 +442,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Select notes',
+          widget.initialEntry == null ? 'Select notes' : 'Edit notes',
           style: Theme.of(context)
               .textTheme
               .titleMedium
@@ -460,7 +511,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Preview',
+          widget.initialEntry == null ? 'Preview' : 'Edit preview',
           style: Theme.of(context)
               .textTheme
               .titleMedium
@@ -554,14 +605,15 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
             const SizedBox(width: 12),
             Expanded(
               child: FilledButton(
-                onPressed: _saving ? null : _saveRecording,
+                onPressed:
+                    (_selectedNotes.isEmpty || _saving) ? null : _saveRecording,
                 child: _saving
                     ? const SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text('Done'),
+                    : Text(widget.initialEntry == null ? 'Done' : 'Update'),
               ),
             ),
           ],
@@ -624,6 +676,193 @@ class _SelectedNotesPreview extends StatelessWidget {
                 ],
               ),
             ),
+    );
+  }
+}
+
+class _EditRecordingSheet extends StatefulWidget {
+  const _EditRecordingSheet({
+    required this.entry,
+    required this.onSaved,
+  });
+
+  final RecordingEntry entry;
+  final VoidCallback onSaved;
+
+  @override
+  State<_EditRecordingSheet> createState() => _EditRecordingSheetState();
+}
+
+class _EditRecordingSheetState extends State<_EditRecordingSheet> {
+  final List<TextEditingController> _noteControllers = [];
+  final List<TextEditingController> _durationControllers = [];
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    for (final note in widget.entry.notes) {
+      _noteControllers.add(
+        TextEditingController(text: note.note.toUpperCase()),
+      );
+      _durationControllers.add(
+        TextEditingController(text: note.durationMs.toString()),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _noteControllers) {
+      controller.dispose();
+    }
+    for (final controller in _durationControllers) {
+      controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void _addRow() {
+    setState(() {
+      _noteControllers.add(TextEditingController());
+      _durationControllers.add(TextEditingController(text: '500'));
+    });
+  }
+
+  void _removeRow(int index) {
+    setState(() {
+      _noteControllers[index].dispose();
+      _durationControllers[index].dispose();
+      _noteControllers.removeAt(index);
+      _durationControllers.removeAt(index);
+    });
+  }
+
+  bool get _hasNotes {
+    return _noteControllers.any((c) => c.text.trim().isNotEmpty);
+  }
+
+  Future<void> _save() async {
+    if (_saving || !_hasNotes) return;
+    setState(() {
+      _saving = true;
+    });
+    try {
+      final notes = <RecordedNote>[];
+      for (var i = 0; i < _noteControllers.length; i++) {
+        final noteText = _noteControllers[i].text.trim();
+        if (noteText.isEmpty) {
+          continue;
+        }
+        final duration =
+            int.tryParse(_durationControllers[i].text.trim()) ?? 500;
+        notes.add(
+          RecordedNote(
+            note: noteText.toLowerCase(),
+            durationMs: duration,
+          ),
+        );
+      }
+      final updated = RecordingEntry(
+        id: widget.entry.id,
+        name: widget.entry.name,
+        createdAt: widget.entry.createdAt,
+        notes: notes,
+      );
+      await RecordingStore.instance.update(updated);
+      widget.onSaved();
+      if (!mounted) return;
+      Navigator.of(context).pop();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _saving = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 16,
+        bottom: 20 + bottomInset,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Edit notes',
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w600),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 280,
+            child: ListView.separated(
+              itemCount: _noteControllers.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, index) {
+                return Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _noteControllers[index],
+                        decoration: const InputDecoration(
+                          labelText: 'Note',
+                          filled: true,
+                        ),
+                        textInputAction: TextInputAction.next,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 120,
+                      child: TextField(
+                        controller: _durationControllers[index],
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'ms',
+                          filled: true,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => _removeRow(index),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _addRow,
+            icon: const Icon(Icons.add),
+            label: const Text('Add note'),
+          ),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: (_saving || !_hasNotes) ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Update'),
+          ),
+        ],
+      ),
     );
   }
 }

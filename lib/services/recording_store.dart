@@ -37,6 +37,17 @@ class RecordingStore {
     await _writeAll(list);
   }
 
+  Future<void> update(RecordingEntry entry) async {
+    final list = await load();
+    final index = list.indexWhere((item) => item.id == entry.id);
+    if (index >= 0) {
+      list[index] = entry;
+    } else {
+      list.add(entry);
+    }
+    await _writeAll(list);
+  }
+
   Future<void> delete(String id) async {
     final list = await load();
     list.removeWhere((entry) => entry.id == id);
