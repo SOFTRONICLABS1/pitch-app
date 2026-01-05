@@ -12,10 +12,12 @@ class TunerDisplay extends StatefulWidget {
     super.key,
     required this.history,
     this.showBlocks = true,
+    this.nowOverride,
   });
 
   final List<PitchPoint> history;
   final bool showBlocks;
+  final DateTime? nowOverride;
 
   @override
   State<TunerDisplay> createState() => _TunerDisplayState();
@@ -100,6 +102,7 @@ class _TunerDisplayState extends State<TunerDisplay>
       widget.history,
       sampleCount: _sampleCount,
       showBlocks: widget.showBlocks,
+      nowOverride: widget.nowOverride,
     );
     final buffer = await ui.ImmutableBuffer.fromUint8List(pixels);
     final descriptor = ui.ImageDescriptor.raw(
@@ -135,6 +138,7 @@ class _TunerDisplayState extends State<TunerDisplay>
           program: _program,
           dataImage: _dataImage,
           sampleCount: _sampleCount,
+          nowOverride: widget.nowOverride,
         ),
         isComplex: true,
         willChange: true,
@@ -170,12 +174,14 @@ class _TunerPainter extends CustomPainter {
     required this.program,
     required this.dataImage,
     required this.sampleCount,
+    required this.nowOverride,
   });
 
   final List<PitchPoint> history;
   final ui.FragmentProgram? program;
   final ui.Image? dataImage;
   final int sampleCount;
+  final DateTime? nowOverride;
 
   static const labelWidth = 58.0;
   static const timeSpan = Duration(milliseconds: 6400);
@@ -238,7 +244,7 @@ class _TunerPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rows = _rows;
     final rowHeight = size.height / rows.length;
-    final now = DateTime.now();
+    final now = nowOverride ?? DateTime.now();
     final startTime = now.subtract(timeSpan);
     final startMs = startTime.millisecondsSinceEpoch;
     final spanMs = timeSpan.inMilliseconds;
@@ -307,7 +313,7 @@ class _TunerPainter extends CustomPainter {
     );
 
     if (history.isNotEmpty) {
-      final now = DateTime.now();
+      final now = nowOverride ?? DateTime.now();
       final startTime = now.subtract(timeSpan);
       final startMs = startTime.millisecondsSinceEpoch;
       final spanMs = timeSpan.inMilliseconds;
@@ -447,6 +453,7 @@ Uint8List _buildDataPixels(
   List<PitchPoint> history, {
   required int sampleCount,
   bool showBlocks = true,
+  DateTime? nowOverride,
 }) {
   final rows = _TunerPainter._rows;
   final pixels = Uint8List(sampleCount * 4);
@@ -454,7 +461,7 @@ Uint8List _buildDataPixels(
     return pixels;
   }
 
-  final now = DateTime.now();
+  final now = nowOverride ?? DateTime.now();
   final startTime = now.subtract(_TunerPainter.timeSpan);
   final startMs = startTime.millisecondsSinceEpoch;
   final spanMs = _TunerPainter.timeSpan.inMilliseconds;
