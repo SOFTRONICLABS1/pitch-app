@@ -71,7 +71,6 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     if (!mounted) return;
     setState(() {
       _running = false;
-      _elapsed = Duration.zero;
     });
   }
 
@@ -103,7 +102,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                     targets: _targets,
                     elapsed: _elapsed,
                     totalDurationMs: _totalDurationMs,
-                    active: _running,
+                    running: _running,
                     bpm: _bpm,
                   ),
                 ],
@@ -248,27 +247,25 @@ class _TargetNoteTrack extends StatelessWidget {
     required this.targets,
     required this.elapsed,
     required this.totalDurationMs,
-    required this.active,
+    required this.running,
     required this.bpm,
   });
 
   final List<_TargetBlock> targets;
   final Duration elapsed;
   final int totalDurationMs;
-  final bool active;
+  final bool running;
   final int bpm;
 
   @override
   Widget build(BuildContext context) {
-    if (!active) {
-      return const SizedBox.expand();
-    }
     return IgnorePointer(
       child: CustomPaint(
         painter: _TargetNotePainter(
           targets: targets,
           elapsed: elapsed,
           totalDurationMs: totalDurationMs,
+          running: running,
           bpm: bpm,
         ),
         child: const SizedBox.expand(),
@@ -390,12 +387,14 @@ class _TargetNotePainter extends CustomPainter {
     required this.targets,
     required this.elapsed,
     required this.totalDurationMs,
+    required this.running,
     required this.bpm,
   });
 
   final List<_TargetBlock> targets;
   final Duration elapsed;
   final int totalDurationMs;
+  final bool running;
   final int bpm;
 
   static const _labelWidth = 58.0;
@@ -437,7 +436,7 @@ class _TargetNotePainter extends CustomPainter {
     final elapsedMs = elapsed.inMilliseconds.toDouble();
     final scale = 60.0 / max(1, bpm).toDouble();
     final loopMs = max(1, totalDurationMs).toDouble() * scale;
-    final loopElapsed = elapsedMs % loopMs;
+    final loopElapsed = (running ? elapsedMs : elapsedMs) % loopMs;
     final paint = Paint()..color = _blockColor.withOpacity(0.4);
     const textStyle = TextStyle(
       color: Colors.white,
@@ -449,8 +448,11 @@ class _TargetNotePainter extends CustomPainter {
     canvas.clipRect(
       Rect.fromLTWH(_labelWidth, 0, plotWidth, size.height),
     );
-    final cycleOffsets = [0.0, loopMs];
-    for (final cycleOffset in cycleOffsets) {
+    final cycleWidth = speed * loopMs;
+    final cyclesNeeded =
+        (plotWidth / max(1.0, cycleWidth)).ceil() + 2;
+    for (var i = -1; i < cyclesNeeded; i++) {
+      final cycleOffset = i * loopMs;
       for (final block in targets) {
         final blockWidth = block.durationMs * scale * speed;
         if (blockWidth <= 0) {
@@ -506,6 +508,7 @@ class _TargetNotePainter extends CustomPainter {
     return oldDelegate.elapsed != elapsed ||
         oldDelegate.targets != targets ||
         oldDelegate.totalDurationMs != totalDurationMs ||
+        oldDelegate.running != running ||
         oldDelegate.bpm != bpm;
   }
 }
