@@ -8,9 +8,14 @@ import 'package:flutter/scheduler.dart';
 import '../state/pitch_notifier.dart';
 
 class TunerDisplay extends StatefulWidget {
-  const TunerDisplay({super.key, required this.history});
+  const TunerDisplay({
+    super.key,
+    required this.history,
+    this.showBlocks = true,
+  });
 
   final List<PitchPoint> history;
+  final bool showBlocks;
 
   @override
   State<TunerDisplay> createState() => _TunerDisplayState();
@@ -94,6 +99,7 @@ class _TunerDisplayState extends State<TunerDisplay>
     final pixels = _buildDataPixels(
       widget.history,
       sampleCount: _sampleCount,
+      showBlocks: widget.showBlocks,
     );
     final buffer = await ui.ImmutableBuffer.fromUint8List(pixels);
     final descriptor = ui.ImageDescriptor.raw(
@@ -440,6 +446,7 @@ int _computeDynamicGapMs(List<PitchPoint> history, int startMs, DateTime now) {
 Uint8List _buildDataPixels(
   List<PitchPoint> history, {
   required int sampleCount,
+  bool showBlocks = true,
 }) {
   final rows = _TunerPainter._rows;
   final pixels = Uint8List(sampleCount * 4);
@@ -547,7 +554,7 @@ Uint8List _buildDataPixels(
     } else {
       stableCount = 1;
     }
-    final hasBlock = stableCount >= 3;
+    final hasBlock = showBlocks && stableCount >= 3;
     final rowCenterNorm =
         ((rowIndex + 0.5) / rows.length).clamp(0.0, 1.0).toDouble();
 

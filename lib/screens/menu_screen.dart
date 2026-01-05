@@ -6,6 +6,7 @@ import '../main.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'recordings_screen.dart';
+import 'vocal_tracker.dart';
 
 class MenuScreen extends StatelessWidget {
   const MenuScreen({super.key});
@@ -84,8 +85,25 @@ class MenuScreen extends StatelessWidget {
               },
             ),
             _MenuTile(
-              icon: Icons.timeline,
-              label: 'Progress',
+              icon: Icons.mic,
+              label: 'Vocal Tracker',
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => RecordingsScreen(
+                      onSelect: (recording) {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => VocalTrackerScreen(
+                              recording: recording,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                );
+              },
             ),
             _MenuTile(
               icon: Icons.settings,

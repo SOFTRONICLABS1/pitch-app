@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../models/recording.dart';
 import '../services/recording_store.dart';
+import 'vocal_tracker.dart';
 
 class RecordingsScreen extends StatefulWidget {
-  const RecordingsScreen({super.key});
+  const RecordingsScreen({super.key, this.onSelect});
+
+  final ValueChanged<RecordingEntry>? onSelect;
 
   @override
   State<RecordingsScreen> createState() => _RecordingsScreenState();
@@ -75,6 +78,14 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     );
   }
 
+  void _openTracker(RecordingEntry entry) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => VocalTrackerScreen(recording: entry),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,6 +131,14 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                       child: ListTile(
                         title: Text(recording.name),
                         subtitle: Text(date),
+                        onTap: () {
+                          final handler = widget.onSelect;
+                          if (handler != null) {
+                            handler(recording);
+                          } else {
+                            _openTracker(recording);
+                          }
+                        },
                         trailing: Wrap(
                           spacing: 4,
                           children: [
