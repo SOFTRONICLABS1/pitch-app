@@ -484,7 +484,7 @@ class _TargetNotePainter extends CustomPainter {
         (plotWidth / max(1.0, cycleWidth)).ceil() + 2;
     final nowX = size.width - 15;
     for (var i = 0; i < cyclesNeeded; i++) {
-      final cycleOffset = i * loopMs;
+      final cycleOffset = -i * loopMs;
       for (final block in targets) {
         final blockWidth = block.durationMs * scale * speed;
         if (blockWidth <= 0) {
