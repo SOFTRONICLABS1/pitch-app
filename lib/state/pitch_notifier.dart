@@ -5,6 +5,7 @@ import '../dsp/pitch_detection.dart';
 import '../native/pitch_bridge.dart';
 import '../native/pitch_ffi.dart';
 import '../services/audio_pitch_service.dart';
+import '../models/recording.dart';
 
 class PitchPoint {
   PitchPoint({
@@ -38,6 +39,7 @@ class PitchNotifier extends ChangeNotifier {
   String tanpuraString = 'Sa';
   String tanpuraNote = 'Sa';
   bool tanpuraPlaying = false;
+  bool recording = false;
 
   List<PitchPoint> history = [];
 
@@ -45,6 +47,12 @@ class PitchNotifier extends ChangeNotifier {
   double? _smoothedFrequency;
   final List<double> _recentFrequencies = [];
   final AudioPlayer _tanpuraPlayer = AudioPlayer();
+  final List<RecordedNote> _recordedNotes = [];
+  DateTime? _recordingStartedAt;
+  DateTime? _currentNoteStart;
+  String? _currentNote;
+  DateTime? _lastSampleAt;
+  static const _noteGapTolerance = Duration(milliseconds: 200);
 
   Future<void> start() async {
     if (listening) return;
@@ -115,6 +123,41 @@ class PitchNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> startRecording() async {
+    if (recording) return;
+    if (!listening) {
+      await start();
+      if (!listening) {
+        return;
+      }
+    }
+    recording = true;
+    _recordedNotes.clear();
+    _recordingStartedAt = DateTime.now();
+    _currentNote = null;
+    _currentNoteStart = null;
+    notifyListeners();
+  }
+
+  RecordingDraft stopRecording() {
+    if (!recording) {
+      return RecordingDraft(
+        startedAt: DateTime.now(),
+        endedAt: DateTime.now(),
+        notes: const [],
+      );
+    }
+    final endedAt = DateTime.now();
+    _finalizeCurrentNote(endedAt);
+    recording = false;
+    notifyListeners();
+    return RecordingDraft(
+      startedAt: _recordingStartedAt ?? endedAt,
+      endedAt: endedAt,
+      notes: List<RecordedNote>.from(_recordedNotes),
+    );
+  }
+
   Future<void> toggleTanpura() async {
     if (tanpuraPlaying) {
       await _tanpuraPlayer.stop();
@@ -166,6 +209,10 @@ class PitchNotifier extends ChangeNotifier {
   }
 
   void _onResult(PitchDetectionResult? result) {
+    final now = DateTime.now();
+    if (recording) {
+      _recordSample(result, now);
+    }
     if (result == null || result.clarity < clarityThreshold) {
       frequency = null;
       clarity = null;
@@ -173,7 +220,6 @@ class PitchNotifier extends ChangeNotifier {
       final cleaned = _smoothFrequency(result.frequency);
       frequency = cleaned;
       clarity = result.clarity;
-      final now = DateTime.now();
       history.add(
         PitchPoint(time: now, frequency: cleaned, clarity: result.clarity),
       );
@@ -182,6 +228,68 @@ class PitchNotifier extends ChangeNotifier {
           .toList();
     }
     notifyListeners();
+  }
+
+  void _recordSample(PitchDetectionResult? result, DateTime now) {
+    if (result == null || result.clarity < clarityThreshold) {
+      if (_currentNote != null &&
+          _lastSampleAt != null &&
+          now.difference(_lastSampleAt!) > _noteGapTolerance) {
+        _finalizeCurrentNote(_lastSampleAt!);
+      }
+      return;
+    }
+    final note = _noteNameForFrequency(result.frequency);
+    if (_currentNote == null) {
+      _currentNote = note;
+      _currentNoteStart = now;
+      _lastSampleAt = now;
+      return;
+    }
+    if (note != _currentNote) {
+      _finalizeCurrentNote(_lastSampleAt ?? now);
+      _currentNote = note;
+      _currentNoteStart = now;
+      _lastSampleAt = now;
+      return;
+    }
+    _lastSampleAt = now;
+  }
+
+  void _finalizeCurrentNote(DateTime now) {
+    if (_currentNote == null || _currentNoteStart == null) {
+      return;
+    }
+    final duration = now.difference(_currentNoteStart!).inMilliseconds;
+    if (duration >= 500) {
+      _recordedNotes.add(
+        RecordedNote(note: _currentNote!.toLowerCase(), durationMs: duration),
+      );
+    }
+    _currentNote = null;
+    _currentNoteStart = null;
+    _lastSampleAt = null;
+  }
+
+  String _noteNameForFrequency(double frequency) {
+    const names = [
+      'C',
+      'C#',
+      'D',
+      'D#',
+      'E',
+      'F',
+      'F#',
+      'G',
+      'G#',
+      'A',
+      'A#',
+      'B',
+    ];
+    final midi = midiFromFrequency(frequency).round().clamp(0, 127);
+    final octave = (midi / 12).floor() - 1;
+    final name = names[midi % 12];
+    return '$name$octave';
   }
 
   double _smoothFrequency(double next) {

@@ -4,21 +4,25 @@ class ControlBar extends StatelessWidget {
   const ControlBar({
     super.key,
     required this.listening,
+    required this.recording,
     required this.errorMessage,
     required this.onStart,
     required this.onStop,
     required this.onOpenSettings,
     required this.onOpenRecordings,
     required this.onOpenTanpura,
+    required this.onToggleRecording,
   });
 
   final bool listening;
+  final bool recording;
   final String? errorMessage;
   final VoidCallback onStart;
   final VoidCallback onStop;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenRecordings;
   final VoidCallback onOpenTanpura;
+  final VoidCallback onToggleRecording;
 
   @override
   Widget build(BuildContext context) {
@@ -66,11 +70,13 @@ class ControlBar extends StatelessWidget {
               Expanded(
                 child: Center(
                   child: IconButton(
-                    icon: const Icon(
-                      Icons.fiber_manual_record,
+                    icon: Icon(
+                      recording
+                          ? Icons.stop_circle_outlined
+                          : Icons.fiber_manual_record,
                       color: Colors.red,
                     ),
-                    onPressed: listening ? onStop : onStart,
+                    onPressed: onToggleRecording,
                   ),
                 ),
               ),

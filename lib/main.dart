@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 
-import 'dsp/pitch_detection.dart';
-import 'state/pitch_notifier.dart';
 import 'screens/login_screen.dart';
 import 'screens/recordings_screen.dart';
+import 'models/recording.dart';
+import 'services/recording_store.dart';
+import 'dsp/pitch_detection.dart';
+import 'state/pitch_notifier.dart';
 import 'widgets/control_bar.dart';
 import 'widgets/pitch_controls.dart';
 import 'widgets/tuner_display.dart';
@@ -68,6 +70,7 @@ class PitchHomePage extends StatelessWidget {
             const SizedBox(height: 6),
             ControlBar(
               listening: state.listening,
+              recording: state.recording,
               errorMessage: state.errorMessage,
               onStart: state.start,
               onStop: state.stop,
@@ -79,6 +82,9 @@ class PitchHomePage extends StatelessWidget {
                 );
               },
               onOpenTanpura: state.toggleTanpura,
+              onToggleRecording: () {
+                _handleRecording(context, state);
+              },
               onOpenSettings: () {
                 showModalBottomSheet(
                   context: context,
@@ -101,6 +107,64 @@ class PitchHomePage extends StatelessWidget {
       ),
     );
   }
+}
+
+Future<void> _handleRecording(
+  BuildContext context,
+  PitchNotifier state,
+) async {
+  if (!state.recording) {
+    await state.startRecording();
+    return;
+  }
+  final draft = state.stopRecording();
+  if (draft.notes.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No notes captured.')),
+    );
+    return;
+  }
+  final existing = await RecordingStore.instance.load();
+  final controller = TextEditingController(
+    text: 'Recording ${existing.length + 1}',
+  );
+  final name = await showDialog<String>(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Save recording'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Recording name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(controller.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      );
+    },
+  );
+  if (name == null || name.isEmpty) {
+    return;
+  }
+  final entry = RecordingEntry(
+    id: DateTime.now().millisecondsSinceEpoch.toString(),
+    name: name,
+    createdAt: draft.endedAt,
+    notes: draft.notes,
+  );
+  await RecordingStore.instance.save(entry);
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Recording saved.')),
+  );
 }
 
 class _NoteBadge extends StatelessWidget {
