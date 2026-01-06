@@ -24,6 +24,7 @@ class VocalTrackerScreen extends StatefulWidget {
 
 class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     with SingleTickerProviderStateMixin {
+  bool _warningShown = false;
   late final Ticker _ticker;
   final Stopwatch _stopwatch = Stopwatch();
   Duration _elapsed = Duration.zero;
@@ -64,7 +65,31 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<PitchNotifier>().stop();
+      _showWarningIfNeeded();
     });
+  }
+
+  Future<void> _showWarningIfNeeded() async {
+    if (_warningShown || !mounted) return;
+    _warningShown = true;
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Warning'),
+          content: const Text(
+            'Harmonics playback can affect pitch detection. '
+            'Use headphones for accurate plotting.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override

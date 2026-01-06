@@ -45,8 +45,46 @@ class PitchApp extends StatelessWidget {
   }
 }
 
-class PitchHomePage extends StatelessWidget {
+class PitchHomePage extends StatefulWidget {
   const PitchHomePage({super.key});
+
+  @override
+  State<PitchHomePage> createState() => _PitchHomePageState();
+}
+
+class _PitchHomePageState extends State<PitchHomePage> {
+  bool _warningShown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showWarningIfNeeded();
+    });
+  }
+
+  Future<void> _showWarningIfNeeded() async {
+    if (_warningShown || !mounted) return;
+    _warningShown = true;
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Warning'),
+          content: const Text(
+            'Tanpura playback can affect pitch detection. '
+            'Use headphones for accurate plotting.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
