@@ -40,6 +40,7 @@ dependencies:
   google_sign_in: ^6.2.1
   audioplayers: ^6.1.0
   path_provider: ^2.1.4
+  wakelock_plus: ^1.2.8
 
   # Audio + permissions
   sound_stream: ^0.4.2

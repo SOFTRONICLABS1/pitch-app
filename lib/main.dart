@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'screens/login_screen.dart';
 import 'screens/menu_screen.dart';
@@ -23,8 +24,25 @@ Future<void> main() async {
   runApp(const PitchApp());
 }
 
-class PitchApp extends StatelessWidget {
+class PitchApp extends StatefulWidget {
   const PitchApp({super.key});
+
+  @override
+  State<PitchApp> createState() => _PitchAppState();
+}
+
+class _PitchAppState extends State<PitchApp> {
+  @override
+  void initState() {
+    super.initState();
+    WakelockPlus.enable();
+  }
+
+  @override
+  void dispose() {
+    WakelockPlus.disable();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
