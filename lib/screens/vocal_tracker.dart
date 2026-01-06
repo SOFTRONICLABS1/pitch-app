@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -84,7 +85,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   Widget build(BuildContext context) {
     final state = context.watch<PitchNotifier>();
     final frequency = state.frequency;
-    final note = frequency == null ? '--' : _noteLabel(frequency);
+    final note = frequency == null
+        ? '--'
+        : _noteLabel(frequency, state.tuningSystem);
+    final noteLabels = _noteLabelsForSystem(state.tuningSystem);
+    final labelStyle = _labelStyleForSystem(state.tuningSystem);
 
     return Scaffold(
       appBar: AppBar(
@@ -92,45 +97,56 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
         title: Text(widget.recording.name),
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            _NoteBadge(note: note),
-            const SizedBox(height: 12),
-            Expanded(
-              child: Stack(
+        child: CustomScrollView(
+          slivers: [
+            const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            SliverToBoxAdapter(child: _NoteBadge(note: note)),
+            const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Column(
                 children: [
-                  TunerDisplay(
-                    history: state.history,
-                    showBlocks: false,
-                    nowOverride: _running ? null : _frozenAt,
-                    onViewportChanged: (base, offset) {
-                      if (!mounted) return;
-                      setState(() {
-                        _viewportBaseMidi = base;
-                        _viewportOffset = offset;
-                      });
-                    },
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        TunerDisplay(
+                          history: state.history,
+                          showBlocks: false,
+                          nowOverride: _running ? null : _frozenAt,
+                          noteLabels: noteLabels,
+                          labelTextStyle: labelStyle,
+                          onViewportChanged: (base, offset) {
+                            if (!mounted) return;
+                            setState(() {
+                              _viewportBaseMidi = base;
+                              _viewportOffset = offset;
+                            });
+                          },
+                        ),
+                        _TargetNoteTrack(
+                          targets: _targets,
+                          elapsed: _elapsed,
+                          totalDurationMs: _totalDurationMs,
+                          running: _running,
+                          bpm: _bpm,
+                          baseMidi: _viewportBaseMidi,
+                          rowCount: _viewportRowCount,
+                          baseOffset: _viewportOffset,
+                          tuningSystem: state.tuningSystem,
+                        ),
+                      ],
+                    ),
                   ),
-                  _TargetNoteTrack(
-                    targets: _targets,
-                    elapsed: _elapsed,
-                    totalDurationMs: _totalDurationMs,
-                    running: _running,
-                    bpm: _bpm,
-                    baseMidi: _viewportBaseMidi,
-                    rowCount: _viewportRowCount,
-                    baseOffset: _viewportOffset,
+                  _PlayPauseBar(
+                    listening: state.listening,
+                    errorMessage: state.errorMessage,
+                    onStart: () => _handleStart(state),
+                    onStop: () => _handleStop(state),
+                    onOpenSettings: _showBpmSettings,
                   ),
+                  const SizedBox(height: 12),
                 ],
               ),
-            ),
-            _PlayPauseBar(
-              listening: state.listening,
-              errorMessage: state.errorMessage,
-              onStart: () => _handleStart(state),
-              onStop: () => _handleStop(state),
-              onOpenSettings: _showBpmSettings,
             ),
           ],
         ),
@@ -269,6 +285,7 @@ class _TargetNoteTrack extends StatelessWidget {
     required this.baseMidi,
     required this.rowCount,
     required this.baseOffset,
+    required this.tuningSystem,
   });
 
   final List<_TargetBlock> targets;
@@ -279,6 +296,7 @@ class _TargetNoteTrack extends StatelessWidget {
   final int baseMidi;
   final int rowCount;
   final double baseOffset;
+  final String tuningSystem;
 
   @override
   Widget build(BuildContext context) {
@@ -293,6 +311,7 @@ class _TargetNoteTrack extends StatelessWidget {
           baseMidi: baseMidi,
           rowCount: rowCount,
           baseOffset: baseOffset,
+          tuningSystem: tuningSystem,
         ),
         child: const SizedBox.expand(),
       ),
@@ -357,40 +376,11 @@ class _PlayPauseBar extends StatelessWidget {
   }
 }
 
-String _noteLabel(double frequency) {
-  const sharps = [
-    'C',
-    'C#',
-    'D',
-    'D#',
-    'E',
-    'F',
-    'F#',
-    'G',
-    'G#',
-    'A',
-    'A#',
-    'B',
-  ];
-  const flats = [
-    'C',
-    'Db',
-    'D',
-    'Eb',
-    'E',
-    'F',
-    'Gb',
-    'G',
-    'Ab',
-    'A',
-    'Bb',
-    'B',
-  ];
+String _noteLabel(double frequency, String tuningSystem) {
+  final labels = _noteLabelsForSystem(tuningSystem);
   final midi = midiFromFrequency(frequency).round().clamp(0, 127);
   final octave = (midi / 12).floor() - 1;
-  final sharp = sharps[midi % 12];
-  final flat = flats[midi % 12];
-  final label = sharp == flat ? sharp : '$sharp/$flat';
+  final label = labels[midi % 12];
   return '$label$octave';
 }
 
@@ -418,6 +408,7 @@ class _TargetNotePainter extends CustomPainter {
     required this.baseMidi,
     required this.rowCount,
     required this.baseOffset,
+    required this.tuningSystem,
   });
 
   final List<_TargetBlock> targets;
@@ -428,6 +419,7 @@ class _TargetNotePainter extends CustomPainter {
   final int baseMidi;
   final int rowCount;
   final double baseOffset;
+  final String tuningSystem;
 
   static const _labelWidth = 58.0;
   static const _plotRightPadding = 12.0;
@@ -469,11 +461,18 @@ class _TargetNotePainter extends CustomPainter {
     final loopMs = max(1, totalDurationMs).toDouble() * scale;
     final loopElapsed = (running ? elapsedMs : elapsedMs) % loopMs;
     final paint = Paint()..color = _blockColor.withOpacity(0.4);
-    const textStyle = TextStyle(
-      color: Colors.white,
-      fontSize: 12,
-      fontWeight: FontWeight.w600,
-    );
+    final textStyle = (tuningSystem == 'carnatic'
+            ? const TextStyle(
+                fontFamily: 'RobotoMono',
+                fontFeatures: [FontFeature.tabularFigures()],
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              )
+            : const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ))
+        .copyWith(color: Colors.white);
 
     canvas.save();
     canvas.clipRect(
@@ -503,12 +502,15 @@ class _TargetNotePainter extends CustomPainter {
         final rect = Rect.fromLTWH(leftEdge, top, blockWidth, blockHeight);
         canvas.drawRect(rect, paint);
 
-        final textPainter = TextPainter(
-          text: TextSpan(text: block.label, style: textStyle),
-          textDirection: TextDirection.ltr,
-          maxLines: 1,
-          ellipsis: '…',
-        )..layout(maxWidth: max(0, rect.width - 6));
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: _displayLabel(block.label, tuningSystem),
+          style: textStyle,
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+        ellipsis: '…',
+      )..layout(maxWidth: max(0, rect.width - 6));
         if (textPainter.width > 0 && textPainter.height > 0) {
           final textOffset = Offset(
             rect.left + (rect.width - textPainter.width) / 2,
@@ -541,7 +543,8 @@ class _TargetNotePainter extends CustomPainter {
         oldDelegate.bpm != bpm ||
         oldDelegate.baseMidi != baseMidi ||
         oldDelegate.rowCount != rowCount ||
-        oldDelegate.baseOffset != baseOffset;
+        oldDelegate.baseOffset != baseOffset ||
+        oldDelegate.tuningSystem != tuningSystem;
   }
 }
 
@@ -601,4 +604,81 @@ int? _midiFromNoteLabel(String note) {
   };
   final semitone = base + (sharp == '#' ? 1 : 0);
   return (octave + 1) * 12 + semitone;
+}
+
+const _westernNoteLabels = [
+  'C',
+  'C#',
+  'D',
+  'D#',
+  'E',
+  'F',
+  'F#',
+  'G',
+  'G#',
+  'A',
+  'A#',
+  'B',
+];
+
+const _carnaticNoteLabels = [
+  'Sa-',
+  'Ri1-',
+  'Ri2-',
+  'Ga1-',
+  'Ga2-',
+  'Ma1-',
+  'Ma2-',
+  'Pa-',
+  'Da1-',
+  'Da2-',
+  'Ni1-',
+  'Ni2-',
+];
+
+List<String> _noteLabelsForSystem(String tuningSystem) {
+  return tuningSystem == 'carnatic'
+      ? _carnaticNoteLabels
+      : _westernNoteLabels;
+}
+
+TextStyle? _labelStyleForSystem(String tuningSystem) {
+  if (tuningSystem != 'carnatic') {
+    return null;
+  }
+  return const TextStyle(
+    fontFamily: 'RobotoMono',
+    fontFeatures: [FontFeature.tabularFigures()],
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+  );
+}
+
+String _displayLabel(String westernNote, String tuningSystem) {
+  if (tuningSystem != 'carnatic') {
+    return westernNote;
+  }
+  final match = RegExp(r'^([A-G])(#?)(-?\d+)$').firstMatch(westernNote);
+  if (match == null) {
+    return westernNote;
+  }
+  final name = match.group(1);
+  final sharp = match.group(2);
+  final octave = match.group(3);
+  if (name == null || octave == null) {
+    return westernNote;
+  }
+  final baseIndex = switch (name) {
+    'C' => 0,
+    'D' => 2,
+    'E' => 4,
+    'F' => 5,
+    'G' => 7,
+    'A' => 9,
+    'B' => 11,
+    _ => 0,
+  };
+  final semitone = (baseIndex + (sharp == '#' ? 1 : 0)) % 12;
+  final label = _carnaticNoteLabels[semitone];
+  return '$label$octave';
 }

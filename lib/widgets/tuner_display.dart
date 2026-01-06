@@ -7,6 +7,21 @@ import 'package:flutter/scheduler.dart';
 
 import '../state/pitch_notifier.dart';
 
+const _westernNoteLabels = [
+  'C',
+  'C#',
+  'D',
+  'D#',
+  'E',
+  'F',
+  'F#',
+  'G',
+  'G#',
+  'A',
+  'A#',
+  'B',
+];
+
 class TunerDisplay extends StatefulWidget {
   const TunerDisplay({
     super.key,
@@ -15,6 +30,8 @@ class TunerDisplay extends StatefulWidget {
     this.nowOverride,
     this.onBaseMidiChanged,
     this.onViewportChanged,
+    this.noteLabels = _westernNoteLabels,
+    this.labelTextStyle,
   });
 
   final List<PitchPoint> history;
@@ -22,6 +39,8 @@ class TunerDisplay extends StatefulWidget {
   final DateTime? nowOverride;
   final ValueChanged<int>? onBaseMidiChanged;
   final void Function(int baseMidi, double baseOffset)? onViewportChanged;
+  final List<String> noteLabels;
+  final TextStyle? labelTextStyle;
 
   @override
   State<TunerDisplay> createState() => _TunerDisplayState();
@@ -52,7 +71,12 @@ class _TunerDisplayState extends State<TunerDisplay>
   double _scrollTo = 33.0;
   Duration? _scrollStart;
   double? _lastMidi;
-  late List<_NoteRow> _rows = _buildRows(_baseMidiFloor, _rowCount);
+  late List<_NoteRow> _rows = _buildRows(
+    _baseMidiFloor,
+    _rowCount,
+    widget.noteLabels,
+    widget.labelTextStyle,
+  );
 
   @override
   void initState() {
@@ -68,6 +92,15 @@ class _TunerDisplayState extends State<TunerDisplay>
   @override
   void didUpdateWidget(TunerDisplay oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.noteLabels != widget.noteLabels ||
+        oldWidget.labelTextStyle != widget.labelTextStyle) {
+      _rows = _buildRows(
+        _baseMidiFloor,
+        _rowCount,
+        widget.noteLabels,
+        widget.labelTextStyle,
+      );
+    }
     _scheduleUpdate();
   }
 
@@ -167,6 +200,8 @@ class _TunerDisplayState extends State<TunerDisplay>
           nowOverride: widget.nowOverride,
           rows: _rows,
           baseOffset: _baseOffset,
+          noteLabels: widget.noteLabels,
+          labelTextStyle: widget.labelTextStyle,
         ),
         isComplex: true,
         willChange: true,
@@ -218,7 +253,12 @@ class _TunerDisplayState extends State<TunerDisplay>
       setState(() {
         _baseMidiFloor = nextFloor;
         _baseOffset = nextOffset;
-        _rows = _buildRows(_baseMidiFloor, _rowCount);
+        _rows = _buildRows(
+          _baseMidiFloor,
+          _rowCount,
+          widget.noteLabels,
+          widget.labelTextStyle,
+        );
       });
       widget.onBaseMidiChanged?.call(_baseMidiFloor);
       widget.onViewportChanged?.call(_baseMidiFloor, _baseOffset);
@@ -256,6 +296,8 @@ class _TunerPainter extends CustomPainter {
     required this.nowOverride,
     required this.rows,
     required this.baseOffset,
+    required this.noteLabels,
+    required this.labelTextStyle,
   });
 
   final List<PitchPoint> history;
@@ -265,6 +307,8 @@ class _TunerPainter extends CustomPainter {
   final DateTime? nowOverride;
   final List<_NoteRow> rows;
   final double baseOffset;
+  final List<String> noteLabels;
+  final TextStyle? labelTextStyle;
 
   static const labelWidth = 58.0;
   static const timeSpan = Duration(milliseconds: 6400);
@@ -305,9 +349,10 @@ class _TunerPainter extends CustomPainter {
     for (var i = -1; i <= rows.length; i++) {
       final top = (i * rowHeight) + rowShift;
       final rect = Rect.fromLTWH(0, top, labelWidth, rowHeight);
-      final row = _rowForIndex(i, rows);
+      final row = _rowForIndex(i, rows, noteLabels, labelTextStyle);
+      final isSharp = _isSharpSemitone(row.midi);
       final labelBg = Paint()
-        ..color = row.isSharp ? Colors.black : const Color(0xFFCBD1D6);
+        ..color = isSharp ? Colors.black : const Color(0xFFCBD1D6);
       canvas.drawRect(rect, labelBg);
 
       final textPainter = row.labelPainter;
@@ -429,6 +474,11 @@ double _midiFromFrequency(double frequency) {
   return 69 + 12 * (log(frequency / 440.0) / ln2);
 }
 
+bool _isSharpSemitone(int midi) {
+  const sharpSemitones = {1, 3, 6, 8, 10};
+  return sharpSemitones.contains(midi % 12);
+}
+
 int _computeDynamicGapMs(List<PitchPoint> history, int startMs, DateTime now) {
   if (history.length < 2) {
     return _maxPlotGapMs;
@@ -486,44 +536,45 @@ int _computeDynamicGapMs(List<PitchPoint> history, int startMs, DateTime now) {
   return (bestIndex, ratio);
 }
 
-_NoteRow _rowForIndex(int index, List<_NoteRow> rows) {
+_NoteRow _rowForIndex(
+  int index,
+  List<_NoteRow> rows,
+  List<String> noteLabels,
+  TextStyle? labelTextStyle,
+) {
   if (index >= 0 && index < rows.length) {
     return rows[index];
   }
   final baseMidi = rows.isNotEmpty ? rows.last.midi : 33;
   final midi = baseMidi + (rows.length - 1 - index);
-  return _noteRowForMidi(midi);
+  return _noteRowForMidi(midi, noteLabels, labelTextStyle);
 }
 
-_NoteRow _noteRowForMidi(int midi) {
-  const noteLabels = <int, String>{
-    0: 'C',
-    1: 'C#',
-    2: 'D',
-    3: 'D#',
-    4: 'E',
-    5: 'F',
-    6: 'F#',
-    7: 'G',
-    8: 'G#',
-    9: 'A',
-    10: 'A#',
-    11: 'B',
-  };
+_NoteRow _noteRowForMidi(
+  int midi,
+  List<String> noteLabels,
+  TextStyle? labelTextStyle,
+) {
+  const sharpSemitones = {1, 3, 6, 8, 10};
   final semitone = midi % 12;
   final octave = (midi / 12).floor() - 1;
   final label = '${noteLabels[semitone]}$octave';
   final minHz = _midiToHz(midi);
   final maxHz = _midiToHz(midi + 1);
-  final isSharp = label.contains('#');
-  final painter = TextPainter(
-    text: TextSpan(
-      text: label,
-      style: TextStyle(
+  final isSharp = sharpSemitones.contains(semitone);
+  final baseStyle = labelTextStyle ??
+      TextStyle(
         color: isSharp ? Colors.white : Colors.black87,
         fontSize: 14,
         fontWeight: FontWeight.w600,
-      ),
+      );
+  final resolvedStyle = baseStyle.copyWith(
+    color: isSharp ? Colors.white : Colors.black87,
+  );
+  final painter = TextPainter(
+    text: TextSpan(
+      text: label,
+      style: resolvedStyle,
     ),
     textDirection: TextDirection.ltr,
   )..layout();
@@ -537,22 +588,13 @@ _NoteRow _noteRowForMidi(int midi) {
   );
 }
 
-List<_NoteRow> _buildRows(int baseMidi, int count) {
-  const noteLabels = <int, String>{
-    0: 'C',
-    1: 'C#',
-    2: 'D',
-    3: 'D#',
-    4: 'E',
-    5: 'F',
-    6: 'F#',
-    7: 'G',
-    8: 'G#',
-    9: 'A',
-    10: 'A#',
-    11: 'B',
-  };
-
+List<_NoteRow> _buildRows(
+  int baseMidi,
+  int count,
+  List<String> noteLabels,
+  TextStyle? labelTextStyle,
+) {
+  const sharpSemitones = {1, 3, 6, 8, 10};
   final rows = <_NoteRow>[];
   for (var midi = baseMidi; midi < baseMidi + count; midi++) {
     final semitone = midi % 12;
@@ -560,15 +602,20 @@ List<_NoteRow> _buildRows(int baseMidi, int count) {
     final label = '${noteLabels[semitone]}$octave';
     final minHz = _midiToHz(midi);
     final maxHz = _midiToHz(midi + 1);
-    final isSharp = label.contains('#');
-    final painter = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: TextStyle(
+    final isSharp = sharpSemitones.contains(semitone);
+    final baseStyle = labelTextStyle ??
+        TextStyle(
           color: isSharp ? Colors.white : Colors.black87,
           fontSize: 14,
           fontWeight: FontWeight.w600,
-        ),
+        );
+    final resolvedStyle = baseStyle.copyWith(
+      color: isSharp ? Colors.white : Colors.black87,
+    );
+    final painter = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: resolvedStyle,
       ),
       textDirection: TextDirection.ltr,
     )..layout();

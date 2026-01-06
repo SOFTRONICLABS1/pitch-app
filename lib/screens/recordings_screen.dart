@@ -1,7 +1,11 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../models/recording.dart';
 import '../services/recording_store.dart';
+import '../state/pitch_notifier.dart';
 import 'vocal_tracker.dart';
 
 class RecordingsScreen extends StatefulWidget {
@@ -75,9 +79,12 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     );
   }
 
-  void _showDetails(RecordingEntry entry) {
+  void _showDetails(RecordingEntry entry, String tuningSystem) {
     final content = entry.notes
-        .map((note) => '${note.note}:${note.durationMs}')
+        .map(
+          (note) =>
+              '${_displayLabel(note.note.toUpperCase(), tuningSystem)}:${note.durationMs}',
+        )
         .join(', ');
     showDialog<void>(
       context: context,
@@ -106,6 +113,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final tuningSystem = context.watch<PitchNotifier>().tuningSystem;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Recordings'),
@@ -172,7 +180,10 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                             ),
                             IconButton(
                               icon: const Icon(Icons.visibility_outlined),
-                              onPressed: () => _showDetails(recording),
+                              onPressed: () => _showDetails(
+                                recording,
+                                tuningSystem,
+                              ),
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete_outline),
@@ -416,6 +427,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final tuningSystem = context.watch<PitchNotifier>().tuningSystem;
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return Padding(
       padding: EdgeInsets.only(
@@ -427,15 +439,16 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 200),
         child: switch (_step) {
-          _SheetStep.select => _buildSelectNotes(context),
-          _SheetStep.preview => _buildPreview(context),
+          _SheetStep.select => _buildSelectNotes(context, tuningSystem),
+          _SheetStep.preview => _buildPreview(context, tuningSystem),
           _SheetStep.duration => _buildDurations(context),
         },
       ),
     );
   }
 
-  Widget _buildSelectNotes(BuildContext context) {
+  Widget _buildSelectNotes(BuildContext context, String tuningSystem) {
+    final labelStyle = _labelStyleForSystem(tuningSystem);
     return Column(
       key: const ValueKey('select'),
       mainAxisSize: MainAxisSize.min,
@@ -471,10 +484,11 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
                   children: [
                     for (final note in entry.value)
                       _NoteOptionTile(
-                        note: note,
+                        note: _displayLabel(note, tuningSystem),
                         active: _activeNote == note,
                         onTap: () => _applyNoteSelection(note),
                         onDoubleTap: () => _addNote(note),
+                        textStyle: labelStyle,
                       ),
                   ],
                 ),
@@ -494,6 +508,8 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
               _selectedIndex = index;
             });
           },
+          tuningSystem: tuningSystem,
+          textStyle: labelStyle,
         ),
         const SizedBox(height: 12),
         FilledButton(
@@ -504,7 +520,8 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
     );
   }
 
-  Widget _buildPreview(BuildContext context) {
+  Widget _buildPreview(BuildContext context, String tuningSystem) {
+    final labelStyle = _labelStyleForSystem(tuningSystem);
     return Column(
       key: const ValueKey('preview'),
       mainAxisSize: MainAxisSize.min,
@@ -529,6 +546,8 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
               _selectedIndex = index;
             });
           },
+          tuningSystem: tuningSystem,
+          textStyle: labelStyle,
         ),
         const SizedBox(height: 12),
         Row(
@@ -630,6 +649,8 @@ class _SelectedNotesPreview extends StatelessWidget {
     required this.onRemove,
     required this.selectedIndex,
     required this.onSelect,
+    required this.tuningSystem,
+    required this.textStyle,
   });
 
   final List<String> notes;
@@ -637,6 +658,8 @@ class _SelectedNotesPreview extends StatelessWidget {
   final ValueChanged<int> onRemove;
   final int? selectedIndex;
   final ValueChanged<int> onSelect;
+  final String tuningSystem;
+  final TextStyle? textStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -664,7 +687,10 @@ class _SelectedNotesPreview extends StatelessWidget {
                     GestureDetector(
                       onTap: () => onSelect(index),
                       child: Chip(
-                        label: Text(notes[index]),
+                        label: Text(
+                          _displayLabel(notes[index], tuningSystem),
+                          style: textStyle,
+                        ),
                         deleteIcon: const Icon(Icons.close, size: 16),
                         onDeleted: () => onRemove(index),
                         backgroundColor: selectedIndex == index
@@ -678,6 +704,61 @@ class _SelectedNotesPreview extends StatelessWidget {
             ),
     );
   }
+}
+
+const _carnaticNoteLabels = [
+  'Sa-',
+  'Ri1-',
+  'Ri2-',
+  'Ga1-',
+  'Ga2-',
+  'Ma1-',
+  'Ma2-',
+  'Pa-',
+  'Da1-',
+  'Da2-',
+  'Ni1-',
+  'Ni2-',
+];
+
+String _displayLabel(String westernNote, String tuningSystem) {
+  if (tuningSystem != 'carnatic') {
+    return westernNote;
+  }
+  final match = RegExp(r'^([A-G])(#?)(-?\d+)$').firstMatch(westernNote);
+  if (match == null) {
+    return westernNote;
+  }
+  final name = match.group(1);
+  final sharp = match.group(2);
+  final octave = match.group(3);
+  if (name == null || octave == null) {
+    return westernNote;
+  }
+  final baseIndex = switch (name) {
+    'C' => 0,
+    'D' => 2,
+    'E' => 4,
+    'F' => 5,
+    'G' => 7,
+    'A' => 9,
+    'B' => 11,
+    _ => 0,
+  };
+  final semitone = (baseIndex + (sharp == '#' ? 1 : 0)) % 12;
+  final label = _carnaticNoteLabels[semitone];
+  return '$label$octave';
+}
+
+TextStyle? _labelStyleForSystem(String tuningSystem) {
+  if (tuningSystem != 'carnatic') {
+    return null;
+  }
+  return const TextStyle(
+    fontFamily: 'RobotoMono',
+    fontFeatures: [FontFeature.tabularFigures()],
+    fontWeight: FontWeight.w600,
+  );
 }
 
 class _EditRecordingSheet extends StatefulWidget {
@@ -873,12 +954,14 @@ class _NoteOptionTile extends StatelessWidget {
     required this.active,
     required this.onTap,
     required this.onDoubleTap,
+    required this.textStyle,
   });
 
   final String note;
   final bool active;
   final VoidCallback onTap;
   final VoidCallback onDoubleTap;
+  final TextStyle? textStyle;
 
   @override
   Widget build(BuildContext context) {
@@ -897,7 +980,7 @@ class _NoteOptionTile extends StatelessWidget {
           style: TextStyle(
             color: active ? Colors.white : Colors.white70,
             fontWeight: FontWeight.w600,
-          ),
+          ).merge(textStyle),
         ),
       ),
     );

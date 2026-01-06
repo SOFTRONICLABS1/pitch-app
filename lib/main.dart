@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -51,7 +52,11 @@ class PitchHomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = context.watch<PitchNotifier>();
     final frequency = state.frequency;
-    final note = frequency == null ? '--' : _noteLabel(frequency);
+    final note = frequency == null
+        ? '--'
+        : _noteLabel(frequency, state.tuningSystem);
+    final noteLabels = _noteLabelsForSystem(state.tuningSystem);
+    final labelStyle = _labelStyleForSystem(state.tuningSystem);
 
     return Scaffold(
       appBar: AppBar(
@@ -59,48 +64,60 @@ class PitchHomePage extends StatelessWidget {
         title: const Text('Tuner'),
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 12),
-            _NoteBadge(note: note),
-            const SizedBox(height: 12),
-            Expanded(
-              child: TunerDisplay(history: state.history),
-            ),
-            const SizedBox(height: 6),
-            ControlBar(
-              listening: state.listening,
-              recording: state.recording,
-              errorMessage: state.errorMessage,
-              onStart: state.start,
-              onStop: state.stop,
-              onOpenRecordings: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const RecordingsScreen(),
-                  ),
-                );
-              },
-              onOpenTanpura: state.toggleTanpura,
-              onToggleRecording: () {
-                _handleRecording(context, state);
-              },
-              onOpenSettings: () {
-                showModalBottomSheet(
-                  context: context,
-                  backgroundColor: Colors.black,
-                  shape: const RoundedRectangleBorder(
-                    borderRadius: BorderRadius.vertical(
-                      top: Radius.circular(16),
+        child: CustomScrollView(
+          slivers: [
+            const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            SliverToBoxAdapter(child: _NoteBadge(note: note)),
+            const SliverToBoxAdapter(child: SizedBox(height: 12)),
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Column(
+                children: [
+                  Expanded(
+                    child: TunerDisplay(
+                      history: state.history,
+                      noteLabels: noteLabels,
+                      labelTextStyle: labelStyle,
                     ),
                   ),
-                  clipBehavior: Clip.antiAlias,
-                  builder: (_) => const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: PitchControls(),
+                  const SizedBox(height: 6),
+                  ControlBar(
+                    listening: state.listening,
+                    recording: state.recording,
+                    errorMessage: state.errorMessage,
+                    onStart: state.start,
+                    onStop: state.stop,
+                    onOpenRecordings: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const RecordingsScreen(),
+                        ),
+                      );
+                    },
+                    onOpenTanpura: state.toggleTanpura,
+                    onToggleRecording: () {
+                      _handleRecording(context, state);
+                    },
+                    onOpenSettings: () {
+                      showModalBottomSheet(
+                        context: context,
+                        backgroundColor: Colors.black,
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.vertical(
+                            top: Radius.circular(16),
+                          ),
+                        ),
+                        clipBehavior: Clip.antiAlias,
+                        builder: (_) => const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 16),
+                          child: PitchControls(),
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
+                  const SizedBox(height: 12),
+                ],
+              ),
             ),
           ],
         ),
@@ -194,39 +211,58 @@ double _centsOffset(double frequency) {
   return (midi - rounded) * 100;
 }
 
-String _noteLabel(double frequency) {
-  const sharps = [
-    'C',
-    'C#',
-    'D',
-    'D#',
-    'E',
-    'F',
-    'F#',
-    'G',
-    'G#',
-    'A',
-    'A#',
-    'B',
-  ];
-  const flats = [
-    'C',
-    'Db',
-    'D',
-    'Eb',
-    'E',
-    'F',
-    'Gb',
-    'G',
-    'Ab',
-    'A',
-    'Bb',
-    'B',
-  ];
+String _noteLabel(double frequency, String tuningSystem) {
+  final labels = _noteLabelsForSystem(tuningSystem);
   final midi = midiFromFrequency(frequency).round().clamp(0, 127);
   final octave = (midi / 12).floor() - 1;
-  final sharp = sharps[midi % 12];
-  final flat = flats[midi % 12];
-  final label = sharp == flat ? sharp : '$sharp/$flat';
+  final label = labels[midi % 12];
   return '$label$octave';
+}
+
+const _westernNoteLabels = [
+  'C',
+  'C#',
+  'D',
+  'D#',
+  'E',
+  'F',
+  'F#',
+  'G',
+  'G#',
+  'A',
+  'A#',
+  'B',
+];
+
+const _carnaticNoteLabels = [
+  'Sa-',
+  'Ri1-',
+  'Ri2-',
+  'Ga1-',
+  'Ga2-',
+  'Ma1-',
+  'Ma2-',
+  'Pa-',
+  'Da1-',
+  'Da2-',
+  'Ni1-',
+  'Ni2-',
+];
+
+List<String> _noteLabelsForSystem(String tuningSystem) {
+  return tuningSystem == 'carnatic'
+      ? _carnaticNoteLabels
+      : _westernNoteLabels;
+}
+
+TextStyle? _labelStyleForSystem(String tuningSystem) {
+  if (tuningSystem != 'carnatic') {
+    return null;
+  }
+  return const TextStyle(
+    fontFamily: 'RobotoMono',
+    fontFeatures: [FontFeature.tabularFigures()],
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+  );
 }
