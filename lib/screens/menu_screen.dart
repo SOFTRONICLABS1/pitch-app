@@ -111,10 +111,6 @@ class MenuScreen extends StatelessWidget {
                 );
               },
             ),
-            _MenuTile(
-              icon: Icons.settings,
-              label: 'Settings',
-            ),
           ],
         ),
       ),

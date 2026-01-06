@@ -89,6 +89,26 @@ class PitchControls extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _SectionTitle('Notation'),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'western', label: Text('Western')),
+                  ButtonSegment(value: 'carnatic', label: Text('Carnatic')),
+                ],
+                selected: {state.tuningSystem},
+                onSelectionChanged: (value) {
+                  if (value.isEmpty) return;
+                  state.setTuningSystem(value.first);
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Divider(height: 1),

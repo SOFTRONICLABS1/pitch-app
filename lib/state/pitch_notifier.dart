@@ -36,6 +36,7 @@ class PitchNotifier extends ChangeNotifier {
   double clarityThreshold = 0.75;
   double powerThreshold = 0.15;
   String displayMode = 'timeline'; // or circle
+  String tuningSystem = 'western'; // or carnatic
   String tanpuraString = 'Sa';
   String tanpuraNote = 'Sa';
   bool tanpuraPlaying = false;
@@ -110,6 +111,11 @@ class PitchNotifier extends ChangeNotifier {
 
   void setDisplayMode(String value) {
     displayMode = value;
+    notifyListeners();
+  }
+
+  void setTuningSystem(String value) {
+    tuningSystem = value;
     notifyListeners();
   }
 
