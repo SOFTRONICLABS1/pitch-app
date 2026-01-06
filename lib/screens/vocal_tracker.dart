@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:math';
 import 'dart:ui';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../dsp/pitch_detection.dart';
@@ -33,6 +36,17 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   double _viewportOffset = 0.0;
   static const _viewportRowCount = 30;
   bool _harmonicsEnabled = true;
+  final AudioPlayer _harmonicsPlayer = AudioPlayer();
+  Timer? _harmonicsStopTimer;
+  int? _currentHarmonicsKey;
+  double _lastElapsedMs = 0.0;
+  double? _screenWidth;
+  static const _guidelineFraction = 0.8;
+  static const _guidelineOffset = 0.0;
+  DateTime? _harmonicsWindowStart;
+  DateTime? _harmonicsWindowEnd;
+  int? _harmonicsMidi;
+  List<PitchPoint>? _historySnapshot;
 
   @override
   void initState() {
@@ -45,6 +59,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _elapsed = Duration.zero;
     _stopwatch.reset();
     _frozenAt = DateTime.now();
+    _harmonicsPlayer.setReleaseMode(ReleaseMode.stop);
+    _preloadHarmonics();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<PitchNotifier>().stop();
@@ -53,6 +69,17 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
 
   @override
   void dispose() {
+    _harmonicsStopTimer?.cancel();
+    _stopHarmonics();
+    try {
+      final pitchState = context.read<PitchNotifier>();
+      pitchState.stop();
+      if (_historySnapshot != null) {
+        pitchState.replaceHistory(_historySnapshot!);
+        _historySnapshot = null;
+      }
+    } catch (_) {}
+    _harmonicsPlayer.dispose();
     _ticker.dispose();
     super.dispose();
   }
@@ -62,10 +89,13 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     setState(() {
       _elapsed = _stopwatch.elapsed;
     });
+    _updateHarmonics();
+    _lastElapsedMs = _elapsed.inMilliseconds.toDouble();
   }
 
   Future<void> _handleStart(PitchNotifier state) async {
     if (_running) return;
+    _historySnapshot ??= List<PitchPoint>.from(state.history);
     await state.start();
     if (!mounted || !state.listening) return;
     _stopwatch
@@ -75,6 +105,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       _elapsed = Duration.zero;
       _running = true;
       _frozenAt = null;
+      _currentHarmonicsKey = null;
+      _lastElapsedMs = 0.0;
     });
     _ticker.start();
   }
@@ -83,10 +115,16 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     await state.stop();
     _stopwatch.stop();
     _ticker.stop();
+    _stopHarmonics();
+    if (_historySnapshot != null) {
+      state.replaceHistory(_historySnapshot!);
+      _historySnapshot = null;
+    }
     if (!mounted) return;
     setState(() {
       _running = false;
       _frozenAt = DateTime.now();
+      _lastElapsedMs = 0.0;
     });
   }
 
@@ -99,67 +137,82 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
         : _noteLabel(frequency, state.tuningSystem);
     final noteLabels = _noteLabelsForSystem(state.tuningSystem);
     final labelStyle = _labelStyleForSystem(state.tuningSystem);
+    _screenWidth = MediaQuery.of(context).size.width;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: const BackButton(),
-        title: Text(widget.recording.name),
-      ),
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-            SliverToBoxAdapter(child: _NoteBadge(note: note)),
-            const SliverToBoxAdapter(child: SizedBox(height: 12)),
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: Column(
-                children: [
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        TunerDisplay(
-                          history: state.history,
-                          showBlocks: false,
-                          nowOverride: _running ? null : _frozenAt,
-                          noteLabels: noteLabels,
-                          labelTextStyle: labelStyle,
-                          guidelineFraction: 0.8,
-                          guidelineOffset: 0,
-                          onViewportChanged: (base, offset) {
-                            if (!mounted) return;
-                            setState(() {
-                              _viewportBaseMidi = base;
-                              _viewportOffset = offset;
-                            });
-                          },
-                        ),
-                        _TargetNoteTrack(
-                          targets: _targets,
-                          elapsed: _elapsed,
-                          totalDurationMs: _totalDurationMs,
-                          running: _running,
-                          bpm: _bpm,
-                          baseMidi: _viewportBaseMidi,
-                          rowCount: _viewportRowCount,
-                          baseOffset: _viewportOffset,
-                          tuningSystem: state.tuningSystem,
-                        ),
-                      ],
+    return WillPopScope(
+      onWillPop: () async {
+        await _handleStop(state);
+        return true;
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: BackButton(
+            onPressed: () async {
+              await _handleStop(state);
+              if (!mounted) return;
+              Navigator.of(context).pop();
+            },
+          ),
+          title: Text(widget.recording.name),
+        ),
+        body: SafeArea(
+          child: CustomScrollView(
+            slivers: [
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
+              SliverToBoxAdapter(child: _NoteBadge(note: note)),
+              const SliverToBoxAdapter(child: SizedBox(height: 12)),
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Column(
+                  children: [
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          TunerDisplay(
+                            history: _filteredHistory(state.history),
+                            showBlocks: false,
+                            nowOverride: _running ? null : _frozenAt,
+                            noteLabels: noteLabels,
+                            labelTextStyle: labelStyle,
+                            guidelineFraction: _guidelineFraction,
+                            guidelineOffset: _guidelineOffset,
+                            onViewportChanged: (base, offset) {
+                              if (!mounted) return;
+                              setState(() {
+                                _viewportBaseMidi = base;
+                                _viewportOffset = offset;
+                              });
+                            },
+                          ),
+                          _TargetNoteTrack(
+                            targets: _targets,
+                            elapsed: _elapsed,
+                            totalDurationMs: _totalDurationMs,
+                            running: _running,
+                            bpm: _bpm,
+                            baseMidi: _viewportBaseMidi,
+                            rowCount: _viewportRowCount,
+                            baseOffset: _viewportOffset,
+                            tuningSystem: state.tuningSystem,
+                            guidelineFraction: _guidelineFraction,
+                            guidelineOffset: _guidelineOffset,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  _PlayPauseBar(
-                    listening: state.listening,
-                    errorMessage: state.errorMessage,
-                    onStart: () => _handleStart(state),
-                    onStop: () => _handleStop(state),
-                    onOpenSettings: _showBpmSettings,
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                    _PlayPauseBar(
+                      listening: state.listening,
+                      errorMessage: state.errorMessage,
+                      onStart: () => _handleStart(state),
+                      onStop: () => _handleStop(state),
+                      onOpenSettings: _showBpmSettings,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -174,6 +227,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       ),
       clipBehavior: Clip.antiAlias,
       builder: (context) {
+        final pitchState = context.watch<PitchNotifier>();
         var current = _bpm;
         return StatefulBuilder(
           builder: (context, setSheetState) {
@@ -211,6 +265,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                       });
                       setState(() {
                         _bpm = next;
+                        _currentHarmonicsKey = null;
                       });
                     },
                   ),
@@ -237,15 +292,38 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                       Switch(
                         value: _harmonicsEnabled,
                         onChanged: (value) {
-                          setSheetState(() {});
-                          setState(() {
+                          setSheetState(() {
                             _harmonicsEnabled = value;
                           });
+                          setState(() {
+                            _harmonicsEnabled = value;
+                            _currentHarmonicsKey = null;
+                          });
+                          if (!value) {
+                            _stopHarmonics();
+                          }
                         },
                       ),
                     ],
                   ),
                   const SizedBox(height: 8),
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Clarity threshold (${pitchState.clarityThreshold.toStringAsFixed(2)})',
+                    ),
+                  ),
+                  Slider(
+                    value: pitchState.clarityThreshold,
+                    min: 0.0,
+                    max: 1.0,
+                    onChanged: (value) {
+                      pitchState.setClarityThreshold(value);
+                      setSheetState(() {});
+                    },
+                  ),
                 ],
               ),
             );
@@ -253,6 +331,155 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
         );
       },
     );
+  }
+
+  Future<void> _preloadHarmonics() async {
+    final assets = <String>[];
+    for (final block in _targets) {
+      final path = _harmonicsAssetForMidi(block.midi);
+      if (path != null) {
+        assets.add(path);
+      }
+    }
+    final unique = assets.toSet().toList();
+    for (final path in unique) {
+      try {
+        await rootBundle.load(path);
+      } catch (_) {
+        // Ignore missing assets; playback will also skip.
+      }
+    }
+  }
+
+  void _updateHarmonics() {
+    if (!_harmonicsEnabled || !_running || _targets.isEmpty) {
+      _stopHarmonics();
+      return;
+    }
+    if (_totalDurationMs <= 0) {
+      _stopHarmonics();
+      return;
+    }
+    final elapsedMs = _elapsed.inMilliseconds.toDouble();
+    var previousElapsedMs = _lastElapsedMs;
+    if (previousElapsedMs > elapsedMs) {
+      previousElapsedMs = elapsedMs;
+    }
+    if (elapsedMs <= previousElapsedMs) {
+      return;
+    }
+    final scale = 60.0 / max(1, _bpm).toDouble();
+    final loopMs = max(1, _totalDurationMs).toDouble() * scale;
+    final minCycle = (previousElapsedMs / loopMs).floor();
+    final maxCycle = (elapsedMs / loopMs).floor();
+
+    int? index;
+    int? cycleIndex;
+    double? durationMs;
+    double? bestStart;
+    for (var k = minCycle; k <= maxCycle; k++) {
+      final cycleOffset = k * loopMs;
+      for (var i = 0; i < _targets.length; i++) {
+        final start = _targets[i].startOffsetMs * scale + cycleOffset;
+        if (start < previousElapsedMs || start > elapsedMs) {
+          continue;
+        }
+        if (bestStart == null || start < bestStart) {
+          bestStart = start;
+          index = i;
+          cycleIndex = k;
+          durationMs = _targets[i].durationMs * scale;
+        }
+      }
+    }
+
+    if (index == null || durationMs == null || cycleIndex == null) {
+      return;
+    }
+    final key = cycleIndex * 10000 + index;
+    if (_currentHarmonicsKey == key) {
+      return;
+    }
+    _currentHarmonicsKey = key;
+    _playHarmonicFor(_targets[index], durationMs);
+  }
+
+  void _playHarmonicFor(_TargetBlock block, double durationMs) {
+    final path = _harmonicsAssetForMidi(block.midi);
+    if (path == null) {
+      return;
+    }
+    _harmonicsStopTimer?.cancel();
+    _harmonicsPlayer.stop();
+    _harmonicsPlayer.play(AssetSource(path), volume: 1.0);
+    final duration = durationMs.clamp(50, 600000).toDouble();
+    _harmonicsMidi = block.midi;
+    _harmonicsWindowStart = DateTime.now();
+    _harmonicsWindowEnd =
+        _harmonicsWindowStart!.add(Duration(milliseconds: duration.round()));
+    _harmonicsStopTimer = Timer(
+      Duration(milliseconds: duration.round()),
+      () {
+        _harmonicsPlayer.stop();
+      },
+    );
+  }
+
+  void _stopHarmonics() {
+    _harmonicsStopTimer?.cancel();
+    _harmonicsStopTimer = null;
+    _currentHarmonicsKey = null;
+    _harmonicsMidi = null;
+    _harmonicsWindowStart = null;
+    _harmonicsWindowEnd = null;
+    _harmonicsPlayer.stop();
+  }
+
+  List<PitchPoint> _filteredHistory(List<PitchPoint> history) {
+    if (!_harmonicsEnabled ||
+        _harmonicsMidi == null ||
+        _harmonicsWindowStart == null ||
+        _harmonicsWindowEnd == null) {
+      return history;
+    }
+    final start = _harmonicsWindowStart!;
+    final end = _harmonicsWindowEnd!;
+    final targetMidi = _harmonicsMidi!;
+    const clarityGate = 0.95;
+    const semitoneGate = 0.2;
+    return history.where((point) {
+      if (point.time.isBefore(start) || point.time.isAfter(end)) {
+        return true;
+      }
+      if (point.clarity < clarityGate) {
+        return true;
+      }
+      final midi = midiFromFrequency(point.frequency);
+      return (midi - targetMidi).abs() > semitoneGate;
+    }).toList();
+  }
+
+  String? _harmonicsAssetForMidi(int midi) {
+    const names = [
+      'c',
+      'csharp',
+      'd',
+      'dsharp',
+      'e',
+      'f',
+      'fsharp',
+      'g',
+      'gsharp',
+      'a',
+      'asharp',
+      'b',
+    ];
+    final octave = (midi / 12).floor() - 1;
+    if (octave < 0 || octave > 8) {
+      return null;
+    }
+    final name = names[midi % 12];
+    return 'harmonics/${name}${octave}.wav';
   }
 }
 
@@ -318,6 +545,8 @@ class _TargetNoteTrack extends StatelessWidget {
     required this.rowCount,
     required this.baseOffset,
     required this.tuningSystem,
+    required this.guidelineFraction,
+    required this.guidelineOffset,
   });
 
   final List<_TargetBlock> targets;
@@ -329,6 +558,8 @@ class _TargetNoteTrack extends StatelessWidget {
   final int rowCount;
   final double baseOffset;
   final String tuningSystem;
+  final double guidelineFraction;
+  final double guidelineOffset;
 
   @override
   Widget build(BuildContext context) {
@@ -344,6 +575,8 @@ class _TargetNoteTrack extends StatelessWidget {
           rowCount: rowCount,
           baseOffset: baseOffset,
           tuningSystem: tuningSystem,
+          guidelineFraction: guidelineFraction,
+          guidelineOffset: guidelineOffset,
         ),
         child: const SizedBox.expand(),
       ),
@@ -441,6 +674,8 @@ class _TargetNotePainter extends CustomPainter {
     required this.rowCount,
     required this.baseOffset,
     required this.tuningSystem,
+    required this.guidelineFraction,
+    required this.guidelineOffset,
   });
 
   final List<_TargetBlock> targets;
@@ -452,9 +687,10 @@ class _TargetNotePainter extends CustomPainter {
   final int rowCount;
   final double baseOffset;
   final String tuningSystem;
+  final double guidelineFraction;
+  final double guidelineOffset;
 
   static const _labelWidth = 58.0;
-  static const _plotRightPadding = 12.0;
   static const _trackWindowMs = 6400.0;
   static const _blockColor = Color(0xFF2B6BFF);
 
@@ -481,7 +717,10 @@ class _TargetNotePainter extends CustomPainter {
       return;
     }
 
-    final plotWidth = size.width - _labelWidth - _plotRightPadding;
+    final nowX = size.width * guidelineFraction + guidelineOffset;
+    final plotRightPadding =
+        (size.width - nowX).clamp(0.0, size.width).toDouble();
+    final plotWidth = size.width - _labelWidth - plotRightPadding;
     if (plotWidth <= 0) {
       return;
     }
@@ -513,7 +752,6 @@ class _TargetNotePainter extends CustomPainter {
     final minCycle = 0;
     final maxCycle =
         ((elapsedMs + windowMs) / loopMs).ceil() + 1;
-    final nowX = size.width * 0.8;
     for (var k = minCycle; k <= maxCycle; k++) {
       final cycleOffset = k * loopMs;
       for (final block in targets) {
@@ -521,10 +759,10 @@ class _TargetNotePainter extends CustomPainter {
         if (blockWidth <= 0) {
           continue;
         }
-        final rightEdge = nowX -
-            speed *
-                (elapsedMs -
-                    (block.startOffsetMs * scale + cycleOffset));
+        final end = block.startOffsetMs * scale +
+            cycleOffset +
+            (block.durationMs * scale);
+        final rightEdge = nowX - speed * (elapsedMs - end);
         final leftEdge = rightEdge - blockWidth;
         if (rightEdge < _labelWidth || leftEdge > _labelWidth + plotWidth) {
           continue;
@@ -714,5 +952,5 @@ String _displayLabel(String westernNote, String tuningSystem) {
   };
   final semitone = (baseIndex + (sharp == '#' ? 1 : 0)) % 12;
   final label = _carnaticNoteLabels[semitone];
-  return '$label$octave';
+  return '$label$octave ($westernNote)';
 }

@@ -119,6 +119,11 @@ class PitchNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
+  void replaceHistory(List<PitchPoint> nextHistory) {
+    history = List<PitchPoint>.from(nextHistory);
+    notifyListeners();
+  }
+
   void setTanpuraString(String value) {
     tanpuraString = value;
     notifyListeners();

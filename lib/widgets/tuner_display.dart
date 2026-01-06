@@ -322,7 +322,6 @@ class _TunerPainter extends CustomPainter {
 
   static const labelWidth = 58.0;
   static const timeSpan = Duration(milliseconds: 6400);
-  static const plotRightPadding = 12.0;
   static const lineWidth = 2.0;
   static const lineStrokeWidth = 1.0;
   static const lineSmoothingAlpha = 0.35;
@@ -335,6 +334,9 @@ class _TunerPainter extends CustomPainter {
     final startTime = now.subtract(timeSpan);
     final startMs = startTime.millisecondsSinceEpoch;
     final spanMs = timeSpan.inMilliseconds;
+    final nowX = size.width * guidelineFraction + guidelineOffset;
+    final plotRightPadding =
+        (size.width - nowX).clamp(0.0, size.width).toDouble();
 
     final rowShift = baseOffset * rowHeight;
 
@@ -461,7 +463,6 @@ class _TunerPainter extends CustomPainter {
       canvas.restore();
     }
 
-    final nowX = size.width * guidelineFraction + guidelineOffset;
     final guidelinePaint = Paint()
       ..color = const Color(0xFFEAEAEA)
       ..strokeWidth = 1;
