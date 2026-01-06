@@ -48,6 +48,12 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   DateTime? _harmonicsWindowEnd;
   int? _harmonicsMidi;
   List<PitchPoint>? _historySnapshot;
+  List<PitchPoint>? _filteredHistoryCache;
+  int _filteredHistorySourceLength = 0;
+  int _filteredHistoryLastMs = -1;
+  int? _filteredHistoryStartMs;
+  int? _filteredHistoryEndMs;
+  int? _filteredHistoryMidi;
 
   @override
   void initState() {
@@ -457,6 +463,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _harmonicsMidi = null;
     _harmonicsWindowStart = null;
     _harmonicsWindowEnd = null;
+    _filteredHistoryCache = null;
     _harmonicsPlayer.stop();
   }
 
@@ -465,6 +472,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
         _harmonicsMidi == null ||
         _harmonicsWindowStart == null ||
         _harmonicsWindowEnd == null) {
+      _filteredHistoryCache = null;
       return history;
     }
     final start = _harmonicsWindowStart!;
@@ -472,7 +480,20 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     final targetMidi = _harmonicsMidi!;
     const clarityGate = 0.95;
     const semitoneGate = 0.2;
-    return history.where((point) {
+    final startMs = start.millisecondsSinceEpoch;
+    final endMs = end.millisecondsSinceEpoch;
+    final lastMs = history.isNotEmpty
+        ? history.last.time.millisecondsSinceEpoch
+        : -1;
+    if (_filteredHistoryCache != null &&
+        _filteredHistorySourceLength == history.length &&
+        _filteredHistoryLastMs == lastMs &&
+        _filteredHistoryStartMs == startMs &&
+        _filteredHistoryEndMs == endMs &&
+        _filteredHistoryMidi == targetMidi) {
+      return _filteredHistoryCache!;
+    }
+    final filtered = history.where((point) {
       if (point.time.isBefore(start) || point.time.isAfter(end)) {
         return true;
       }
@@ -482,6 +503,13 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       final midi = midiFromFrequency(point.frequency);
       return (midi - targetMidi).abs() > semitoneGate;
     }).toList();
+    _filteredHistoryCache = filtered;
+    _filteredHistorySourceLength = history.length;
+    _filteredHistoryLastMs = lastMs;
+    _filteredHistoryStartMs = startMs;
+    _filteredHistoryEndMs = endMs;
+    _filteredHistoryMidi = targetMidi;
+    return filtered;
   }
 
   String? _harmonicsAssetForMidi(int midi) {

@@ -664,25 +664,23 @@ Uint8List _buildDataPixels(
   const maxGapMs = _maxPlotGapMs;
   const holdMs = 100;
   const maxJumpSemitones = 4.0;
-  final effectiveHistory = List<PitchPoint>.from(history);
+  var effectiveHistory = history;
   if (history.isNotEmpty) {
     final last = history.last;
     final tailGap = now.millisecondsSinceEpoch -
         last.time.millisecondsSinceEpoch;
     if (tailGap > 0 && tailGap <= holdMs) {
-      effectiveHistory.add(
-        PitchPoint(
-          time: now,
-          frequency: last.frequency,
-          clarity: last.clarity,
-        ),
-      );
+      effectiveHistory = List<PitchPoint>.from(history)
+        ..add(
+          PitchPoint(
+            time: now,
+            frequency: last.frequency,
+            clarity: last.clarity,
+          ),
+        );
     }
   }
-  final times = List<int>.generate(
-    sampleCount,
-    (i) => startMs + ((i / (sampleCount - 1)) * spanMs).round(),
-  );
+  final timeStep = spanMs / (sampleCount - 1);
 
   final yNorms = List<double>.filled(sampleCount, 0.0);
   final blockCenters = List<double>.filled(sampleCount, 0.0);
@@ -694,7 +692,7 @@ Uint8List _buildDataPixels(
   var stableCount = 0;
   double? lastAcceptedMidi;
   for (var i = 0; i < sampleCount; i++) {
-    final target = times[i];
+    final target = startMs + (i * timeStep).round();
     while (historyIndex + 1 < effectiveHistory.length &&
         effectiveHistory[historyIndex + 1].time.millisecondsSinceEpoch <
             target) {

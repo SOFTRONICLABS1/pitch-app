@@ -234,11 +234,25 @@ class PitchNotifier extends ChangeNotifier {
       history.add(
         PitchPoint(time: now, frequency: cleaned, clarity: result.clarity),
       );
-      history = history
-          .where((p) => p.time.isAfter(now.subtract(_historySpan)))
-          .toList();
     }
+    _trimHistory(now);
     notifyListeners();
+  }
+
+  void _trimHistory(DateTime now) {
+    if (history.isEmpty) return;
+    final cutoff = now.subtract(_historySpan);
+    if (!history.first.time.isBefore(cutoff)) {
+      return;
+    }
+    var removeCount = 0;
+    while (removeCount < history.length &&
+        history[removeCount].time.isBefore(cutoff)) {
+      removeCount++;
+    }
+    if (removeCount > 0) {
+      history.removeRange(0, removeCount);
+    }
   }
 
   void _recordSample(PitchDetectionResult? result, DateTime now) {
