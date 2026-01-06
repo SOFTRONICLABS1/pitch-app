@@ -43,6 +43,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _running = false;
     _elapsed = Duration.zero;
     _stopwatch.reset();
+    _frozenAt = DateTime.now();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<PitchNotifier>().stop();
