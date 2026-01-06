@@ -51,6 +51,7 @@ class _TunerDisplayState extends State<TunerDisplay>
   double _scrollFrom = 33.0;
   double _scrollTo = 33.0;
   Duration? _scrollStart;
+  double? _lastMidi;
   late List<_NoteRow> _rows = _buildRows(_baseMidiFloor, _rowCount);
 
   @override
@@ -181,11 +182,16 @@ class _TunerDisplayState extends State<TunerDisplay>
     final latest = widget.history.last;
     final midi = _midiFromFrequency(latest.frequency);
     final topMidi = _baseMidiFloor + _rowCount - 1;
+    final upperTrigger = topMidi - _edgeThreshold;
+    final lowerTrigger = _baseMidiFloor + _edgeThreshold;
     var nextBase = _targetBaseMidi;
-    if (midi >= topMidi - _edgeThreshold) {
-      nextBase = _targetBaseMidi + _scrollStep;
-    } else if (midi <= _baseMidiFloor + _edgeThreshold) {
-      nextBase = _targetBaseMidi - _scrollStep;
+    final lastMidi = _lastMidi;
+    if (_scrollStart == null && lastMidi != null) {
+      if (midi >= upperTrigger && lastMidi < upperTrigger) {
+        nextBase = _targetBaseMidi + _scrollStep;
+      } else if (midi <= lowerTrigger && lastMidi > lowerTrigger) {
+        nextBase = _targetBaseMidi - _scrollStep;
+      }
     }
     nextBase = nextBase.clamp(_minMidi, _maxMidi - _rowCount + 1);
     if (nextBase != _targetBaseMidi) {
@@ -217,6 +223,7 @@ class _TunerDisplayState extends State<TunerDisplay>
       widget.onBaseMidiChanged?.call(_baseMidiFloor);
       widget.onViewportChanged?.call(_baseMidiFloor, _baseOffset);
     }
+    _lastMidi = midi;
   }
 }
 
