@@ -40,7 +40,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   final AudioPlayer _harmonicsPlayer = AudioPlayer();
   Timer? _harmonicsStopTimer;
   int? _currentHarmonicsKey;
-  double _lastElapsedMs = 0.0;
+  double _lastTargetElapsedMs = 0.0;
+  Duration _targetElapsedOffset = Duration.zero;
   double? _screenWidth;
   static const _guidelineFraction = 0.8;
   static const _guidelineOffset = 0.0;
@@ -120,8 +121,9 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     setState(() {
       _elapsed = _stopwatch.elapsed;
     });
-    _updateHarmonics();
-    _lastElapsedMs = _elapsed.inMilliseconds.toDouble();
+    final targetElapsed = _effectiveTargetElapsed();
+    _updateHarmonics(targetElapsed);
+    _lastTargetElapsedMs = targetElapsed.inMilliseconds.toDouble();
   }
 
   Future<void> _handleStart(PitchNotifier state) async {
@@ -137,7 +139,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       _running = true;
       _frozenAt = null;
       _currentHarmonicsKey = null;
-      _lastElapsedMs = 0.0;
+      _lastTargetElapsedMs = 0.0;
+      _targetElapsedOffset = Duration.zero;
     });
     _ticker.start();
   }
@@ -155,7 +158,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     setState(() {
       _running = false;
       _frozenAt = DateTime.now();
-      _lastElapsedMs = 0.0;
+      _lastTargetElapsedMs = 0.0;
+      _targetElapsedOffset = Duration.zero;
       _harmonicsEnabled = false;
     });
   }
@@ -218,7 +222,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                           ),
                           _TargetNoteTrack(
                             targets: _targets,
-                            elapsed: _elapsed,
+                            elapsed: _effectiveTargetElapsed(),
                             totalDurationMs: _totalDurationMs,
                             running: _running,
                             bpm: _bpm,
@@ -343,6 +347,10 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     final enable = !_harmonicsEnabled;
     if (!enable) {
       _stopHarmonics();
+    } else if (_running) {
+      _stopHarmonics();
+      _targetElapsedOffset = _elapsed;
+      _lastTargetElapsedMs = 0.0;
     }
     setState(() {
       _harmonicsEnabled = enable;
@@ -368,7 +376,12 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     }
   }
 
-  void _updateHarmonics() {
+  Duration _effectiveTargetElapsed() {
+    final diff = _elapsed - _targetElapsedOffset;
+    return diff.isNegative ? Duration.zero : diff;
+  }
+
+  void _updateHarmonics(Duration targetElapsed) {
     if (!_harmonicsEnabled || !_running || _targets.isEmpty) {
       _stopHarmonics();
       return;
@@ -377,8 +390,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       _stopHarmonics();
       return;
     }
-    final elapsedMs = _elapsed.inMilliseconds.toDouble();
-    var previousElapsedMs = _lastElapsedMs;
+    final elapsedMs = targetElapsed.inMilliseconds.toDouble();
+    var previousElapsedMs = _lastTargetElapsedMs;
     if (previousElapsedMs > elapsedMs) {
       previousElapsedMs = elapsedMs;
     }
