@@ -239,6 +239,8 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
   String? _activeNote;
   int? _selectedIndex;
   bool _saving = false;
+  bool _editDurationMode = false;
+  final Set<int> _durationExclusions = {};
 
   final Map<int, List<String>> _noteOptionsByOctave = {
     for (var octave = 1; octave <= 8; octave++)
@@ -345,6 +347,67 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
           ? _SheetStep.select
           : _SheetStep.preview;
     });
+  }
+
+  void _toggleDurationEdit() {
+    setState(() {
+      _editDurationMode = !_editDurationMode;
+      _durationExclusions.clear();
+    });
+  }
+
+  void _toggleDurationExclusion(int index) {
+    setState(() {
+      if (_durationExclusions.contains(index)) {
+        _durationExclusions.remove(index);
+      } else {
+        _durationExclusions.add(index);
+      }
+    });
+  }
+
+  Future<void> _applyBulkDuration() async {
+    if (_saving || _selectedNotes.isEmpty) return;
+    final controller = TextEditingController(
+      text: _defaultDurationMs.toString(),
+    );
+    final duration = await showDialog<int>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enter duration (ms)'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            filled: true,
+            hintText: '1000',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = int.tryParse(controller.text.trim());
+              Navigator.of(context).pop(value);
+            },
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+    if (duration == null) {
+      return;
+    }
+    for (var i = 0; i < _durationControllers.length; i++) {
+      if (_durationExclusions.contains(i)) {
+        continue;
+      }
+      _durationControllers[i].text = duration.toString();
+    }
+    await _saveRecording();
   }
 
   Future<void> _saveRecording() async {
@@ -575,13 +638,25 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Durations (ms)',
-          style: Theme.of(context)
-              .textTheme
-              .titleMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
-          textAlign: TextAlign.center,
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Durations (ms)',
+                style: Theme.of(context)
+                    .textTheme
+                    .titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            TextButton(
+              onPressed: _toggleDurationEdit,
+              child: Text(
+                _editDurationMode ? 'Cancel edit' : 'Edit duration',
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         SizedBox(
@@ -592,6 +667,14 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
             itemBuilder: (context, index) {
               return Row(
                 children: [
+                  if (_editDurationMode)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Checkbox(
+                        value: _durationExclusions.contains(index),
+                        onChanged: (_) => _toggleDurationExclusion(index),
+                      ),
+                    ),
                   Expanded(
                     child: Text(
                       _selectedNotes[index],
@@ -624,15 +707,20 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
             const SizedBox(width: 12),
             Expanded(
               child: FilledButton(
-                onPressed:
-                    (_selectedNotes.isEmpty || _saving) ? null : _saveRecording,
+                onPressed: (_selectedNotes.isEmpty || _saving)
+                    ? null
+                    : (_editDurationMode ? _applyBulkDuration : _saveRecording),
                 child: _saving
                     ? const SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : Text(widget.initialEntry == null ? 'Done' : 'Update'),
+                    : Text(
+                        _editDurationMode
+                            ? 'Next'
+                            : (widget.initialEntry == null ? 'Done' : 'Update'),
+                      ),
               ),
             ),
           ],
