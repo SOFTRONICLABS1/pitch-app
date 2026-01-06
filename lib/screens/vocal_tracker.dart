@@ -40,6 +40,13 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _targets = result.blocks;
     _totalDurationMs = result.totalDurationMs;
     _ticker = createTicker(_onTick);
+    _running = false;
+    _elapsed = Duration.zero;
+    _stopwatch.reset();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<PitchNotifier>().stop();
+    });
   }
 
   @override
@@ -459,7 +466,7 @@ class _TargetNotePainter extends CustomPainter {
     final elapsedMs = elapsed.inMilliseconds.toDouble();
     final scale = 60.0 / max(1, bpm).toDouble();
     final loopMs = max(1, totalDurationMs).toDouble() * scale;
-    final loopElapsed = (running ? elapsedMs : elapsedMs) % loopMs;
+    final windowMs = _trackWindowMs.toDouble();
     final paint = Paint()..color = _blockColor.withOpacity(0.4);
     final textStyle = (tuningSystem == 'carnatic'
             ? const TextStyle(
@@ -478,19 +485,21 @@ class _TargetNotePainter extends CustomPainter {
     canvas.clipRect(
       Rect.fromLTWH(_labelWidth, 0, plotWidth, size.height),
     );
-    final cycleWidth = speed * loopMs;
-    final cyclesNeeded =
-        (plotWidth / max(1.0, cycleWidth)).ceil() + 2;
+    final minCycle = 0;
+    final maxCycle =
+        ((elapsedMs + windowMs) / loopMs).ceil() + 1;
     final nowX = size.width - 15;
-    for (var i = 0; i < cyclesNeeded; i++) {
-      final cycleOffset = -i * loopMs;
+    for (var k = minCycle; k <= maxCycle; k++) {
+      final cycleOffset = k * loopMs;
       for (final block in targets) {
         final blockWidth = block.durationMs * scale * speed;
         if (blockWidth <= 0) {
           continue;
         }
         final rightEdge = nowX -
-            speed * (loopElapsed - (block.startOffsetMs * scale) + cycleOffset);
+            speed *
+                (elapsedMs -
+                    (block.startOffsetMs * scale + cycleOffset));
         final leftEdge = rightEdge - blockWidth;
         if (rightEdge < _labelWidth || leftEdge > _labelWidth + plotWidth) {
           continue;
