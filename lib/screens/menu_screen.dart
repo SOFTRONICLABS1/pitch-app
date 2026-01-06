@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../main.dart';
-import 'login_screen.dart';
 import 'profile_screen.dart';
 import 'recordings_screen.dart';
 import 'vocal_tracker.dart';
@@ -16,10 +15,6 @@ class MenuScreen extends StatelessWidget {
       await GoogleSignIn().signOut();
     } catch (_) {}
     await FirebaseAuth.instance.signOut();
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
   }
 
   @override
