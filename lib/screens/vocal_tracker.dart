@@ -36,7 +36,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   int _viewportBaseMidi = 33;
   double _viewportOffset = 0.0;
   static const _viewportRowCount = 30;
-  bool _harmonicsEnabled = true;
+  bool _harmonicsEnabled = false;
   final AudioPlayer _harmonicsPlayer = AudioPlayer();
   Timer? _harmonicsStopTimer;
   int? _currentHarmonicsKey;
@@ -156,6 +156,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       _running = false;
       _frozenAt = DateTime.now();
       _lastElapsedMs = 0.0;
+      _harmonicsEnabled = false;
     });
   }
 
@@ -234,8 +235,10 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                     _PlayPauseBar(
                       listening: state.listening,
                       errorMessage: state.errorMessage,
+                      harmonicsEnabled: _harmonicsEnabled,
                       onStart: () => _handleStart(state),
                       onStop: () => _handleStop(state),
+                      onToggleHarmonics: _toggleHarmonics,
                       onOpenSettings: _showBpmSettings,
                     ),
                     const SizedBox(height: 12),
@@ -311,34 +314,6 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                     ],
                   ),
                   const SizedBox(height: 12),
-                  const Divider(height: 1),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Harmonics',
-                        style: TextStyle(fontSize: 20),
-                      ),
-                      Switch(
-                        value: _harmonicsEnabled,
-                        onChanged: (value) {
-                          setSheetState(() {
-                            _harmonicsEnabled = value;
-                          });
-                          setState(() {
-                            _harmonicsEnabled = value;
-                            _currentHarmonicsKey = null;
-                          });
-                          if (!value) {
-                            _stopHarmonics();
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Divider(height: 1),
                   const SizedBox(height: 12),
                   Align(
                     alignment: Alignment.centerLeft,
@@ -362,6 +337,17 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
         );
       },
     );
+  }
+
+  void _toggleHarmonics() {
+    final enable = !_harmonicsEnabled;
+    if (!enable) {
+      _stopHarmonics();
+    }
+    setState(() {
+      _harmonicsEnabled = enable;
+      _currentHarmonicsKey = null;
+    });
   }
 
   Future<void> _preloadHarmonics() async {
@@ -641,15 +627,19 @@ class _PlayPauseBar extends StatelessWidget {
   const _PlayPauseBar({
     required this.listening,
     required this.errorMessage,
+    required this.harmonicsEnabled,
     required this.onStart,
     required this.onStop,
+    required this.onToggleHarmonics,
     required this.onOpenSettings,
   });
 
   final bool listening;
   final String? errorMessage;
+  final bool harmonicsEnabled;
   final VoidCallback onStart;
   final VoidCallback onStop;
+  final VoidCallback onToggleHarmonics;
   final VoidCallback onOpenSettings;
 
   @override
@@ -669,7 +659,21 @@ class _PlayPauseBar extends StatelessWidget {
           ],
           Row(
             children: [
-              const Expanded(child: SizedBox()),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    icon: Icon(
+                      Icons.graphic_eq,
+                      size: 30,
+                      color: harmonicsEnabled
+                          ? const Color(0xFFF08A00)
+                          : Colors.white,
+                    ),
+                    onPressed: onToggleHarmonics,
+                  ),
+                ),
+              ),
               IconButton(
                 icon: Icon(
                   listening ? Icons.pause : Icons.play_arrow,
