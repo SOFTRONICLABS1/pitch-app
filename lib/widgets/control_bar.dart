@@ -6,6 +6,7 @@ class ControlBar extends StatelessWidget {
     required this.listening,
     required this.recording,
     required this.errorMessage,
+    required this.tanpuraPlaying,
     required this.onStart,
     required this.onStop,
     required this.onOpenSettings,
@@ -17,6 +18,7 @@ class ControlBar extends StatelessWidget {
   final bool listening;
   final bool recording;
   final String? errorMessage;
+  final bool tanpuraPlaying;
   final VoidCallback onStart;
   final VoidCallback onStop;
   final VoidCallback onOpenSettings;
@@ -43,7 +45,13 @@ class ControlBar extends StatelessWidget {
               Expanded(
                 child: Center(
                   child: IconButton(
-                    icon: const Icon(Icons.music_note, size: 30),
+                    icon: Icon(
+                      Icons.music_note,
+                      size: 30,
+                      color: tanpuraPlaying
+                          ? const Color(0xFFF08A00)
+                          : Colors.white,
+                    ),
                     onPressed: onOpenTanpura,
                   ),
                 ),

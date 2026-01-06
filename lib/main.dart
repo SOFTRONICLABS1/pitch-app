@@ -81,14 +81,15 @@ class PitchHomePage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 6),
-                  ControlBar(
-                    listening: state.listening,
-                    recording: state.recording,
-                    errorMessage: state.errorMessage,
-                    onStart: state.start,
-                    onStop: state.stop,
-                    onOpenRecordings: () {
-                      Navigator.of(context).push(
+              ControlBar(
+                listening: state.listening,
+                recording: state.recording,
+                errorMessage: state.errorMessage,
+                tanpuraPlaying: state.tanpuraPlaying,
+                onStart: state.start,
+                onStop: state.stop,
+                onOpenRecordings: () {
+                  Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (_) => const RecordingsScreen(),
                         ),
