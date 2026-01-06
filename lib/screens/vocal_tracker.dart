@@ -32,6 +32,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   int _viewportBaseMidi = 33;
   double _viewportOffset = 0.0;
   static const _viewportRowCount = 30;
+  bool _harmonicsEnabled = true;
 
   @override
   void initState() {
@@ -219,6 +220,27 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                       Text('40'),
                       Text('60'),
                       Text('120'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Harmonics',
+                        style: TextStyle(fontSize: 20),
+                      ),
+                      Switch(
+                        value: _harmonicsEnabled,
+                        onChanged: (value) {
+                          setSheetState(() {});
+                          setState(() {
+                            _harmonicsEnabled = value;
+                          });
+                        },
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
