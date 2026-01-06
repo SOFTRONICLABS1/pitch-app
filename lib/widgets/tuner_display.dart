@@ -32,6 +32,8 @@ class TunerDisplay extends StatefulWidget {
     this.onViewportChanged,
     this.noteLabels = _westernNoteLabels,
     this.labelTextStyle,
+    this.guidelineFraction = 1.0,
+    this.guidelineOffset = -15.0,
   });
 
   final List<PitchPoint> history;
@@ -41,6 +43,8 @@ class TunerDisplay extends StatefulWidget {
   final void Function(int baseMidi, double baseOffset)? onViewportChanged;
   final List<String> noteLabels;
   final TextStyle? labelTextStyle;
+  final double guidelineFraction;
+  final double guidelineOffset;
 
   @override
   State<TunerDisplay> createState() => _TunerDisplayState();
@@ -202,6 +206,8 @@ class _TunerDisplayState extends State<TunerDisplay>
           baseOffset: _baseOffset,
           noteLabels: widget.noteLabels,
           labelTextStyle: widget.labelTextStyle,
+          guidelineFraction: widget.guidelineFraction,
+          guidelineOffset: widget.guidelineOffset,
         ),
         isComplex: true,
         willChange: true,
@@ -298,6 +304,8 @@ class _TunerPainter extends CustomPainter {
     required this.baseOffset,
     required this.noteLabels,
     required this.labelTextStyle,
+    required this.guidelineFraction,
+    required this.guidelineOffset,
   });
 
   final List<PitchPoint> history;
@@ -309,6 +317,8 @@ class _TunerPainter extends CustomPainter {
   final double baseOffset;
   final List<String> noteLabels;
   final TextStyle? labelTextStyle;
+  final double guidelineFraction;
+  final double guidelineOffset;
 
   static const labelWidth = 58.0;
   static const timeSpan = Duration(milliseconds: 6400);
@@ -451,7 +461,7 @@ class _TunerPainter extends CustomPainter {
       canvas.restore();
     }
 
-    final nowX = size.width - 15;
+    final nowX = size.width * guidelineFraction + guidelineOffset;
     final guidelinePaint = Paint()
       ..color = const Color(0xFFEAEAEA)
       ..strokeWidth = 1;

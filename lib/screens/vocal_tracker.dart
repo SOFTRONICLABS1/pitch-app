@@ -124,6 +124,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                           nowOverride: _running ? null : _frozenAt,
                           noteLabels: noteLabels,
                           labelTextStyle: labelStyle,
+                          guidelineFraction: 0.8,
+                          guidelineOffset: 0,
                           onViewportChanged: (base, offset) {
                             if (!mounted) return;
                             setState(() {
@@ -511,7 +513,7 @@ class _TargetNotePainter extends CustomPainter {
     final minCycle = 0;
     final maxCycle =
         ((elapsedMs + windowMs) / loopMs).ceil() + 1;
-    final nowX = size.width - 15;
+    final nowX = size.width * 0.8;
     for (var k = minCycle; k <= maxCycle; k++) {
       final cycleOffset = k * loopMs;
       for (final block in targets) {
