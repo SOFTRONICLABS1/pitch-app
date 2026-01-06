@@ -230,7 +230,7 @@ class _AddRecordingSheet extends StatefulWidget {
 }
 
 class _AddRecordingSheetState extends State<_AddRecordingSheet> {
-  static const _defaultDurationMs = 500;
+  static const _defaultDurationMs = 1000;
   static const _previewHeight = 170.0;
 
   _SheetStep _step = _SheetStep.select;
@@ -605,7 +605,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         filled: true,
-                        hintText: '500',
+                        hintText: '1000',
                       ),
                     ),
                   ),
@@ -806,7 +806,7 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
   void _addRow() {
     setState(() {
       _noteControllers.add(TextEditingController());
-      _durationControllers.add(TextEditingController(text: '500'));
+      _durationControllers.add(TextEditingController(text: '1000'));
     });
   }
 
