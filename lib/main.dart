@@ -114,19 +114,13 @@ class PitchHomePage extends StatefulWidget {
 }
 
 class _PitchHomePageState extends State<PitchHomePage> {
-  bool _warningShown = false;
-
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showWarningIfNeeded();
-    });
   }
 
-  Future<void> _showWarningIfNeeded() async {
-    if (_warningShown || !mounted) return;
-    _warningShown = true;
+  Future<void> _showTanpuraWarning() async {
+    if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (context) {
@@ -195,7 +189,15 @@ class _PitchHomePageState extends State<PitchHomePage> {
                         ),
                       );
                     },
-                    onOpenTanpura: state.toggleTanpura,
+                    onOpenTanpura: () async {
+                      if (state.tanpuraPlaying) {
+                        await state.toggleTanpura();
+                        return;
+                      }
+                      await _showTanpuraWarning();
+                      if (!mounted) return;
+                      await state.toggleTanpura();
+                    },
                     onToggleRecording: () {
                       _handleRecording(context, state);
                     },
