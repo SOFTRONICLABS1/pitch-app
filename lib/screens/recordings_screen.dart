@@ -571,6 +571,22 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'western', label: Text('Western')),
+              ButtonSegment(value: 'carnatic', label: Text('Carnatic')),
+            ],
+            selected: {tuningSystem},
+            onSelectionChanged: (value) {
+              if (value.isEmpty) return;
+              context.read<PitchNotifier>().setTuningSystem(value.first);
+              setState(() {});
+            },
+          ),
+        ),
+        const SizedBox(height: 12),
         Text(
           widget.initialEntry == null ? 'Select notes' : 'Edit notes',
           style: Theme.of(context)
