@@ -291,8 +291,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                   Slider(
                     value: _bpmIndex(current).toDouble(),
                     min: 0,
-                    max: 3,
-                    divisions: 3,
+                    max: (_bpmOptions.length - 1).toDouble(),
+                    divisions: _bpmOptions.length - 1,
                     label: '$current',
                     onChanged: (value) {
                       final next = _bpmFromIndex(value.round());
@@ -306,14 +306,14 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                     },
                   ),
                   const SizedBox(height: 4),
-                  const Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('20'),
-                      Text('40'),
-                      Text('60'),
-                      Text('120'),
-                    ],
+                  _BpmTickLabels(
+                    positions: const {
+                      20: 0,
+                      40: 2,
+                      60: 4,
+                      120: 10,
+                    },
+                    maxIndex: _bpmOptions.length - 1,
                   ),
                   const SizedBox(height: 12),
                   const SizedBox(height: 12),
@@ -541,34 +541,77 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   }
 }
 
-int _bpmIndex(int bpm) {
-  switch (bpm) {
-    case 20:
-      return 0;
-    case 40:
-      return 1;
-    case 60:
-      return 2;
-    case 120:
-      return 3;
-    default:
-      return 2;
+class _BpmTickLabels extends StatelessWidget {
+  const _BpmTickLabels({
+    required this.positions,
+    required this.maxIndex,
+  });
+
+  final Map<int, int> positions;
+  final int maxIndex;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 16,
+      child: Stack(
+        children: [
+          for (final entry in positions.entries)
+            Align(
+              alignment: Alignment(
+                _alignmentX(entry.value),
+                0,
+              ),
+              child: Text('${entry.key}'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  double _alignmentX(int index) {
+    if (maxIndex <= 0) {
+      return -1;
+    }
+    final fraction = index / maxIndex;
+    return (fraction * 2) - 1;
   }
 }
 
-int _bpmFromIndex(int index) {
-  switch (index) {
-    case 0:
-      return 20;
-    case 1:
-      return 40;
-    case 2:
-      return 60;
-    case 3:
-      return 120;
-    default:
-      return 60;
+const _bpmOptions = [
+  20,
+  30,
+  40,
+  50,
+  60,
+  70,
+  80,
+  90,
+  100,
+  110,
+  120,
+];
+
+int _bpmIndex(int bpm) {
+  final index = _bpmOptions.indexOf(bpm);
+  if (index != -1) {
+    return index;
   }
+  var closestIndex = 0;
+  var closestDelta = (bpm - _bpmOptions[0]).abs();
+  for (var i = 1; i < _bpmOptions.length; i++) {
+    final delta = (bpm - _bpmOptions[i]).abs();
+    if (delta < closestDelta) {
+      closestDelta = delta;
+      closestIndex = i;
+    }
+  }
+  return closestIndex;
+}
+
+int _bpmFromIndex(int index) {
+  final clamped = index.clamp(0, _bpmOptions.length - 1);
+  return _bpmOptions[clamped];
 }
 
 class _NoteBadge extends StatelessWidget {

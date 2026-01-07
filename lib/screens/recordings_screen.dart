@@ -718,7 +718,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
             TextButton(
               onPressed: _toggleDurationEdit,
               child: Text(
-                _editDurationMode ? 'Cancel edit' : 'Edit duration',
+                _editDurationMode ? 'Cancel edit' : 'Edit note durations',
               ),
             ),
           ],
