@@ -232,6 +232,7 @@ class _AddRecordingSheet extends StatefulWidget {
 class _AddRecordingSheetState extends State<_AddRecordingSheet> {
   static const _defaultDurationMs = 1000;
   static const _previewHeight = 170.0;
+  static const _defaultOctave = 3;
 
   _SheetStep _step = _SheetStep.select;
   final List<String> _selectedNotes = [];
@@ -262,6 +263,9 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
           '$note$octave',
       ],
   };
+  final ScrollController _noteListController = ScrollController();
+  final Map<int, GlobalKey> _octaveKeys = {};
+  bool _didScrollToDefaultOctave = false;
 
   @override
   void initState() {
@@ -275,6 +279,10 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
         );
       }
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollToDefaultOctave();
+    });
   }
 
   @override
@@ -282,6 +290,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
     for (final controller in _durationControllers) {
       controller.dispose();
     }
+    _noteListController.dispose();
     super.dispose();
   }
 
@@ -564,10 +573,12 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
         SizedBox(
           height: 260,
           child: ListView(
+            controller: _noteListController,
             children: [
               for (final entry in _noteOptionsByOctave.entries) ...[
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
+                  key: _octaveKey(entry.key),
                   child: Text(
                     'Octave ${entry.key}',
                     style: Theme.of(context)
@@ -616,6 +627,24 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
         ),
       ],
     );
+  }
+
+  void _scrollToDefaultOctave() {
+    if (_didScrollToDefaultOctave) return;
+    final key = _octaveKeys[_defaultOctave];
+    final context = key?.currentContext;
+    if (context == null) return;
+    _didScrollToDefaultOctave = true;
+    Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 1),
+      alignment: 0.0,
+      curve: Curves.linear,
+    );
+  }
+
+  GlobalKey _octaveKey(int octave) {
+    return _octaveKeys.putIfAbsent(octave, () => GlobalKey());
   }
 
   Widget _buildPreview(BuildContext context, String tuningSystem) {
