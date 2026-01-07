@@ -23,6 +23,7 @@ class MenuScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Menu'),
       ),
+      backgroundColor: const Color(0xFF4A5158),
       drawer: Drawer(
         child: SafeArea(
           child: ListView(
