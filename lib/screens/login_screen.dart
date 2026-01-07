@@ -2,6 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../services/user_prefs.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -38,6 +40,12 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+      final email =
+          FirebaseAuth.instance.currentUser?.email ??
+          _emailController.text.trim();
+      if (email.isNotEmpty) {
+        await UserPrefs.saveEmail(email);
+      }
     } on FirebaseAuthException catch (e) {
       setState(() {
         _errorMessage = e.message ?? 'Sign in failed.';
@@ -74,6 +82,10 @@ class _LoginScreenState extends State<LoginScreen> {
         idToken: googleAuth.idToken,
       );
       await FirebaseAuth.instance.signInWithCredential(credential);
+      final email = FirebaseAuth.instance.currentUser?.email;
+      if (email != null && email.isNotEmpty) {
+        await UserPrefs.saveEmail(email);
+      }
     } on FirebaseAuthException catch (e) {
       setState(() {
         _errorMessage = e.message ?? 'Google sign-in failed.';

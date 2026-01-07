@@ -126,12 +126,20 @@ class PitchNotifier extends ChangeNotifier {
 
   void setTanpuraString(String value) {
     tanpuraString = value;
-    notifyListeners();
+    if (tanpuraPlaying) {
+      _restartTanpura();
+    } else {
+      notifyListeners();
+    }
   }
 
   void setTanpuraNote(String value) {
     tanpuraNote = value;
-    notifyListeners();
+    if (tanpuraPlaying) {
+      _restartTanpura();
+    } else {
+      notifyListeners();
+    }
   }
 
   Future<void> startRecording() async {
@@ -176,8 +184,13 @@ class PitchNotifier extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    await _restartTanpura();
+  }
+
+  Future<void> _restartTanpura() async {
     final asset = _tanpuraAssetPath();
     await _tanpuraPlayer.setReleaseMode(ReleaseMode.loop);
+    await _tanpuraPlayer.stop();
     await _tanpuraPlayer.play(AssetSource(asset));
     tanpuraPlaying = true;
     notifyListeners();
@@ -194,23 +207,45 @@ class PitchNotifier extends ChangeNotifier {
   }
 
   String _tanpuraNoteToken(String value) {
-    const mapping = {
-      'Sa': 'c',
-      'Sa#': 'csharp',
-      'Re': 'd',
-      'Re#': 'dsharp',
-      'Ga': 'e',
-      'Ga#': 'esharp',
-      'Ma': 'f',
-      'Ma#': 'fsharp',
-      'Pa': 'g',
-      'Pa#': 'gsharp',
-      'Dha': 'a',
-      'Dha#': 'asharp',
-      'Ni': 'b',
-      'Ni#': 'bsharp',
+    const westernTokens = {
+      'C': 'c',
+      'C#': 'csharp',
+      'D': 'd',
+      'D#': 'dsharp',
+      'E': 'e',
+      'F': 'f',
+      'F#': 'fsharp',
+      'G': 'g',
+      'G#': 'gsharp',
+      'A': 'a',
+      'A#': 'asharp',
+      'B': 'b',
     };
-    return mapping[value] ?? _normalizeForAsset(value);
+    const carnaticToWestern = {
+      'Sa': 'C',
+      'Sa#': 'C#',
+      'Re': 'D',
+      'Re#': 'D#',
+      'Ga': 'E',
+      'Ga#': 'F',
+      'Ma': 'F',
+      'Ma#': 'F#',
+      'Pa': 'G',
+      'Pa#': 'G#',
+      'Dha': 'A',
+      'Dha#': 'A#',
+      'Ni': 'B',
+      'Ni#': 'C',
+    };
+    final western = westernTokens[value];
+    if (western != null) {
+      return western;
+    }
+    final mapped = carnaticToWestern[value];
+    if (mapped != null) {
+      return westernTokens[mapped] ?? _normalizeForAsset(mapped);
+    }
+    return _normalizeForAsset(value);
   }
 
   @override

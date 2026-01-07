@@ -11,6 +11,7 @@ import 'screens/login_screen.dart';
 import 'screens/menu_screen.dart';
 import 'screens/recordings_screen.dart';
 import 'models/recording.dart';
+import 'services/user_prefs.dart';
 import 'services/recording_store.dart';
 import 'dsp/pitch_detection.dart';
 import 'state/pitch_notifier.dart';
@@ -65,8 +66,15 @@ class _PitchAppState extends State<PitchApp> {
   }
 }
 
-class _AuthGate extends StatelessWidget {
+class _AuthGate extends StatefulWidget {
   const _AuthGate();
+
+  @override
+  State<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<_AuthGate> {
+  String? _lastSavedEmail;
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +87,11 @@ class _AuthGate extends StatelessWidget {
           );
         }
         if (snapshot.hasData) {
+          final email = snapshot.data?.email;
+          if (email != null && email != _lastSavedEmail) {
+            _lastSavedEmail = email;
+            UserPrefs.saveEmail(email);
+          }
           return const MenuScreen();
         }
         return const LoginScreen();

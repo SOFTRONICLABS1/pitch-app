@@ -9,7 +9,21 @@ class PitchControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<PitchNotifier>();
-    const notes = [
+    const westernNotes = [
+      'C',
+      'C#',
+      'D',
+      'D#',
+      'E',
+      'F',
+      'F#',
+      'G',
+      'G#',
+      'A',
+      'A#',
+      'B',
+    ];
+    const carnaticNotes = [
       'Sa',
       'Sa#',
       'Re',
@@ -25,6 +39,15 @@ class PitchControls extends StatelessWidget {
       'Ni',
       'Ni#',
     ];
+    final notes =
+        state.tuningSystem == 'western' ? westernNotes : carnaticNotes;
+    final selectedNote =
+        notes.contains(state.tanpuraNote) ? state.tanpuraNote : notes.first;
+    if (state.tanpuraNote != selectedNote) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        state.setTanpuraNote(selectedNote);
+      });
+    }
     const strings = ['Sa', 'Pa', 'Ma', 'Ni'];
     return Container(
       color: Colors.black,
@@ -72,7 +95,7 @@ class PitchControls extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: DropdownButtonFormField<String>(
-                value: state.tanpuraNote,
+                value: selectedNote,
                 decoration: const InputDecoration(
                   filled: true,
                   fillColor: Colors.black,

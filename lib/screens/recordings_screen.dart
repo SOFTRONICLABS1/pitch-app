@@ -240,7 +240,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
   int? _selectedIndex;
   bool _saving = false;
   bool _editDurationMode = false;
-  final Set<int> _durationExclusions = {};
+  final Set<int> _durationSelections = {};
 
   final Map<int, List<String>> _noteOptionsByOctave = {
     for (var octave = 1; octave <= 8; octave++)
@@ -352,22 +352,40 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
   void _toggleDurationEdit() {
     setState(() {
       _editDurationMode = !_editDurationMode;
-      _durationExclusions.clear();
+      _durationSelections.clear();
+      if (_editDurationMode) {
+        _durationSelections.addAll(
+          List<int>.generate(_selectedNotes.length, (index) => index),
+        );
+      }
     });
   }
 
-  void _toggleDurationExclusion(int index) {
+  void _toggleDurationSelection(int index) {
     setState(() {
-      if (_durationExclusions.contains(index)) {
-        _durationExclusions.remove(index);
+      if (_durationSelections.contains(index)) {
+        _durationSelections.remove(index);
       } else {
-        _durationExclusions.add(index);
+        _durationSelections.add(index);
+      }
+    });
+  }
+
+  void _toggleSelectAll(bool selected) {
+    setState(() {
+      _durationSelections.clear();
+      if (selected) {
+        _durationSelections.addAll(
+          List<int>.generate(_selectedNotes.length, (index) => index),
+        );
       }
     });
   }
 
   Future<void> _applyBulkDuration() async {
-    if (_saving || _selectedNotes.isEmpty) return;
+    if (_saving || _selectedNotes.isEmpty || _durationSelections.isEmpty) {
+      return;
+    }
     final controller = TextEditingController(
       text: _defaultDurationMs.toString(),
     );
@@ -402,7 +420,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       return;
     }
     for (var i = 0; i < _durationControllers.length; i++) {
-      if (_durationExclusions.contains(i)) {
+      if (!_durationSelections.contains(i)) {
         continue;
       }
       _durationControllers[i].text = duration.toString();
@@ -659,6 +677,19 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
           ],
         ),
         const SizedBox(height: 12),
+        if (_editDurationMode)
+          Row(
+            children: [
+              Checkbox(
+                value: _selectedNotes.isNotEmpty &&
+                    _durationSelections.length == _selectedNotes.length,
+                onChanged: (value) =>
+                    _toggleSelectAll(value ?? false),
+              ),
+              const Text('Select all'),
+            ],
+          ),
+        if (_editDurationMode) const SizedBox(height: 8),
         SizedBox(
           height: 260,
           child: ListView.separated(
@@ -671,8 +702,8 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: Checkbox(
-                        value: _durationExclusions.contains(index),
-                        onChanged: (_) => _toggleDurationExclusion(index),
+                        value: _durationSelections.contains(index),
+                        onChanged: (_) => _toggleDurationSelection(index),
                       ),
                     ),
                   Expanded(
