@@ -11,6 +11,7 @@ import 'screens/login_screen.dart';
 import 'screens/menu_screen.dart';
 import 'screens/recordings_screen.dart';
 import 'models/recording.dart';
+import 'services/headset_service.dart';
 import 'services/user_prefs.dart';
 import 'services/recording_store.dart';
 import 'dsp/pitch_detection.dart';
@@ -121,6 +122,9 @@ class _PitchHomePageState extends State<PitchHomePage> {
 
   Future<void> _showTanpuraWarning() async {
     if (!mounted) return;
+    if (await HeadsetService.isHeadsetConnected()) {
+      return;
+    }
     await showDialog<void>(
       context: context,
       builder: (context) {

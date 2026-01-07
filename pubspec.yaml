@@ -42,6 +42,7 @@ dependencies:
   path_provider: ^2.1.4
   wakelock_plus: ^1.2.8
   shared_preferences: ^2.3.2
+  headset_connection_event: ^4.0.2
 
   # Audio + permissions
   sound_stream: ^0.4.2
