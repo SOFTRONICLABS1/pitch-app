@@ -127,19 +127,19 @@ class PitchNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setTanpuraString(String value) {
+  Future<void> setTanpuraString(String value) async {
     tanpuraString = value;
     if (tanpuraPlaying) {
-      _restartTanpura();
+      await _restartTanpura();
     } else {
       notifyListeners();
     }
   }
 
-  void setTanpuraNote(String value) {
+  Future<void> setTanpuraNote(String value) async {
     tanpuraNote = value;
     if (tanpuraPlaying) {
-      _restartTanpura();
+      await _restartTanpura();
     } else {
       notifyListeners();
     }

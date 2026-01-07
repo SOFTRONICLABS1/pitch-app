@@ -31,7 +31,7 @@ class PitchControls extends StatelessWidget {
     ];
     final selectedNote = _carnaticNoteFor(state.tanpuraNote) ??
         noteOptions.first.$2;
-    final selectedString = _carnaticNoteFor(state.tanpuraString) ??
+    final selectedString = _carnaticStringFor(state.tanpuraString) ??
         stringOptions.first.$2;
     if (state.tanpuraNote != selectedNote) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -174,6 +174,20 @@ String? _carnaticNoteFor(String value) {
     'Da2': 'Da2',
     'Ni1': 'Ni1',
     'Ni2': 'Ni2',
+  };
+  return mapping[value];
+}
+
+String? _carnaticStringFor(String value) {
+  const mapping = {
+    'C': 'Sa',
+    'F': 'Ma',
+    'G': 'Pa',
+    'B': 'Ni',
+    'Sa': 'Sa',
+    'Ma': 'Ma',
+    'Pa': 'Pa',
+    'Ni': 'Ni',
   };
   return mapping[value];
 }
