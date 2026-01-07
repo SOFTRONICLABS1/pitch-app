@@ -1,7 +1,6 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/recording.dart';
@@ -394,7 +393,14 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
               content: TextField(
                 controller: controller,
                 keyboardType: TextInputType.number,
-                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (value) {
+                  final trimmed = value.trim();
+                  final invalid =
+                      trimmed.isNotEmpty && int.tryParse(trimmed) == null;
+                  setDialogState(() {
+                    errorText = invalid ? 'Enter only the numbers.' : null;
+                  });
+                },
                 decoration: InputDecoration(
                   filled: false,
                   errorText: errorText,
@@ -406,17 +412,19 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
                   child: const Text('Cancel'),
                 ),
                 FilledButton(
-                  onPressed: () {
-                    final raw = controller.text.trim();
-                    final value = int.tryParse(raw);
-                    if (raw.isEmpty || value == null) {
-                      setDialogState(() {
-                        errorText = 'Enter only the numbers.';
-                      });
-                      return;
-                    }
-                    Navigator.of(context).pop(value);
-                  },
+                  onPressed: errorText != null
+                      ? null
+                      : () {
+                          final raw = controller.text.trim();
+                          final value = int.tryParse(raw);
+                          if (raw.isEmpty || value == null) {
+                            setDialogState(() {
+                              errorText = 'Enter only the numbers.';
+                            });
+                            return;
+                          }
+                          Navigator.of(context).pop(value);
+                        },
                   child: const Text('Apply'),
                 ),
               ],

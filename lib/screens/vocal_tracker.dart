@@ -87,6 +87,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
           content: const Text(
             'Harmonics playback can affect pitch detection. '
             'Use headphones for accurate plotting.',
+            style: TextStyle(color: Colors.white),
           ),
           actions: [
             TextButton(

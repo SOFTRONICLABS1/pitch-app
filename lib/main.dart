@@ -135,6 +135,7 @@ class _PitchHomePageState extends State<PitchHomePage> {
           content: const Text(
             'Tanpura playback can affect pitch detection. '
             'Use headphones for accurate plotting.',
+            style: TextStyle(color: Colors.white),
           ),
           actions: [
             TextButton(
