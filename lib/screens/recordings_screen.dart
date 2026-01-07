@@ -124,6 +124,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
           ),
         ],
       ),
+      backgroundColor: const Color(0xFF4A5158),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _recordings.isEmpty
@@ -152,7 +153,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                   ),
                 )
               : ListView.separated(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                   itemCount: _recordings.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
@@ -161,6 +162,10 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                         recording.createdAt.toLocal().toString().split('.').first;
                     return Card(
                       child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
                         title: Text(recording.name),
                         subtitle: Text(date),
                         onTap: () {
@@ -171,8 +176,8 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                             _openTracker(recording);
                           }
                         },
-                        trailing: Wrap(
-                          spacing: 4,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               icon: const Icon(Icons.edit_outlined),
@@ -189,6 +194,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                                 tuningSystem,
                               ),
                             ),
+                            const SizedBox(width: 6),
                             IconButton(
                               icon: const Icon(Icons.delete_outline),
                               onPressed: () => _confirmDelete(recording),
