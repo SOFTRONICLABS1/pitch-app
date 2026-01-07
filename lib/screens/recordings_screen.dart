@@ -679,9 +679,10 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
         const SizedBox(height: 12),
         Row(
           children: [
-            OutlinedButton(
+            OutlinedButton.icon(
               onPressed: _goBack,
-              child: const Text('Back'),
+              icon: const Icon(Icons.add),
+              label: const Text('Add note'),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -970,19 +971,33 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
     super.dispose();
   }
 
-  void _addRow() {
-    setState(() {
-      _noteControllers.add(TextEditingController());
-      _durationControllers.add(TextEditingController(text: '1000'));
-    });
-  }
-
   void _removeRow(int index) {
     setState(() {
       _noteControllers[index].dispose();
       _durationControllers[index].dispose();
       _noteControllers.removeAt(index);
       _durationControllers.removeAt(index);
+    });
+  }
+
+  void _openAddNotes() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF23272B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      isScrollControlled: true,
+      builder: (context) => _AddRecordingSheet(
+        initialEntry: widget.entry,
+        onSaved: () async {
+          widget.onSaved();
+        },
+      ),
+    ).then((_) {
+      if (!mounted) return;
+      Navigator.of(context).pop();
     });
   }
 
@@ -1094,7 +1109,7 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: _addRow,
+            onPressed: _openAddNotes,
             icon: const Icon(Icons.add),
             label: const Text('Add note'),
           ),
