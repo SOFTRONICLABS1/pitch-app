@@ -24,7 +24,6 @@ class VocalTrackerScreen extends StatefulWidget {
 
 class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     with SingleTickerProviderStateMixin {
-  bool _warningShown = false;
   late final Ticker _ticker;
   final Stopwatch _stopwatch = Stopwatch();
   Duration _elapsed = Duration.zero;
@@ -72,13 +71,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<PitchNotifier>().stop();
-      _showWarningIfNeeded();
     });
   }
 
-  Future<void> _showWarningIfNeeded() async {
-    if (_warningShown || !mounted) return;
-    _warningShown = true;
+  Future<void> _showHarmonicsWarning() async {
+    if (!mounted) return;
     await showDialog<void>(
       context: context,
       builder: (context) {
@@ -344,19 +341,27 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     );
   }
 
-  void _toggleHarmonics() {
+  Future<void> _toggleHarmonics() async {
     final enable = !_harmonicsEnabled;
     if (!enable) {
       _stopHarmonics();
-    } else if (_running) {
-      _stopHarmonics();
+      setState(() {
+        _harmonicsEnabled = false;
+        _currentHarmonicsKey = null;
+      });
+      return;
+    }
+    await _showHarmonicsWarning();
+    if (!mounted) return;
+    setState(() {
+      _harmonicsEnabled = true;
+      _currentHarmonicsKey = null;
+    });
+    _stopHarmonics();
+    if (_running) {
       _targetElapsedOffset = _elapsed;
       _lastTargetElapsedMs = 0.0;
     }
-    setState(() {
-      _harmonicsEnabled = enable;
-      _currentHarmonicsKey = null;
-    });
   }
 
   Future<void> _preloadHarmonics() async {
