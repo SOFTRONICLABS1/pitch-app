@@ -261,7 +261,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   void _showBpmSettings() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: const Color(0xFF23272B),
+      backgroundColor: const Color(0xFF2F353A),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -273,9 +273,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
           builder: (context, setSheetState) {
             return Padding(
               padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+              child: SizedBox(
+                height: 360,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                   Text(
                     'BPM',
                     style: Theme.of(context)
@@ -336,7 +338,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                       setSheetState(() {});
                     },
                   ),
-                ],
+                  ],
+                ),
               ),
             );
           },
