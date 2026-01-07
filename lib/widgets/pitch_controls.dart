@@ -29,10 +29,10 @@ class PitchControls extends StatelessWidget {
       ('F', 'Ma'),
       ('B', 'Ni'),
     ];
-    final selectedNote = _westernNoteFor(state.tanpuraNote) ??
-        noteOptions.first.$1;
-    final selectedString = _westernNoteFor(state.tanpuraString) ??
-        stringOptions.first.$1;
+    final selectedNote = _carnaticNoteFor(state.tanpuraNote) ??
+        noteOptions.first.$2;
+    final selectedString = _carnaticNoteFor(state.tanpuraString) ??
+        stringOptions.first.$2;
     if (state.tanpuraNote != selectedNote) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         state.setTanpuraNote(selectedNote);
@@ -71,7 +71,7 @@ class PitchControls extends StatelessWidget {
                 items: [
                   for (final option in stringOptions)
                     DropdownMenuItem(
-                      value: option.$1,
+                      value: option.$2,
                       child: Text('${option.$1} - ${option.$2}'),
                     ),
                 ],
@@ -99,7 +99,7 @@ class PitchControls extends StatelessWidget {
                 items: [
                   for (final option in noteOptions)
                     DropdownMenuItem(
-                      value: option.$1,
+                      value: option.$2,
                       child: Text('${option.$1} - ${option.$2}'),
                     ),
                 ],
@@ -148,32 +148,32 @@ class PitchControls extends StatelessWidget {
   }
 }
 
-String? _westernNoteFor(String value) {
+String? _carnaticNoteFor(String value) {
   const mapping = {
-    'Sa': 'C',
-    'Ri1': 'C#',
-    'Ri2': 'D',
-    'Ga1': 'D#',
-    'Ga2': 'E',
-    'Ma1': 'F',
-    'Ma2': 'F#',
-    'Pa': 'G',
-    'Da1': 'G#',
-    'Da2': 'A',
-    'Ni1': 'A#',
-    'Ni2': 'B',
-    'C': 'C',
-    'C#': 'C#',
-    'D': 'D',
-    'D#': 'D#',
-    'E': 'E',
-    'F': 'F',
-    'F#': 'F#',
-    'G': 'G',
-    'G#': 'G#',
-    'A': 'A',
-    'A#': 'A#',
-    'B': 'B',
+    'C': 'Sa',
+    'C#': 'Ri1',
+    'D': 'Ri2',
+    'D#': 'Ga1',
+    'E': 'Ga2',
+    'F': 'Ma1',
+    'F#': 'Ma2',
+    'G': 'Pa',
+    'G#': 'Da1',
+    'A': 'Da2',
+    'A#': 'Ni1',
+    'B': 'Ni2',
+    'Sa': 'Sa',
+    'Ri1': 'Ri1',
+    'Ri2': 'Ri2',
+    'Ga1': 'Ga1',
+    'Ga2': 'Ga2',
+    'Ma1': 'Ma1',
+    'Ma2': 'Ma2',
+    'Pa': 'Pa',
+    'Da1': 'Da1',
+    'Da2': 'Da2',
+    'Ni1': 'Ni1',
+    'Ni2': 'Ni2',
   };
   return mapping[value];
 }
