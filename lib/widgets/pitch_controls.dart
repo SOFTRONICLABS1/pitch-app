@@ -25,19 +25,17 @@ class PitchControls extends StatelessWidget {
     ];
     const carnaticNotes = [
       'Sa',
-      'Sa#',
-      'Re',
-      'Re#',
-      'Ga',
-      'Ga#',
-      'Ma',
-      'Ma#',
+      'Ri1',
+      'Ri2',
+      'Ga1',
+      'Ga2',
+      'Ma1',
+      'Ma2',
       'Pa',
-      'Pa#',
-      'Dha',
-      'Dha#',
-      'Ni',
-      'Ni#',
+      'Da1',
+      'Da2',
+      'Ni1',
+      'Ni2',
     ];
     final notes =
         state.tuningSystem == 'western' ? westernNotes : carnaticNotes;

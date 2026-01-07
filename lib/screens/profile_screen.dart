@@ -9,16 +9,27 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final authEmail = FirebaseAuth.instance.currentUser?.email;
+    final authName = FirebaseAuth.instance.currentUser?.displayName;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Profile'),
       ),
       body: Center(
-        child: FutureBuilder<String?>(
-          future: UserPrefs.loadEmail(),
-          initialData: authEmail,
+        child: FutureBuilder<List<String?>>(
+          future: Future.wait([
+            UserPrefs.loadEmail(),
+            UserPrefs.loadName(),
+          ]),
+          initialData: [authEmail, authName],
           builder: (context, snapshot) {
-            final email = authEmail ?? snapshot.data ?? 'profile@shrutisadhana.app';
+            final storedEmail = snapshot.data?[0];
+            final storedName = snapshot.data?[1];
+            final email =
+                authEmail ?? storedEmail ?? 'profile@shrutisadhana.app';
+            final name = authName ??
+                storedName ??
+                _fallbackNameFromEmail(email) ??
+                'Demo Profile';
             return Card(
               margin: const EdgeInsets.all(20),
               child: Padding(
@@ -31,9 +42,12 @@ class ProfileScreen extends StatelessWidget {
                       child: Icon(Icons.person, size: 40),
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'Demo Profile',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(email),
@@ -46,4 +60,19 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _fallbackNameFromEmail(String? email) {
+  if (email == null || email.trim().isEmpty) {
+    return null;
+  }
+  final parts = email.split('@');
+  if (parts.isEmpty) return null;
+  final raw = parts.first.replaceAll('.', ' ').replaceAll('_', ' ').trim();
+  if (raw.isEmpty) return null;
+  return raw
+      .split(' ')
+      .where((word) => word.isNotEmpty)
+      .map((word) => word[0].toUpperCase() + word.substring(1))
+      .join(' ');
 }

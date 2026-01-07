@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/recording.dart';
@@ -353,11 +354,6 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
     setState(() {
       _editDurationMode = !_editDurationMode;
       _durationSelections.clear();
-      if (_editDurationMode) {
-        _durationSelections.addAll(
-          List<int>.generate(_selectedNotes.length, (index) => index),
-        );
-      }
     });
   }
 
@@ -386,35 +382,48 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
     if (_saving || _selectedNotes.isEmpty || _durationSelections.isEmpty) {
       return;
     }
-    final controller = TextEditingController(
-      text: _defaultDurationMs.toString(),
-    );
+    final controller = TextEditingController();
     final duration = await showDialog<int>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Enter duration (ms)'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            filled: true,
-            hintText: '1000',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final value = int.tryParse(controller.text.trim());
-              Navigator.of(context).pop(value);
-            },
-            child: const Text('Apply'),
-          ),
-        ],
-      ),
+      builder: (context) {
+        String? errorText;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Enter duration (ms)'),
+              content: TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                  filled: false,
+                  errorText: errorText,
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final raw = controller.text.trim();
+                    final value = int.tryParse(raw);
+                    if (raw.isEmpty || value == null) {
+                      setDialogState(() {
+                        errorText = 'Enter only the numbers.';
+                      });
+                      return;
+                    }
+                    Navigator.of(context).pop(value);
+                  },
+                  child: const Text('Apply'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
     if (duration == null) {
       return;
@@ -738,7 +747,9 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
             const SizedBox(width: 12),
             Expanded(
               child: FilledButton(
-                onPressed: (_selectedNotes.isEmpty || _saving)
+                onPressed: (_selectedNotes.isEmpty ||
+                        _saving ||
+                        (_editDurationMode && _durationSelections.isEmpty))
                     ? null
                     : (_editDurationMode ? _applyBulkDuration : _saveRecording),
                 child: _saving

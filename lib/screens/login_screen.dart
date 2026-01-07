@@ -45,6 +45,10 @@ class _LoginScreenState extends State<LoginScreen> {
           _emailController.text.trim();
       if (email.isNotEmpty) {
         await UserPrefs.saveEmail(email);
+        final name = _nameFromEmail(email);
+        if (name.isNotEmpty) {
+          await UserPrefs.saveName(name);
+        }
       }
     } on FirebaseAuthException catch (e) {
       setState(() {
@@ -85,6 +89,10 @@ class _LoginScreenState extends State<LoginScreen> {
       final email = FirebaseAuth.instance.currentUser?.email;
       if (email != null && email.isNotEmpty) {
         await UserPrefs.saveEmail(email);
+      }
+      final name = FirebaseAuth.instance.currentUser?.displayName;
+      if (name != null && name.isNotEmpty) {
+        await UserPrefs.saveName(name);
       }
     } on FirebaseAuthException catch (e) {
       setState(() {
@@ -321,4 +329,16 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
+}
+
+String _nameFromEmail(String email) {
+  final parts = email.split('@');
+  if (parts.isEmpty) return '';
+  final raw = parts.first.replaceAll('.', ' ').replaceAll('_', ' ').trim();
+  if (raw.isEmpty) return '';
+  return raw
+      .split(' ')
+      .where((word) => word.isNotEmpty)
+      .map((word) => word[0].toUpperCase() + word.substring(1))
+      .join(' ');
 }

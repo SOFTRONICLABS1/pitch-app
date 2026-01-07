@@ -223,19 +223,17 @@ class PitchNotifier extends ChangeNotifier {
     };
     const carnaticToWestern = {
       'Sa': 'C',
-      'Sa#': 'C#',
-      'Re': 'D',
-      'Re#': 'D#',
-      'Ga': 'E',
-      'Ga#': 'F',
-      'Ma': 'F',
-      'Ma#': 'F#',
+      'Ri1': 'C#',
+      'Ri2': 'D',
+      'Ga1': 'D#',
+      'Ga2': 'E',
+      'Ma1': 'F',
+      'Ma2': 'F#',
       'Pa': 'G',
-      'Pa#': 'G#',
-      'Dha': 'A',
-      'Dha#': 'A#',
-      'Ni': 'B',
-      'Ni#': 'C',
+      'Da1': 'G#',
+      'Da2': 'A',
+      'Ni1': 'A#',
+      'Ni2': 'B',
     };
     final western = westernTokens[value];
     if (western != null) {

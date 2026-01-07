@@ -75,6 +75,7 @@ class _AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<_AuthGate> {
   String? _lastSavedEmail;
+  String? _lastSavedName;
 
   @override
   Widget build(BuildContext context) {
@@ -91,6 +92,11 @@ class _AuthGateState extends State<_AuthGate> {
           if (email != null && email != _lastSavedEmail) {
             _lastSavedEmail = email;
             UserPrefs.saveEmail(email);
+          }
+          final name = snapshot.data?.displayName;
+          if (name != null && name != _lastSavedName) {
+            _lastSavedName = name;
+            UserPrefs.saveName(name);
           }
           return const MenuScreen();
         }
