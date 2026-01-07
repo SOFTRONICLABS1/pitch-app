@@ -702,6 +702,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
   }
 
   Widget _buildDurations(BuildContext context) {
+    final tuningSystem = context.watch<PitchNotifier>().tuningSystem;
     return Column(
       key: const ValueKey('duration'),
       mainAxisSize: MainAxisSize.min,
@@ -759,7 +760,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
                     ),
                   Expanded(
                     child: Text(
-                      _selectedNotes[index],
+                      _displayLabel(_selectedNotes[index], tuningSystem),
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -1052,6 +1053,7 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final tuningSystem = context.watch<PitchNotifier>().tuningSystem;
     return Padding(
       padding: EdgeInsets.only(
         left: 20,
@@ -1081,14 +1083,26 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
                 return Row(
                   children: [
                     Expanded(
-                      child: TextField(
-                        controller: _noteControllers[index],
-                        decoration: const InputDecoration(
-                          labelText: 'Note',
-                          filled: true,
-                        ),
-                        textInputAction: TextInputAction.next,
-                      ),
+                      child: tuningSystem == 'carnatic'
+                          ? TextFormField(
+                              initialValue: _displayLabel(
+                                _noteControllers[index].text.trim(),
+                                tuningSystem,
+                              ),
+                              readOnly: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Note',
+                                filled: true,
+                              ),
+                            )
+                          : TextField(
+                              controller: _noteControllers[index],
+                              decoration: const InputDecoration(
+                                labelText: 'Note',
+                                filled: true,
+                              ),
+                              textInputAction: TextInputAction.next,
+                            ),
                     ),
                     const SizedBox(width: 8),
                     SizedBox(
@@ -1116,17 +1130,6 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
             onPressed: _openAddNotes,
             icon: const Icon(Icons.add),
             label: const Text('Add note'),
-          ),
-          const SizedBox(height: 12),
-          FilledButton(
-            onPressed: (_saving || !_hasNotes) ? null : _save,
-            child: _saving
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Text('Update'),
           ),
         ],
       ),
