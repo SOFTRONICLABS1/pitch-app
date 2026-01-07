@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../dsp/pitch_detection.dart';
 import '../models/recording.dart';
 import '../state/pitch_notifier.dart';
+import '../services/headset_service.dart';
 import '../widgets/tuner_display.dart';
 
 class VocalTrackerScreen extends StatefulWidget {
@@ -76,6 +77,9 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
 
   Future<void> _showHarmonicsWarning() async {
     if (!mounted) return;
+    if (await HeadsetService.isHeadsetConnected()) {
+      return;
+    }
     await showDialog<void>(
       context: context,
       builder: (context) {
@@ -417,14 +421,17 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       final cycleOffset = k * loopMs;
       for (var i = 0; i < _targets.length; i++) {
         final start = _targets[i].startOffsetMs * scale + cycleOffset;
-        if (start < previousElapsedMs || start > elapsedMs) {
+        final duration = _targets[i].durationMs * scale;
+        final end = start + duration;
+        final overlaps = end >= previousElapsedMs && start <= elapsedMs;
+        if (!overlaps) {
           continue;
         }
         if (bestStart == null || start < bestStart) {
           bestStart = start;
           index = i;
           cycleIndex = k;
-          durationMs = _targets[i].durationMs * scale;
+          durationMs = duration;
         }
       }
     }
@@ -473,48 +480,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   }
 
   List<PitchPoint> _filteredHistory(List<PitchPoint> history) {
-    if (!_harmonicsEnabled ||
-        _harmonicsMidi == null ||
-        _harmonicsWindowStart == null ||
-        _harmonicsWindowEnd == null) {
-      _filteredHistoryCache = null;
-      return history;
-    }
-    final start = _harmonicsWindowStart!;
-    final end = _harmonicsWindowEnd!;
-    final targetMidi = _harmonicsMidi!;
-    const clarityGate = 0.95;
-    const semitoneGate = 0.2;
-    final startMs = start.millisecondsSinceEpoch;
-    final endMs = end.millisecondsSinceEpoch;
-    final lastMs = history.isNotEmpty
-        ? history.last.time.millisecondsSinceEpoch
-        : -1;
-    if (_filteredHistoryCache != null &&
-        _filteredHistorySourceLength == history.length &&
-        _filteredHistoryLastMs == lastMs &&
-        _filteredHistoryStartMs == startMs &&
-        _filteredHistoryEndMs == endMs &&
-        _filteredHistoryMidi == targetMidi) {
-      return _filteredHistoryCache!;
-    }
-    final filtered = history.where((point) {
-      if (point.time.isBefore(start) || point.time.isAfter(end)) {
-        return true;
-      }
-      if (point.clarity < clarityGate) {
-        return true;
-      }
-      final midi = midiFromFrequency(point.frequency);
-      return (midi - targetMidi).abs() > semitoneGate;
-    }).toList();
-    _filteredHistoryCache = filtered;
-    _filteredHistorySourceLength = history.length;
-    _filteredHistoryLastMs = lastMs;
-    _filteredHistoryStartMs = startMs;
-    _filteredHistoryEndMs = endMs;
-    _filteredHistoryMidi = targetMidi;
-    return filtered;
+    _filteredHistoryCache = null;
+    return history;
   }
 
   String? _harmonicsAssetForMidi(int midi) {

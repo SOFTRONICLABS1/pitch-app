@@ -20,7 +20,10 @@ class PitchPoint {
 }
 
 class PitchNotifier extends ChangeNotifier {
-  PitchNotifier();
+  PitchNotifier() {
+    _tanpuraPlayer.setReleaseMode(ReleaseMode.loop);
+    _tanpuraPlayer.setPlayerMode(PlayerMode.lowLatency);
+  }
 
   static const defaultSampleRate = 44100;
   static const _historySpan = Duration(seconds: 12);
@@ -189,9 +192,9 @@ class PitchNotifier extends ChangeNotifier {
 
   Future<void> _restartTanpura() async {
     final asset = _tanpuraAssetPath();
-    await _tanpuraPlayer.setReleaseMode(ReleaseMode.loop);
     await _tanpuraPlayer.stop();
-    await _tanpuraPlayer.play(AssetSource(asset));
+    await _tanpuraPlayer.setSource(AssetSource(asset));
+    await _tanpuraPlayer.resume();
     tanpuraPlaying = true;
     notifyListeners();
   }
