@@ -82,19 +82,22 @@ class _AuthGateState extends State<_AuthGate> {
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
+      initialData: FirebaseAuth.instance.currentUser,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        final user = snapshot.data ?? FirebaseAuth.instance.currentUser;
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            user == null) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
-        if (snapshot.hasData) {
-          final email = snapshot.data?.email;
+        if (user != null) {
+          final email = user.email;
           if (email != null && email != _lastSavedEmail) {
             _lastSavedEmail = email;
             UserPrefs.saveEmail(email);
           }
-          final name = snapshot.data?.displayName;
+          final name = user.displayName;
           if (name != null && name != _lastSavedName) {
             _lastSavedName = name;
             UserPrefs.saveName(name);
