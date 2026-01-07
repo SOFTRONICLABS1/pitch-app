@@ -9,44 +9,40 @@ class PitchControls extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = context.watch<PitchNotifier>();
-    const westernNotes = [
-      'C',
-      'C#',
-      'D',
-      'D#',
-      'E',
-      'F',
-      'F#',
-      'G',
-      'G#',
-      'A',
-      'A#',
-      'B',
+    const noteOptions = [
+      ('C', 'Sa'),
+      ('C#', 'Ri1'),
+      ('D', 'Ri2'),
+      ('D#', 'Ga1'),
+      ('E', 'Ga2'),
+      ('F', 'Ma1'),
+      ('F#', 'Ma2'),
+      ('G', 'Pa'),
+      ('G#', 'Da1'),
+      ('A', 'Da2'),
+      ('A#', 'Ni1'),
+      ('B', 'Ni2'),
     ];
-    const carnaticNotes = [
-      'Sa',
-      'Ri1',
-      'Ri2',
-      'Ga1',
-      'Ga2',
-      'Ma1',
-      'Ma2',
-      'Pa',
-      'Da1',
-      'Da2',
-      'Ni1',
-      'Ni2',
+    const stringOptions = [
+      ('C', 'Sa'),
+      ('G', 'Pa'),
+      ('F', 'Ma'),
+      ('B', 'Ni'),
     ];
-    final notes =
-        state.tuningSystem == 'western' ? westernNotes : carnaticNotes;
-    final selectedNote =
-        notes.contains(state.tanpuraNote) ? state.tanpuraNote : notes.first;
+    final selectedNote = _westernNoteFor(state.tanpuraNote) ??
+        noteOptions.first.$1;
+    final selectedString = _westernNoteFor(state.tanpuraString) ??
+        stringOptions.first.$1;
     if (state.tanpuraNote != selectedNote) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         state.setTanpuraNote(selectedNote);
       });
     }
-    const strings = ['Sa', 'Pa', 'Ma', 'Ni'];
+    if (state.tanpuraString != selectedString) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        state.setTanpuraString(selectedString);
+      });
+    }
     return Container(
       color: Colors.black,
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -66,17 +62,18 @@ class PitchControls extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: DropdownButtonFormField<String>(
-                value: strings.contains(state.tanpuraString)
-                    ? state.tanpuraString
-                    : strings.first,
+                value: selectedString,
                 decoration: const InputDecoration(
                   filled: true,
                   fillColor: Colors.black,
                   border: OutlineInputBorder(),
                 ),
                 items: [
-                  for (final value in strings)
-                    DropdownMenuItem(value: value, child: Text(value)),
+                  for (final option in stringOptions)
+                    DropdownMenuItem(
+                      value: option.$1,
+                      child: Text('${option.$1} - ${option.$2}'),
+                    ),
                 ],
                 onChanged: (value) {
                   if (value == null) return;
@@ -100,8 +97,11 @@ class PitchControls extends StatelessWidget {
                   border: OutlineInputBorder(),
                 ),
                 items: [
-                  for (final note in notes)
-                    DropdownMenuItem(value: note, child: Text(note)),
+                  for (final option in noteOptions)
+                    DropdownMenuItem(
+                      value: option.$1,
+                      child: Text('${option.$1} - ${option.$2}'),
+                    ),
                 ],
                 onChanged: (value) {
                   if (value == null) return;
@@ -146,6 +146,36 @@ class PitchControls extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _westernNoteFor(String value) {
+  const mapping = {
+    'Sa': 'C',
+    'Ri1': 'C#',
+    'Ri2': 'D',
+    'Ga1': 'D#',
+    'Ga2': 'E',
+    'Ma1': 'F',
+    'Ma2': 'F#',
+    'Pa': 'G',
+    'Da1': 'G#',
+    'Da2': 'A',
+    'Ni1': 'A#',
+    'Ni2': 'B',
+    'C': 'C',
+    'C#': 'C#',
+    'D': 'D',
+    'D#': 'D#',
+    'E': 'E',
+    'F': 'F',
+    'F#': 'F#',
+    'G': 'G',
+    'G#': 'G#',
+    'A': 'A',
+    'A#': 'A#',
+    'B': 'B',
+  };
+  return mapping[value];
 }
 
 class _SectionTitle extends StatelessWidget {

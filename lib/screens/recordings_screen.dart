@@ -179,6 +179,10 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                               onPressed: () => _editRecording(recording),
                             ),
                             IconButton(
+                              icon: const Icon(Icons.play_arrow),
+                              onPressed: () => _openTracker(recording),
+                            ),
+                            IconButton(
                               icon: const Icon(Icons.visibility_outlined),
                               onPressed: () => _showDetails(
                                 recording,
