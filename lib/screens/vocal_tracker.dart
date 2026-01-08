@@ -714,10 +714,10 @@ class _PlayPauseBar extends StatelessWidget {
                     icon: Icon(
                       Icons.graphic_eq,
                       size: 30,
-                      color: onToggleHarmonics == null
-                          ? Colors.white54
-                          : (harmonicsEnabled
-                              ? const Color(0xFFF08A00)
+                      color: harmonicsEnabled
+                          ? const Color(0xFFF08A00)
+                          : (onToggleHarmonics == null
+                              ? Colors.white54
                               : Colors.white),
                     ),
                     onPressed: onToggleHarmonics,
