@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/recording.dart';
@@ -972,6 +973,8 @@ class _EditRecordingSheet extends StatefulWidget {
 class _EditRecordingSheetState extends State<_EditRecordingSheet> {
   final List<TextEditingController> _noteControllers = [];
   final List<TextEditingController> _durationControllers = [];
+  final List<String?> _noteErrors = [];
+  final List<String?> _durationErrors = [];
   bool _saving = false;
 
   @override
@@ -984,6 +987,8 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
       _durationControllers.add(
         TextEditingController(text: note.durationMs.toString()),
       );
+      _noteErrors.add(null);
+      _durationErrors.add(null);
     }
   }
 
@@ -1004,6 +1009,8 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
       _durationControllers[index].dispose();
       _noteControllers.removeAt(index);
       _durationControllers.removeAt(index);
+      _noteErrors.removeAt(index);
+      _durationErrors.removeAt(index);
     });
   }
 
@@ -1119,10 +1126,26 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
                             )
                           : TextField(
                               controller: _noteControllers[index],
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Note',
                                 filled: true,
+                                errorText: _noteErrors[index],
                               ),
+                              onChanged: (value) {
+                                final invalid = value.isNotEmpty &&
+                                    !RegExp(r'^[A-Za-z0-9#]+$')
+                                        .hasMatch(value);
+                                setState(() {
+                                  _noteErrors[index] = invalid
+                                      ? 'Enter only letters, numbers, and #.'
+                                      : null;
+                                });
+                              },
+                              inputFormatters: [
+                                FilteringTextInputFormatter.allow(
+                                  RegExp(r'[A-Za-z0-9#]'),
+                                ),
+                              ],
                               textInputAction: TextInputAction.next,
                             ),
                     ),
@@ -1132,9 +1155,21 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
                       child: TextField(
                         controller: _durationControllers[index],
                         keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
+                        onChanged: (value) {
+                          final invalid = value.isNotEmpty &&
+                              !RegExp(r'^[0-9]+$').hasMatch(value);
+                          setState(() {
+                            _durationErrors[index] =
+                                invalid ? 'Enter only numbers.' : null;
+                          });
+                        },
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                        ],
+                        decoration: InputDecoration(
                           labelText: 'ms',
                           filled: true,
+                          errorText: _durationErrors[index],
                         ),
                       ),
                     ),
