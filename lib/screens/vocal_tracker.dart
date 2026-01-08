@@ -202,7 +202,15 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
           child: CustomScrollView(
             slivers: [
               const SliverToBoxAdapter(child: SizedBox(height: 12)),
-              SliverToBoxAdapter(child: _NoteBadge(note: note)),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Align(
+                    alignment: Alignment.topRight,
+                    child: _NoteBadge(note: note),
+                  ),
+                ),
+              ),
               const SliverToBoxAdapter(child: SizedBox(height: 12)),
               SliverFillRemaining(
                 hasScrollBody: false,
