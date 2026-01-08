@@ -1153,6 +1153,17 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
             icon: const Icon(Icons.add),
             label: const Text('Add note'),
           ),
+          const SizedBox(height: 12),
+          FilledButton(
+            onPressed: (_saving || !_hasNotes) ? null : _save,
+            child: _saving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Text('Update'),
+          ),
         ],
       ),
     );

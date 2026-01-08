@@ -133,6 +133,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _historySnapshot ??= List<PitchPoint>.from(state.history);
     await state.start();
     if (!mounted || !state.listening) return;
+    if (!_harmonicsEnabled) {
+      await _showHarmonicsWarning();
+      if (!mounted) return;
+      _harmonicsEnabled = true;
+    }
     _stopwatch
       ..reset()
       ..start();
@@ -244,7 +249,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                       harmonicsEnabled: _harmonicsEnabled,
                       onStart: () => _handleStart(state),
                       onStop: () => _handleStop(state),
-                      onToggleHarmonics: _toggleHarmonics,
+                      onToggleHarmonics: null,
                       onOpenSettings: _showBpmSettings,
                     ),
                     const SizedBox(height: 12),
@@ -351,6 +356,9 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   Future<void> _toggleHarmonics() async {
     final enable = !_harmonicsEnabled;
     if (!enable) {
+      if (_running) {
+        return;
+      }
       _stopHarmonics();
       setState(() {
         _harmonicsEnabled = false;
@@ -671,7 +679,7 @@ class _PlayPauseBar extends StatelessWidget {
   final bool harmonicsEnabled;
   final VoidCallback onStart;
   final VoidCallback onStop;
-  final VoidCallback onToggleHarmonics;
+  final VoidCallback? onToggleHarmonics;
   final VoidCallback onOpenSettings;
 
   @override
@@ -698,9 +706,11 @@ class _PlayPauseBar extends StatelessWidget {
                     icon: Icon(
                       Icons.graphic_eq,
                       size: 30,
-                      color: harmonicsEnabled
-                          ? const Color(0xFFF08A00)
-                          : Colors.white,
+                      color: onToggleHarmonics == null
+                          ? Colors.white54
+                          : (harmonicsEnabled
+                              ? const Color(0xFFF08A00)
+                              : Colors.white),
                     ),
                     onPressed: onToggleHarmonics,
                   ),
@@ -926,6 +936,19 @@ _TargetBuildResult _targetBlocksFromRecording(RecordingEntry entry) {
     final normalized = note.note.trim().toLowerCase();
     final midi = _midiFromNoteLabel(normalized);
     if (midi == null) {
+      offsetMs += note.durationMs;
+      continue;
+    }
+    if (targets.isNotEmpty && targets.last.midi == midi) {
+      final last = targets.removeLast();
+      targets.add(
+        _TargetBlock(
+          midi: last.midi,
+          label: last.label,
+          durationMs: last.durationMs + note.durationMs,
+          startOffsetMs: last.startOffsetMs,
+        ),
+      );
       offsetMs += note.durationMs;
       continue;
     }

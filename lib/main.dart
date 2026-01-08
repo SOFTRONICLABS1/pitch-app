@@ -123,6 +123,15 @@ class _PitchHomePageState extends State<PitchHomePage> {
     super.initState();
   }
 
+  @override
+  void dispose() {
+    final state = context.read<PitchNotifier>();
+    if (state.tanpuraPlaying) {
+      state.toggleTanpura();
+    }
+    super.dispose();
+  }
+
   Future<void> _showTanpuraWarning() async {
     if (!mounted) return;
     if (await HeadsetService.isHeadsetConnected()) {
