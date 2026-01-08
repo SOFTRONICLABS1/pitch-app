@@ -1039,6 +1039,21 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
     return _noteControllers.any((c) => c.text.trim().isNotEmpty);
   }
 
+  bool _hasNoteErrors() {
+    return _noteErrors.any((error) => error != null) ||
+        _durationErrors.any((error) => error != null);
+  }
+
+  bool _hasEmptyFields() {
+    for (var i = 0; i < _noteControllers.length; i++) {
+      if (_noteControllers[i].text.trim().isEmpty ||
+          _durationControllers[i].text.trim().isEmpty) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   Future<void> _save() async {
     if (_saving || !_hasNotes) return;
     setState(() {
@@ -1083,6 +1098,7 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final tuningSystem = context.watch<PitchNotifier>().tuningSystem;
+    final noteFormat = _noteInputFormatForSystem(tuningSystem);
     return Padding(
       padding: EdgeInsets.only(
         left: 20,
@@ -1112,42 +1128,27 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
                 return Row(
                   children: [
                     Expanded(
-                      child: tuningSystem == 'carnatic'
-                          ? TextFormField(
-                              initialValue: _displayLabel(
-                                _noteControllers[index].text.trim(),
-                                tuningSystem,
-                              ),
-                              readOnly: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Note',
-                                filled: true,
-                              ),
-                            )
-                          : TextField(
-                              controller: _noteControllers[index],
-                              decoration: InputDecoration(
-                                labelText: 'Note',
-                                filled: true,
-                                errorText: _noteErrors[index],
-                              ),
-                              onChanged: (value) {
-                                final invalid = value.isNotEmpty &&
-                                    !RegExp(r'^[A-Za-z0-9#]+$')
-                                        .hasMatch(value);
-                                setState(() {
-                                  _noteErrors[index] = invalid
-                                      ? 'Enter only letters, numbers, and #.'
-                                      : null;
-                                });
-                              },
-                              inputFormatters: [
-                                FilteringTextInputFormatter.allow(
-                                  RegExp(r'[A-Za-z0-9#]'),
-                                ),
-                              ],
-                              textInputAction: TextInputAction.next,
-                            ),
+                      child: TextField(
+                        controller: _noteControllers[index],
+                        decoration: InputDecoration(
+                          labelText: 'Note',
+                          filled: true,
+                          errorText: _noteErrors[index],
+                        ),
+                        onChanged: (value) {
+                          final invalid = value.isNotEmpty &&
+                              !_isValidNoteForSystem(value, tuningSystem);
+                          setState(() {
+                            _noteErrors[index] = invalid
+                                ? _noteErrorTextForSystem(tuningSystem)
+                                : null;
+                          });
+                        },
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(noteFormat),
+                        ],
+                        textInputAction: TextInputAction.next,
+                      ),
                     ),
                     const SizedBox(width: 8),
                     SizedBox(
@@ -1190,7 +1191,10 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
           ),
           const SizedBox(height: 12),
           FilledButton(
-            onPressed: (_saving || !_hasNotes) ? null : _save,
+            onPressed:
+                (_saving || !_hasNotes || _hasNoteErrors() || _hasEmptyFields())
+                ? null
+                : _save,
             child: _saving
                 ? const SizedBox(
                     width: 18,
@@ -1203,6 +1207,36 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
       ),
     );
   }
+}
+
+RegExp _noteInputFormatForSystem(String tuningSystem) {
+  if (tuningSystem == 'carnatic') {
+    return RegExp(r'[A-Za-z0-9]');
+  }
+  return RegExp(r'[A-Za-z0-9#]');
+}
+
+String _noteErrorTextForSystem(String tuningSystem) {
+  if (tuningSystem == 'carnatic') {
+    return 'Enter a valid Carnatic note (e.g., Sa3, Ri1-4).';
+  }
+  return 'Enter a valid Western note (e.g., C#4, A3).';
+}
+
+bool _isValidNoteForSystem(String value, String tuningSystem) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) return false;
+  if (tuningSystem == 'carnatic') {
+    final carnatic = RegExp(
+      r'^(sa|ri1|ri2|ga1|ga2|ma1|ma2|pa|da1|da2|ni1|ni2)-?\d+$',
+      caseSensitive: false,
+    );
+    return carnatic.hasMatch(trimmed);
+  }
+  final western = RegExp(
+    r'^[A-Ga-g]#?\d+$',
+  );
+  return western.hasMatch(trimmed);
 }
 
 class _NoteOptionTile extends StatelessWidget {
