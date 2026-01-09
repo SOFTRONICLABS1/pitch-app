@@ -57,51 +57,18 @@ class MenuScreen extends StatelessWidget {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: GridView.count(
-          crossAxisCount: 2,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          children: [
-            _MenuTile(
-              icon: Icons.graphic_eq,
-              label: 'Practice',
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const PitchHomePage()),
-                );
-              },
-            ),
-            _MenuTile(
-              icon: Icons.library_music,
-              label: 'Recordings',
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const RecordingsScreen()),
-                );
-              },
-            ),
-            _MenuTile(
-              icon: Icons.mic,
-              label: 'Vocal Tracker',
-              onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => RecordingsScreen(
-                      onSelect: (recording) {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => VocalTrackerScreen(
-                              recording: recording,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                );
-              },
-            ),
-          ],
+        child: SizedBox(
+          width: 180,
+          height: 180,
+          child: _MenuTile(
+            icon: Icons.graphic_eq,
+            label: 'Practice',
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const RecordingsScreen()),
+              );
+            },
+          ),
         ),
       ),
     );
@@ -123,15 +90,23 @@ class _MenuTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: InkWell(
-        onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Center(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(icon, size: 42),
-              const SizedBox(height: 8),
-              Text(label),
+              Icon(icon, size: 48),
+              const SizedBox(height: 10),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                ),
+                textAlign: TextAlign.center,
+              ),
             ],
           ),
         ),
