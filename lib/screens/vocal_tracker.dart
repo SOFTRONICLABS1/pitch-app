@@ -720,35 +720,42 @@ class _PlayPauseBar extends StatelessWidget {
             ),
             const SizedBox(height: 8),
           ],
-          Row(
-            children: [
-              const Expanded(child: SizedBox.shrink()),
-              IconButton(
-                icon: Icon(
-                  listening ? Icons.pause : Icons.play_arrow,
-                  size: 36,
-                ),
-                onPressed: listening ? onStop : onStart,
-              ),
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined),
-                        onPressed: onEdit,
+          SizedBox(
+            height: 48,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final gap = constraints.maxWidth * 0.1;
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        listening ? Icons.pause : Icons.play_arrow,
+                        size: 36,
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.tune),
-                        onPressed: onOpenSettings,
+                      onPressed: listening ? onStop : onStart,
+                    ),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: onEdit,
+                          ),
+                          SizedBox(width: gap),
+                          IconButton(
+                            icon: const Icon(Icons.tune),
+                            onPressed: onOpenSettings,
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         ],
       ),

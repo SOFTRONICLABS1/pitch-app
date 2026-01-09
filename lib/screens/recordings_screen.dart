@@ -164,22 +164,25 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                           horizontal: 16,
                           vertical: 8,
                         ),
-                        title: Text(recording.name),
-                        onTap: () {
-                          final handler = widget.onSelect;
-                          if (handler != null) {
-                            handler(recording);
-                          } else {
-                            _openTracker(recording);
-                          }
-                        },
+                        title: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Flexible(child: Text(recording.name)),
+                            const SizedBox(width: 10),
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined),
+                              constraints: const BoxConstraints(),
+                              padding: EdgeInsets.zero,
+                              onPressed: () => _editRecording(recording),
+                            ),
+                          ],
+                        ),
+                        onTap: widget.onSelect == null
+                            ? null
+                            : () => widget.onSelect?.call(recording),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit_outlined),
-                              onPressed: () => _editRecording(recording),
-                            ),
                             IconButton(
                               icon: const Icon(Icons.play_arrow),
                               onPressed: () => _openTracker(recording),
