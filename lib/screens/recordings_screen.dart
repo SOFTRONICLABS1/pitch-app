@@ -63,29 +63,52 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   }
 
   void _editRecording(RecordingEntry entry) {
-    showModalBottomSheet<void>(
+    final controller = TextEditingController(text: entry.name);
+    showDialog<void>(
       context: context,
-      backgroundColor: const Color(0xFF23272B),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      isScrollControlled: true,
-      builder: (context) => _EditRecordingSheet(
-        entry: entry,
-        onSaved: () async {
-          await _load();
-        },
+      builder: (context) => AlertDialog(
+        title: const Text('Rename recording'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Recording name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              final name = controller.text.trim();
+              if (name.isEmpty) {
+                return;
+              }
+              final updated = RecordingEntry(
+                id: entry.id,
+                name: name,
+                createdAt: entry.createdAt,
+                notes: entry.notes,
+              );
+              await RecordingStore.instance.update(updated);
+              if (!mounted) return;
+              Navigator.of(context).pop();
+              await _load();
+            },
+            child: const Text('Save'),
+          ),
+        ],
       ),
     );
   }
 
-  void _openTracker(RecordingEntry entry) {
-    Navigator.of(context).push(
+  Future<void> _openTracker(RecordingEntry entry) async {
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => VocalTrackerScreen(recording: entry),
       ),
     );
+    await _load();
   }
 
   @override
@@ -97,7 +120,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: _showAddRecordingSheet,
+            onPressed: _showAddRecordingOptions,
           ),
         ],
       ),
@@ -175,7 +198,46 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     );
   }
 
-  void _showAddRecordingSheet() {
+  Future<void> _showAddRecordingOptions() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF23272B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.mic),
+                title: const Text('Live recording'),
+                subtitle: const Text('Record from the tuner screen'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(context).pushNamed('/tuner');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Compose recording'),
+                subtitle: const Text('Build a note sequence manually'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _showComposeRecordingSheet();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showComposeRecordingSheet() {
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF23272B),
@@ -912,6 +974,103 @@ String _displayLabel(String westernNote, String tuningSystem) {
   return '$label$octave';
 }
 
+String _formatNoteForEdit(String note, String tuningSystem) {
+  final trimmed = note.trim();
+  if (trimmed.isEmpty) {
+    return '';
+  }
+  if (tuningSystem != 'carnatic') {
+    return trimmed.toUpperCase();
+  }
+  final carnatic = RegExp(
+    r'^(sa|ri1|ri2|ga1|ga2|ma1|ma2|pa|da1|da2|ni1|ni2)-?(\d+)$',
+    caseSensitive: false,
+  ).firstMatch(trimmed);
+  if (carnatic != null) {
+    const casing = {
+      'sa': 'Sa',
+      'ri1': 'Ri1',
+      'ri2': 'Ri2',
+      'ga1': 'Ga1',
+      'ga2': 'Ga2',
+      'ma1': 'Ma1',
+      'ma2': 'Ma2',
+      'pa': 'Pa',
+      'da1': 'Da1',
+      'da2': 'Da2',
+      'ni1': 'Ni1',
+      'ni2': 'Ni2',
+    };
+    final name = (carnatic.group(1) ?? '').toLowerCase();
+    final octave = carnatic.group(2) ?? '';
+    final label = casing[name] ?? name.toUpperCase();
+    return '$label-$octave';
+  }
+  final western = RegExp(r'^([A-Ga-g])(#?)(-?\d+)$').firstMatch(trimmed);
+  if (western != null) {
+    final name = western.group(1);
+    final sharp = western.group(2);
+    final octave = western.group(3);
+    if (name != null && octave != null) {
+      final baseIndex = switch (name.toUpperCase()) {
+        'C' => 0,
+        'D' => 2,
+        'E' => 4,
+        'F' => 5,
+        'G' => 7,
+        'A' => 9,
+        'B' => 11,
+        _ => 0,
+      };
+      final semitone = (baseIndex + (sharp == '#' ? 1 : 0)) % 12;
+      final label = _carnaticNoteLabels[semitone];
+      return '$label$octave';
+    }
+  }
+  return trimmed.toUpperCase();
+}
+
+String _normalizeNoteForStorage(String input, String tuningSystem) {
+  final trimmed = input.trim();
+  if (trimmed.isEmpty) {
+    return '';
+  }
+  final western = RegExp(r'^([A-Ga-g])(#?)(-?\d+)$').firstMatch(trimmed);
+  if (western != null) {
+    final name = western.group(1) ?? '';
+    final sharp = western.group(2) ?? '';
+    final octave = western.group(3) ?? '';
+    return '${name.toLowerCase()}$sharp$octave';
+  }
+  if (tuningSystem == 'carnatic') {
+    final carnatic = RegExp(
+      r'^(sa|ri1|ri2|ga1|ga2|ma1|ma2|pa|da1|da2|ni1|ni2)-?(\d+)$',
+      caseSensitive: false,
+    ).firstMatch(trimmed);
+    if (carnatic != null) {
+      final name = (carnatic.group(1) ?? '').toLowerCase();
+      final octave = carnatic.group(2) ?? '';
+      const map = {
+        'sa': 'c',
+        'ri1': 'c#',
+        'ri2': 'd',
+        'ga1': 'd#',
+        'ga2': 'e',
+        'ma1': 'f',
+        'ma2': 'f#',
+        'pa': 'g',
+        'da1': 'g#',
+        'da2': 'a',
+        'ni1': 'a#',
+        'ni2': 'b',
+      };
+      final westernNote = map[name] ?? 'c';
+      return '$westernNote$octave';
+    }
+  }
+  return trimmed.toLowerCase();
+}
+
 TextStyle? _labelStyleForSystem(String tuningSystem) {
   if (tuningSystem != 'carnatic') {
     return null;
@@ -946,9 +1105,12 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
   @override
   void initState() {
     super.initState();
+    final tuningSystem = context.read<PitchNotifier>().tuningSystem;
     for (final note in widget.entry.notes) {
       _noteControllers.add(
-        TextEditingController(text: note.note.toUpperCase()),
+        TextEditingController(
+          text: _formatNoteForEdit(note.note, tuningSystem),
+        ),
       );
       _durationControllers.add(
         TextEditingController(text: note.durationMs.toString()),
@@ -1026,17 +1188,22 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
       _saving = true;
     });
     try {
+      final tuningSystem = context.read<PitchNotifier>().tuningSystem;
       final notes = <RecordedNote>[];
       for (var i = 0; i < _noteControllers.length; i++) {
         final noteText = _noteControllers[i].text.trim();
         if (noteText.isEmpty) {
           continue;
         }
+        final normalized = _normalizeNoteForStorage(noteText, tuningSystem);
+        if (normalized.isEmpty) {
+          continue;
+        }
         final duration =
             int.tryParse(_durationControllers[i].text.trim()) ?? 500;
         notes.add(
           RecordedNote(
-            note: noteText.toLowerCase(),
+            note: normalized,
             durationMs: duration,
           ),
         );
@@ -1177,14 +1344,14 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
 
 RegExp _noteInputFormatForSystem(String tuningSystem) {
   if (tuningSystem == 'carnatic') {
-    return RegExp(r'[A-Za-z0-9]');
+    return RegExp(r'[A-Za-z0-9#]');
   }
   return RegExp(r'[A-Za-z0-9#]');
 }
 
 String _noteErrorTextForSystem(String tuningSystem) {
   if (tuningSystem == 'carnatic') {
-    return 'Enter a valid Carnatic note (e.g., Sa3, Ri1-4).';
+    return 'Enter a valid note (e.g., C#4 or Sa3).';
   }
   return 'Enter a valid Western note (e.g., C#4, A3).';
 }
@@ -1197,7 +1364,13 @@ bool _isValidNoteForSystem(String value, String tuningSystem) {
       r'^(sa|ri1|ri2|ga1|ga2|ma1|ma2|pa|da1|da2|ni1|ni2)-?\d+$',
       caseSensitive: false,
     );
-    return carnatic.hasMatch(trimmed);
+    if (carnatic.hasMatch(trimmed)) {
+      return true;
+    }
+    final western = RegExp(
+      r'^[A-Ga-g]#?\d+$',
+    );
+    return western.hasMatch(trimmed);
   }
   final western = RegExp(
     r'^[A-Ga-g]#?\d+$',

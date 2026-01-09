@@ -61,6 +61,9 @@ class _PitchAppState extends State<PitchApp> {
             secondary: Color(0xFFECECEC),
           ),
         ),
+        routes: {
+          '/tuner': (_) => const PitchHomePage(),
+        },
         home: const _AuthGate(),
       ),
     );
