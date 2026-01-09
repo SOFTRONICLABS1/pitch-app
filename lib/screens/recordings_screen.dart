@@ -135,8 +135,6 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final recording = _recordings[index];
-                    final date =
-                        recording.createdAt.toLocal().toString().split('.').first;
                     return Card(
                       child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(
@@ -144,7 +142,6 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                           vertical: 8,
                         ),
                         title: Text(recording.name),
-                        subtitle: Text(date),
                         onTap: () {
                           final handler = widget.onSelect;
                           if (handler != null) {
