@@ -80,30 +80,6 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     );
   }
 
-  void _showDetails(RecordingEntry entry, String tuningSystem) {
-    final content = entry.notes
-        .map(
-          (note) =>
-              '${_displayLabel(note.note.toUpperCase(), tuningSystem)}:${note.durationMs}',
-        )
-        .join(', ');
-    showDialog<void>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text(entry.name),
-          content: Text(content.isEmpty ? 'No notes captured.' : content),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   void _openTracker(RecordingEntry entry) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -187,13 +163,6 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                             IconButton(
                               icon: const Icon(Icons.play_arrow),
                               onPressed: () => _openTracker(recording),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.visibility_outlined),
-                              onPressed: () => _showDetails(
-                                recording,
-                                tuningSystem,
-                              ),
                             ),
                             const SizedBox(width: 6),
                             IconButton(

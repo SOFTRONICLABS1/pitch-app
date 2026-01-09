@@ -254,10 +254,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                     _PlayPauseBar(
                       listening: state.listening,
                       errorMessage: state.errorMessage,
-                      harmonicsEnabled: _harmonicsEnabled,
                       onStart: () => _handleStart(state),
                       onStop: () => _handleStop(state),
-                      onToggleHarmonics: null,
                       onOpenSettings: _showBpmSettings,
                     ),
                     const SizedBox(height: 12),
@@ -359,32 +357,6 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
         );
       },
     );
-  }
-
-  Future<void> _toggleHarmonics() async {
-    final enable = !_harmonicsEnabled;
-    if (!enable) {
-      if (_running) {
-        return;
-      }
-      _stopHarmonics();
-      setState(() {
-        _harmonicsEnabled = false;
-        _currentHarmonicsKey = null;
-      });
-      return;
-    }
-    await _showHarmonicsWarning();
-    if (!mounted) return;
-    setState(() {
-      _harmonicsEnabled = true;
-      _currentHarmonicsKey = null;
-    });
-    _stopHarmonics();
-    if (_running) {
-      _targetElapsedOffset = _elapsed;
-      _lastTargetElapsedMs = 0.0;
-    }
   }
 
   Future<void> _preloadHarmonics() async {
@@ -675,19 +647,15 @@ class _PlayPauseBar extends StatelessWidget {
   const _PlayPauseBar({
     required this.listening,
     required this.errorMessage,
-    required this.harmonicsEnabled,
     required this.onStart,
     required this.onStop,
-    required this.onToggleHarmonics,
     required this.onOpenSettings,
   });
 
   final bool listening;
   final String? errorMessage;
-  final bool harmonicsEnabled;
   final VoidCallback onStart;
   final VoidCallback onStop;
-  final VoidCallback? onToggleHarmonics;
   final VoidCallback onOpenSettings;
 
   @override
@@ -707,23 +675,7 @@ class _PlayPauseBar extends StatelessWidget {
           ],
           Row(
             children: [
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: IconButton(
-                    icon: Icon(
-                      Icons.graphic_eq,
-                      size: 30,
-                      color: harmonicsEnabled
-                          ? const Color(0xFFF08A00)
-                          : (onToggleHarmonics == null
-                              ? Colors.white54
-                              : Colors.white),
-                    ),
-                    onPressed: onToggleHarmonics,
-                  ),
-                ),
-              ),
+              const Expanded(child: SizedBox.shrink()),
               IconButton(
                 icon: Icon(
                   listening ? Icons.pause : Icons.play_arrow,
