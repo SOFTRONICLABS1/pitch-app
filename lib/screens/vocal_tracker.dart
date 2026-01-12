@@ -1280,12 +1280,15 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   }
 
   Widget _buildGridLine({required double x, int? dragIndex}) {
+    const lineWidth = 1.0;
+    const handleWidth = 20.0;
+    const handleHeight = 28.0;
     final line = Positioned(
       left: x,
       top: 0,
       bottom: 0,
       child: Container(
-        width: 5,
+        width: lineWidth,
         color: Colors.white,
       ),
     );
@@ -1293,7 +1296,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
       return line;
     }
     return Positioned(
-      left: x - 6,
+      left: x - (handleWidth / 2),
       top: 0,
       bottom: 0,
       child: GestureDetector(
@@ -1316,9 +1319,36 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           _dragRemainderByIndex.remove(dragIndex);
           widget.onDurationDrag(dragIndex, 0, true);
         },
-        child: const SizedBox(
-          width: 17,
+        child: SizedBox(
+          width: handleWidth,
           height: double.infinity,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Align(
+                alignment: Alignment.center,
+                child: Container(
+                  width: lineWidth,
+                  height: double.infinity,
+                  color: Colors.white,
+                ),
+              ),
+              Container(
+                width: handleWidth,
+                height: handleHeight,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1F2327),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.white, width: 1),
+                ),
+                child: const Icon(
+                  Icons.drag_indicator,
+                  size: 18,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
