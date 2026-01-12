@@ -39,6 +39,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   double _viewportOffset = 0.0;
   static const _viewportRowCount = 30;
   bool _harmonicsEnabled = false;
+  bool _tanpuraEnabled = false;
   final AudioPlayer _harmonicsPlayer = AudioPlayer();
   Timer? _harmonicsStopTimer;
   int? _currentHarmonicsKey;
@@ -110,6 +111,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _stopHarmonics();
     try {
       final pitchState = context.read<PitchNotifier>();
+      _stopTanpuraIfNeeded(pitchState);
       pitchState.stop();
       if (_historySnapshot != null) {
         pitchState.replaceHistory(_historySnapshot!);
@@ -136,7 +138,10 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _historySnapshot ??= List<PitchPoint>.from(state.history);
     await state.start();
     if (!mounted || !state.listening) return;
-    if (!_harmonicsEnabled) {
+    if (_tanpuraEnabled) {
+      _harmonicsEnabled = false;
+      _stopHarmonics();
+    } else if (!_harmonicsEnabled) {
       await _showHarmonicsWarning();
       if (!mounted) return;
       _harmonicsEnabled = true;
@@ -153,6 +158,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       _targetElapsedOffset = Duration.zero;
     });
     _ticker.start();
+    await _ensureTanpuraState(state);
   }
 
   Future<void> _handleStop(PitchNotifier state) async {
@@ -160,6 +166,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _stopwatch.stop();
     _ticker.stop();
     _stopHarmonics();
+    await _stopTanpuraIfNeeded(state);
     if (_historySnapshot != null) {
       state.replaceHistory(_historySnapshot!);
       _historySnapshot = null;
@@ -172,6 +179,18 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       _targetElapsedOffset = Duration.zero;
       _harmonicsEnabled = false;
     });
+  }
+
+  Future<void> _ensureTanpuraState(PitchNotifier state) async {
+    if (_tanpuraEnabled && !state.tanpuraPlaying) {
+      await state.toggleTanpura();
+    }
+  }
+
+  Future<void> _stopTanpuraIfNeeded(PitchNotifier state) async {
+    if (state.tanpuraPlaying) {
+      await state.toggleTanpura();
+    }
   }
 
   void _openEditRecording() {
@@ -314,14 +333,20 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
         var current = _bpm;
         return StatefulBuilder(
           builder: (context, setSheetState) {
+            final selectedNote =
+                _carnaticNoteFor(pitchState.tanpuraNote) ?? 'Sa';
+            final selectedString =
+                _carnaticStringFor(pitchState.tanpuraString) ?? 'Sa';
+            final maxHeight = MediaQuery.of(context).size.height * 0.8;
             return Padding(
               padding: const EdgeInsets.all(20),
-              child: SizedBox(
-                height: 360,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                  Text(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxHeight),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                    Text(
                     'BPM',
                     style: Theme.of(context)
                         .textTheme
@@ -382,7 +407,134 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                       setSheetState(() {});
                     },
                   ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Tanpura',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      Switch(
+                        value: _tanpuraEnabled,
+                        onChanged: (value) async {
+                          setState(() {
+                            _tanpuraEnabled = value;
+                            _lastTargetElapsedMs = 0.0;
+                            _targetElapsedOffset = _elapsed;
+                            _currentHarmonicsKey = null;
+                          });
+                          setSheetState(() {});
+                          if (_tanpuraEnabled) {
+                            _harmonicsEnabled = false;
+                            _stopHarmonics();
+                            if (_running) {
+                              await _ensureTanpuraState(pitchState);
+                            }
+                          } else {
+                            await _stopTanpuraIfNeeded(pitchState);
+                            if (_running && !_harmonicsEnabled) {
+                              await _showHarmonicsWarning();
+                              if (!mounted) return;
+                              _harmonicsEnabled = true;
+                            }
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  if (_tanpuraEnabled) ...[
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'First string',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelLarge
+                            ?.copyWith(color: Colors.white70),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: selectedString,
+                      decoration: const InputDecoration(
+                        filled: true,
+                        fillColor: Color(0xFF23272B),
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        for (final option in _tanpuraStringOptions)
+                          DropdownMenuItem(
+                            value: option.$2,
+                            child: Text('${option.$1} - ${option.$2}'),
+                          ),
+                      ],
+                      onChanged: (value) async {
+                        if (value == null) return;
+                        await pitchState.setTanpuraString(value);
+                        setSheetState(() {});
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Note',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelLarge
+                            ?.copyWith(color: Colors.white70),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    DropdownButtonFormField<String>(
+                      value: selectedNote,
+                      decoration: const InputDecoration(
+                        filled: true,
+                        fillColor: Color(0xFF23272B),
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        for (final option in _tanpuraNoteOptions)
+                          DropdownMenuItem(
+                            value: option.$2,
+                            child: Text('${option.$1} - ${option.$2}'),
+                          ),
+                      ],
+                      onChanged: (value) async {
+                        if (value == null) return;
+                        await pitchState.setTanpuraNote(value);
+                        setSheetState(() {});
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Tanpura volume (${(pitchState.tanpuraVolume * 100).round()}%)',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelLarge
+                            ?.copyWith(color: Colors.white70),
+                      ),
+                    ),
+                    Slider(
+                      value: pitchState.tanpuraVolume,
+                      min: 0.0,
+                      max: 1.0,
+                      onChanged: (value) {
+                        pitchState.setTanpuraVolume(value);
+                        setSheetState(() {});
+                      },
+                    ),
                   ],
+                  ],
+                ),
                 ),
               ),
             );
@@ -416,7 +568,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   }
 
   void _updateHarmonics(Duration targetElapsed) {
-    if (!_harmonicsEnabled || !_running || _targets.isEmpty) {
+    if (_tanpuraEnabled || !_harmonicsEnabled || !_running || _targets.isEmpty) {
       _stopHarmonics();
       return;
     }
@@ -593,6 +745,28 @@ const _bpmOptions = [
   220,
   230,
   240,
+];
+
+const _tanpuraNoteOptions = [
+  ('C', 'Sa'),
+  ('C#', 'Ri1'),
+  ('D', 'Ri2'),
+  ('D#', 'Ga1'),
+  ('E', 'Ga2'),
+  ('F', 'Ma1'),
+  ('F#', 'Ma2'),
+  ('G', 'Pa'),
+  ('G#', 'Da1'),
+  ('A', 'Da2'),
+  ('A#', 'Ni1'),
+  ('B', 'Ni2'),
+];
+
+const _tanpuraStringOptions = [
+  ('C', 'Sa'),
+  ('G', 'Pa'),
+  ('F', 'Ma'),
+  ('B', 'Ni'),
 ];
 
 int _bpmIndex(int bpm) {
@@ -2238,4 +2412,48 @@ bool _isValidNoteForSystem(String value, String tuningSystem) {
     r'^[A-Ga-g]#?\d+$',
   );
   return western.hasMatch(trimmed);
+}
+
+String? _carnaticNoteFor(String value) {
+  const mapping = {
+    'C': 'Sa',
+    'C#': 'Ri1',
+    'D': 'Ri2',
+    'D#': 'Ga1',
+    'E': 'Ga2',
+    'F': 'Ma1',
+    'F#': 'Ma2',
+    'G': 'Pa',
+    'G#': 'Da1',
+    'A': 'Da2',
+    'A#': 'Ni1',
+    'B': 'Ni2',
+    'Sa': 'Sa',
+    'Ri1': 'Ri1',
+    'Ri2': 'Ri2',
+    'Ga1': 'Ga1',
+    'Ga2': 'Ga2',
+    'Ma1': 'Ma1',
+    'Ma2': 'Ma2',
+    'Pa': 'Pa',
+    'Da1': 'Da1',
+    'Da2': 'Da2',
+    'Ni1': 'Ni1',
+    'Ni2': 'Ni2',
+  };
+  return mapping[value];
+}
+
+String? _carnaticStringFor(String value) {
+  const mapping = {
+    'C': 'Sa',
+    'F': 'Ma',
+    'G': 'Pa',
+    'B': 'Ni',
+    'Sa': 'Sa',
+    'Ma': 'Ma',
+    'Pa': 'Pa',
+    'Ni': 'Ni',
+  };
+  return mapping[value];
 }

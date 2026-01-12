@@ -43,6 +43,7 @@ class PitchNotifier extends ChangeNotifier {
   String tanpuraString = 'Sa';
   String tanpuraNote = 'Sa';
   bool tanpuraPlaying = false;
+  double tanpuraVolume = 0.3;
   bool recording = false;
 
   List<PitchPoint> history = [];
@@ -145,6 +146,14 @@ class PitchNotifier extends ChangeNotifier {
     }
   }
 
+  Future<void> setTanpuraVolume(double value) async {
+    tanpuraVolume = value.clamp(0.0, 1.0);
+    if (tanpuraPlaying) {
+      await _tanpuraPlayer.setVolume(tanpuraVolume);
+    }
+    notifyListeners();
+  }
+
   Future<void> startRecording() async {
     if (recording) return;
     if (!listening) {
@@ -194,6 +203,7 @@ class PitchNotifier extends ChangeNotifier {
     final asset = _tanpuraAssetPath();
     await _tanpuraPlayer.stop();
     await _tanpuraPlayer.setSource(AssetSource(asset));
+    await _tanpuraPlayer.setVolume(tanpuraVolume);
     await _tanpuraPlayer.resume();
     tanpuraPlaying = true;
     notifyListeners();
