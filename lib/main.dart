@@ -174,7 +174,7 @@ class _PitchHomePageState extends State<PitchHomePage> {
     return Scaffold(
       appBar: AppBar(
         leading: const BackButton(),
-        title: const Text('Tuner'),
+        title: const Text('Live Recording'),
       ),
       body: SafeArea(
         child: CustomScrollView(

@@ -116,7 +116,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     final tuningSystem = context.watch<PitchNotifier>().tuningSystem;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Recordings'),
+        title: const Text('Ragas'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
