@@ -231,7 +231,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _applyRecordingUpdate(updated);
   }
 
-  static const _minDurationMs = 100;
+  static const _minDurationMs = 500;
 
   Future<void> _adjustTargetDuration(
     int index,
