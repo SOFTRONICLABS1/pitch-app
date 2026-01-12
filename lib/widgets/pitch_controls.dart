@@ -56,57 +56,66 @@ class PitchControls extends StatelessWidget {
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _SectionTitle('First string'),
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: DropdownButtonFormField<String>(
-                value: selectedString,
-                decoration: const InputDecoration(
-                  filled: true,
-                  fillColor: Colors.black,
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  for (final option in stringOptions)
-                    DropdownMenuItem(
-                      value: option.$2,
-                      child: Text('${option.$1} - ${option.$2}'),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _SectionTitle('First string'),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: selectedString,
+                          decoration: const InputDecoration(
+                            filled: true,
+                            fillColor: Colors.black,
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            for (final option in stringOptions)
+                              DropdownMenuItem(
+                                value: option.$2,
+                                child: Text('${option.$1} - ${option.$2}'),
+                              ),
+                          ],
+                          onChanged: (value) {
+                            if (value == null) return;
+                            state.setTanpuraString(value);
+                          },
+                        ),
+                      ],
                     ),
-                ],
-                onChanged: (value) {
-                  if (value == null) return;
-                  state.setTanpuraString(value);
-                },
-              ),
-            ),
-            const SizedBox(height: 12),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _SectionTitle('Note'),
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: DropdownButtonFormField<String>(
-                value: selectedNote,
-                decoration: const InputDecoration(
-                  filled: true,
-                  fillColor: Colors.black,
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  for (final option in noteOptions)
-                    DropdownMenuItem(
-                      value: option.$2,
-                      child: Text('${option.$1} - ${option.$2}'),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _SectionTitle('Note'),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          value: selectedNote,
+                          decoration: const InputDecoration(
+                            filled: true,
+                            fillColor: Colors.black,
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            for (final option in noteOptions)
+                              DropdownMenuItem(
+                                value: option.$2,
+                                child: Text('${option.$1} - ${option.$2}'),
+                              ),
+                          ],
+                          onChanged: (value) {
+                            if (value == null) return;
+                            state.setTanpuraNote(value);
+                          },
+                        ),
+                      ],
                     ),
+                  ),
                 ],
-                onChanged: (value) {
-                  if (value == null) return;
-                  state.setTanpuraNote(value);
-                },
               ),
             ),
             const SizedBox(height: 12),

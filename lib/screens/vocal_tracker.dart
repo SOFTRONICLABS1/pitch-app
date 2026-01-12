@@ -449,68 +449,80 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                   ),
                   const SizedBox(height: 8),
                   if (_tanpuraEnabled) ...[
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'First string',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelLarge
-                            ?.copyWith(color: Colors.white70),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    DropdownButtonFormField<String>(
-                      value: selectedString,
-                      decoration: const InputDecoration(
-                        filled: true,
-                        fillColor: Color(0xFF23272B),
-                        border: OutlineInputBorder(),
-                      ),
-                      items: [
-                        for (final option in _tanpuraStringOptions)
-                          DropdownMenuItem(
-                            value: option.$2,
-                            child: Text('${option.$1} - ${option.$2}'),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'First string',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelLarge
+                                    ?.copyWith(color: Colors.white70),
+                              ),
+                              const SizedBox(height: 6),
+                              DropdownButtonFormField<String>(
+                                value: selectedString,
+                                decoration: const InputDecoration(
+                                  filled: true,
+                                  fillColor: Color(0xFF23272B),
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: [
+                                  for (final option in _tanpuraStringOptions)
+                                    DropdownMenuItem(
+                                      value: option.$2,
+                                      child: Text('${option.$1} - ${option.$2}'),
+                                    ),
+                                ],
+                                onChanged: (value) async {
+                                  if (value == null) return;
+                                  await pitchState.setTanpuraString(value);
+                                  setSheetState(() {});
+                                },
+                              ),
+                            ],
                           ),
-                      ],
-                      onChanged: (value) async {
-                        if (value == null) return;
-                        await pitchState.setTanpuraString(value);
-                        setSheetState(() {});
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Note',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelLarge
-                            ?.copyWith(color: Colors.white70),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    DropdownButtonFormField<String>(
-                      value: selectedNote,
-                      decoration: const InputDecoration(
-                        filled: true,
-                        fillColor: Color(0xFF23272B),
-                        border: OutlineInputBorder(),
-                      ),
-                      items: [
-                        for (final option in _tanpuraNoteOptions)
-                          DropdownMenuItem(
-                            value: option.$2,
-                            child: Text('${option.$1} - ${option.$2}'),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Note',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelLarge
+                                    ?.copyWith(color: Colors.white70),
+                              ),
+                              const SizedBox(height: 6),
+                              DropdownButtonFormField<String>(
+                                value: selectedNote,
+                                decoration: const InputDecoration(
+                                  filled: true,
+                                  fillColor: Color(0xFF23272B),
+                                  border: OutlineInputBorder(),
+                                ),
+                                items: [
+                                  for (final option in _tanpuraNoteOptions)
+                                    DropdownMenuItem(
+                                      value: option.$2,
+                                      child: Text('${option.$1} - ${option.$2}'),
+                                    ),
+                                ],
+                                onChanged: (value) async {
+                                  if (value == null) return;
+                                  await pitchState.setTanpuraNote(value);
+                                  setSheetState(() {});
+                                },
+                              ),
+                            ],
                           ),
+                        ),
                       ],
-                      onChanged: (value) async {
-                        if (value == null) return;
-                        await pitchState.setTanpuraNote(value);
-                        setSheetState(() {});
-                      },
                     ),
                     const SizedBox(height: 12),
                     Align(
