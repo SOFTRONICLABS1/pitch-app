@@ -42,6 +42,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   static const _viewportRowCount = 30;
   bool _harmonicsEnabled = false;
   bool _editMode = false;
+  List<RecordedNote>? _editNotes;
+  bool _editDirty = false;
   bool _tanpuraEnabled = false;
   final AudioPlayer _harmonicsPlayer = AudioPlayer();
   Timer? _harmonicsStopTimer;
@@ -200,72 +202,142 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   }
 
   Future<void> _openEditRecording() async {
-    if (!_editMode && _running) {
+    if (_editMode) return;
+    if (_running) {
       await _handleStop(context.read<PitchNotifier>());
     }
     setState(() {
-      _editMode = !_editMode;
+      _editMode = true;
+      _editNotes = List<RecordedNote>.from(_recording.notes);
+      _editDirty = false;
     });
   }
 
-  void _closeEditMode() {
+  Future<void> _saveEditMode() async {
     if (!_editMode) return;
+    final notes = _editNotes;
+    if (notes != null && _editDirty) {
+      final updated = RecordingEntry(
+        id: _recording.id,
+        name: _recording.name,
+        createdAt: _recording.createdAt,
+        notes: notes,
+      );
+      await RecordingStore.instance.update(updated);
+      _applyRecordingUpdate(updated);
+    }
     setState(() {
       _editMode = false;
+      _editNotes = null;
+      _editDirty = false;
+    });
+  }
+
+  Future<void> _cancelEditMode() async {
+    if (!_editMode) return;
+    if (_editDirty) {
+      final discard = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: const Text('Discard changes?'),
+            content: const Text(
+              'You have unsaved changes. Discard them?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Keep editing'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Discard'),
+              ),
+            ],
+          );
+        },
+      );
+      if (discard != true) {
+        return;
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _editMode = false;
+      _editNotes = null;
+      _editDirty = false;
     });
   }
 
   Future<void> _deleteTargetAt(int index) async {
-    if (index < 0 || index >= _recording.notes.length) {
+    final notes = _editNotes;
+    if (notes == null || index < 0 || index >= notes.length) {
       return;
     }
-    final updatedNotes = List<RecordedNote>.from(_recording.notes)
-      ..removeAt(index);
-    final updated = RecordingEntry(
-      id: _recording.id,
-      name: _recording.name,
-      createdAt: _recording.createdAt,
-      notes: updatedNotes,
-    );
-    await RecordingStore.instance.update(updated);
-    _applyRecordingUpdate(updated);
+    final updatedNotes = List<RecordedNote>.from(notes)..removeAt(index);
+    setState(() {
+      _editNotes = updatedNotes;
+      _editDirty = true;
+    });
   }
 
   static const _minDurationMs = 500;
+  static const _defaultInsertDurationMs = 1000;
+
+  Future<void> _insertTargetsAt(
+    int insertIndex,
+    List<String> selectedNotes,
+  ) async {
+    if (selectedNotes.isEmpty) return;
+    final tuningSystem = context.read<PitchNotifier>().tuningSystem;
+    final notes = List<RecordedNote>.from(_editNotes ?? _recording.notes);
+    final normalizedNotes = selectedNotes
+        .map((note) => _normalizeNoteForStorage(note, tuningSystem))
+        .where((note) => note.isNotEmpty)
+        .toList();
+    if (normalizedNotes.isEmpty) return;
+    final clampedIndex = insertIndex.clamp(0, notes.length);
+    notes.insertAll(
+      clampedIndex,
+      [
+        for (final note in normalizedNotes)
+          RecordedNote(
+            note: note,
+            durationMs: _defaultInsertDurationMs,
+          ),
+      ],
+    );
+    setState(() {
+      _editNotes = notes;
+      _editDirty = true;
+    });
+  }
 
   Future<void> _adjustTargetDuration(
     int index,
     int deltaMs, {
     required bool commit,
   }) async {
-    if (index < 0 || index >= _recording.notes.length) {
+    final notes = _editNotes;
+    if (notes == null || index < 0 || index >= notes.length) {
       return;
     }
     if (deltaMs != 0) {
-      final updatedNotes = List<RecordedNote>.from(_recording.notes);
+      final updatedNotes = List<RecordedNote>.from(notes);
       final current = updatedNotes[index];
       final nextDuration =
           max(_minDurationMs, current.durationMs + deltaMs).toInt();
       if (nextDuration == current.durationMs) {
-        if (commit) {
-          await RecordingStore.instance.update(_recording);
-        }
         return;
       }
       updatedNotes[index] = RecordedNote(
         note: current.note,
         durationMs: nextDuration,
       );
-      final updated = RecordingEntry(
-        id: _recording.id,
-        name: _recording.name,
-        createdAt: _recording.createdAt,
-        notes: updatedNotes,
-      );
-      _applyRecordingUpdate(updated, preload: false);
-    }
-    if (commit) {
-      await RecordingStore.instance.update(_recording);
+      setState(() {
+        _editNotes = updatedNotes;
+        _editDirty = true;
+      });
     }
   }
 
@@ -368,7 +440,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                           if (_editMode)
                             Positioned.fill(
                               child: _EditableTargetOverlay(
-                                notes: _recording.notes,
+                                notes: _editNotes ?? _recording.notes,
                                 tuningSystem: state.tuningSystem,
                                 baseMidi: _viewportBaseMidi,
                                 rowCount: _viewportRowCount,
@@ -386,6 +458,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                                     commit: commit,
                                   );
                                 },
+                                onInsertNotes: _insertTargetsAt,
                               ),
                             ),
                         ],
@@ -398,7 +471,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                       onStop: () => _handleStop(state),
                       onEdit: _openEditRecording,
                       editMode: _editMode,
-                      onConfirmEdit: _closeEditMode,
+                      onConfirmEdit: () => _saveEditMode(),
+                      onCancelEdit: () => _cancelEditMode(),
                       onOpenSettings: _showBpmSettings,
                     ),
                     const SizedBox(height: 12),
@@ -975,6 +1049,7 @@ class _PlayPauseBar extends StatelessWidget {
     required this.onEdit,
     required this.editMode,
     required this.onConfirmEdit,
+    required this.onCancelEdit,
     required this.onOpenSettings,
   });
 
@@ -985,6 +1060,7 @@ class _PlayPauseBar extends StatelessWidget {
   final VoidCallback onEdit;
   final bool editMode;
   final VoidCallback onConfirmEdit;
+  final VoidCallback onCancelEdit;
   final VoidCallback onOpenSettings;
 
   @override
@@ -1017,6 +1093,14 @@ class _PlayPauseBar extends StatelessWidget {
                           size: 36,
                         ),
                         onPressed: listening ? onStop : onStart,
+                      ),
+                    if (editMode)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: onCancelEdit,
+                        ),
                       ),
                     Align(
                       alignment: Alignment.centerRight,
@@ -1064,6 +1148,7 @@ class _EditableTargetOverlay extends StatefulWidget {
     required this.verticalController,
     required this.onDelete,
     required this.onDurationDrag,
+    required this.onInsertNotes,
   });
 
   final List<RecordedNote> notes;
@@ -1078,6 +1163,7 @@ class _EditableTargetOverlay extends StatefulWidget {
   final ScrollController verticalController;
   final ValueChanged<int> onDelete;
   final void Function(int index, int deltaMs, bool commit) onDurationDrag;
+  final void Function(int insertIndex, List<String> notes) onInsertNotes;
 
   static const _msToWidth = 0.08;
   static const _minTileWidth = 24.0;
@@ -1089,6 +1175,25 @@ class _EditableTargetOverlay extends StatefulWidget {
 class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   bool _syncedVertical = false;
   final Map<int, double> _dragRemainderByIndex = {};
+
+  Future<void> _openInsertNotes(int insertIndex) async {
+    final selected = await showModalBottomSheet<List<String>>(
+      context: context,
+      backgroundColor: const Color(0xFF23272B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      isScrollControlled: true,
+      builder: (context) => _InsertNotesSheet(
+        tuningSystem: widget.tuningSystem,
+      ),
+    );
+    if (!mounted || selected == null || selected.isEmpty) {
+      return;
+    }
+    widget.onInsertNotes(insertIndex, selected);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1317,6 +1422,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     if (dragIndex == null) {
       return line;
     }
+    final insertIndex = dragIndex + 1;
     return Positioned(
       left: x - (handleWidth / 2),
       top: 0,
@@ -1355,19 +1461,42 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                   color: Colors.white,
                 ),
               ),
-              if (showHandle)
-                Container(
-                  width: handleWidth,
-                  height: handleHeight,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1F2327),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white, width: 1),
+              Positioned(
+                bottom: 8,
+                child: GestureDetector(
+                  onTap: () => _openInsertNotes(insertIndex),
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2B6BFF),
+                      borderRadius: BorderRadius.circular(11),
+                      border: Border.all(color: Colors.white, width: 1),
+                    ),
+                    child: const Icon(
+                      Icons.add,
+                      size: 16,
+                      color: Colors.white,
+                    ),
                   ),
-                  child: const Icon(
-                    Icons.drag_indicator,
-                    size: 18,
-                    color: Colors.white,
+                ),
+              ),
+              if (showHandle)
+                Positioned(
+                  bottom: 40,
+                  child: Container(
+                    width: handleWidth,
+                    height: handleHeight,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1F2327),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.white, width: 1),
+                    ),
+                    child: const Icon(
+                      Icons.drag_indicator,
+                      size: 18,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
             ],
@@ -1501,6 +1630,185 @@ class _EditableTargetBlock extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _InsertNotesSheet extends StatefulWidget {
+  const _InsertNotesSheet({
+    required this.tuningSystem,
+  });
+
+  final String tuningSystem;
+
+  @override
+  State<_InsertNotesSheet> createState() => _InsertNotesSheetState();
+}
+
+class _InsertNotesSheetState extends State<_InsertNotesSheet> {
+  static const _defaultOctave = 3;
+  static const _minOctave = 1;
+  static const _maxOctave = 8;
+
+  final List<String> _selectedNotes = [];
+  final ScrollController _noteListController = ScrollController();
+  final Map<int, GlobalKey> _octaveKeys = {};
+  bool _didScrollToDefaultOctave = false;
+
+  late final Map<int, List<String>> _noteOptionsByOctave = {
+    for (var octave = _minOctave; octave <= _maxOctave; octave++)
+      octave: [
+        for (final note in const [
+          'C',
+          'C#',
+          'D',
+          'D#',
+          'E',
+          'F',
+          'F#',
+          'G',
+          'G#',
+          'A',
+          'A#',
+          'B',
+        ])
+          '$note$octave',
+      ],
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _scrollToDefaultOctave();
+    });
+  }
+
+  @override
+  void dispose() {
+    _noteListController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToDefaultOctave() {
+    if (_didScrollToDefaultOctave) return;
+    _didScrollToDefaultOctave = true;
+    final key = _octaveKeys[_defaultOctave];
+    final context = key?.currentContext;
+    if (context == null) return;
+    Scrollable.ensureVisible(
+      context,
+      duration: const Duration(milliseconds: 220),
+      alignment: 0.2,
+    );
+  }
+
+  void _toggleNote(String note) {
+    setState(() {
+      if (_selectedNotes.contains(note)) {
+        _selectedNotes.remove(note);
+      } else {
+        _selectedNotes.add(note);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.of(context).size.height * 0.8;
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: 16,
+        bottom: 20 + bottomInset,
+      ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Insert notes',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${_selectedNotes.length} selected',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _noteListController,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (var octave = _minOctave; octave <= _maxOctave; octave++)
+                      _buildOctaveSection(octave),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: _selectedNotes.isEmpty
+                        ? null
+                        : () => Navigator.of(context).pop(_selectedNotes),
+                    child: const Text('Insert'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOctaveSection(int octave) {
+    final notes = _noteOptionsByOctave[octave] ?? const [];
+    final key = _octaveKeys.putIfAbsent(octave, GlobalKey.new);
+    return Padding(
+      key: key,
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Octave $octave',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final note in notes)
+                _NoteOptionTile(
+                  note: _composeDisplayLabel(note, widget.tuningSystem),
+                  active: _selectedNotes.contains(note),
+                  onTap: () => _toggleNote(note),
+                  onDoubleTap: () => _toggleNote(note),
+                  textStyle: null,
+                ),
+            ],
+          ),
+        ],
       ),
     );
   }
