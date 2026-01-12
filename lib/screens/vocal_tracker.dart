@@ -1154,8 +1154,8 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           });
         }
         var offsetMs = 0.0;
-        final lines = <Widget>[];
-        lines.add(_buildGridLine(x: 0, dragIndex: null));
+        final linePositions = <_GridLinePosition>[];
+        linePositions.add(const _GridLinePosition(x: 0, index: null));
         final blocks = <Widget>[];
         for (var i = 0; i < notes.length; i++) {
           final note = notes[i];
@@ -1182,7 +1182,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           );
           offsetMs += note.durationMs.toDouble();
           final endX = offsetMs * _EditableTargetOverlay._msToWidth;
-          lines.add(_buildGridLine(x: endX, dragIndex: i));
+          linePositions.add(_GridLinePosition(x: endX, index: i));
         }
 
         final labelStyle = _labelStyleForSystem(tuningSystem);
@@ -1218,7 +1218,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           );
         }
 
-        return ClipRect(
+        final scrollableContent = ClipRect(
           child: SingleChildScrollView(
             controller: verticalController,
             scrollDirection: Axis.vertical,
@@ -1250,11 +1250,11 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                         scrollDirection: Axis.horizontal,
                         physics: const BouncingScrollPhysics(),
                         primary: false,
-          child: SizedBox(
-            width: width,
-            height: contentHeight,
-            child: Stack(children: [...blocks, ...lines]),
-          ),
+                        child: SizedBox(
+                          width: width,
+                          height: contentHeight,
+                          child: Stack(children: blocks),
+                        ),
                       ),
                     ),
                   ),
@@ -1263,6 +1263,24 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
               ),
             ),
           ),
+        );
+
+        return Stack(
+          children: [
+            scrollableContent,
+            Positioned(
+              left: labelWidth,
+              right: plotRightPadding,
+              top: 0,
+              bottom: 0,
+              child: _GridLineOverlay(
+                linePositions: linePositions,
+                plotWidth: plotWidth,
+                scrollController: scrollController,
+                onBuildLine: _buildGridLine,
+              ),
+            ),
+          ],
         );
       },
     );
@@ -1279,7 +1297,11 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     return (rowIndex + baseOffset) * rowHeight;
   }
 
-  Widget _buildGridLine({required double x, int? dragIndex}) {
+  Widget _buildGridLine({
+    required double x,
+    required bool showHandle,
+    int? dragIndex,
+  }) {
     const lineWidth = 1.0;
     const handleWidth = 20.0;
     const handleHeight = 28.0;
@@ -1333,23 +1355,81 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                   color: Colors.white,
                 ),
               ),
-              Container(
-                width: handleWidth,
-                height: handleHeight,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1F2327),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white, width: 1),
+              if (showHandle)
+                Container(
+                  width: handleWidth,
+                  height: handleHeight,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF1F2327),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white, width: 1),
+                  ),
+                  child: const Icon(
+                    Icons.drag_indicator,
+                    size: 18,
+                    color: Colors.white,
+                  ),
                 ),
-                child: const Icon(
-                  Icons.drag_indicator,
-                  size: 18,
-                  color: Colors.white,
-                ),
-              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _GridLinePosition {
+  const _GridLinePosition({
+    required this.x,
+    required this.index,
+  });
+
+  final double x;
+  final int? index;
+}
+
+class _GridLineOverlay extends StatelessWidget {
+  const _GridLineOverlay({
+    required this.linePositions,
+    required this.plotWidth,
+    required this.scrollController,
+    required this.onBuildLine,
+  });
+
+  final List<_GridLinePosition> linePositions;
+  final double plotWidth;
+  final ScrollController scrollController;
+  final Widget Function({
+    required double x,
+    required bool showHandle,
+    int? dragIndex,
+  }) onBuildLine;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRect(
+      child: AnimatedBuilder(
+        animation: scrollController,
+        builder: (context, _) {
+          final scrollOffset = scrollController.positions.isNotEmpty
+              ? scrollController.positions.first.pixels
+              : 0.0;
+          final lines = <Widget>[];
+          for (final pos in linePositions) {
+            final left = pos.x - scrollOffset;
+            if (left < -10 || left > plotWidth + 10) {
+              continue;
+            }
+            lines.add(
+              onBuildLine(
+                x: left,
+                showHandle: pos.index != null,
+                dragIndex: pos.index,
+              ),
+            );
+          }
+          return Stack(children: lines);
+        },
       ),
     );
   }
