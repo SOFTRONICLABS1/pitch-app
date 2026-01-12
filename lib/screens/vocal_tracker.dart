@@ -33,12 +33,15 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   late List<_TargetBlock> _targets;
   late int _totalDurationMs;
   late RecordingEntry _recording;
+  final ScrollController _editScrollController = ScrollController();
+  final ScrollController _editVerticalController = ScrollController();
   int _bpm = 60;
   DateTime? _frozenAt;
   int _viewportBaseMidi = 33;
   double _viewportOffset = 0.0;
   static const _viewportRowCount = 30;
   bool _harmonicsEnabled = false;
+  bool _editMode = false;
   bool _tanpuraEnabled = false;
   final AudioPlayer _harmonicsPlayer = AudioPlayer();
   Timer? _harmonicsStopTimer;
@@ -48,6 +51,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   double? _screenWidth;
   static const _guidelineFraction = 0.8;
   static const _guidelineOffset = 0.0;
+  static const _tunerLabelWidth = 58.0;
   DateTime? _harmonicsWindowStart;
   DateTime? _harmonicsWindowEnd;
   int? _harmonicsMidi;
@@ -119,6 +123,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       }
     } catch (_) {}
     _harmonicsPlayer.dispose();
+    _editScrollController.dispose();
+    _editVerticalController.dispose();
     _ticker.dispose();
     super.dispose();
   }
@@ -193,20 +199,36 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     }
   }
 
-  void _openEditRecording() {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: const Color(0xFF23272B),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      isScrollControlled: true,
-      builder: (context) => _EditRecordingSheet(
-        entry: _recording,
-        onSaved: _applyRecordingUpdate,
-      ),
+  Future<void> _openEditRecording() async {
+    if (!_editMode && _running) {
+      await _handleStop(context.read<PitchNotifier>());
+    }
+    setState(() {
+      _editMode = !_editMode;
+    });
+  }
+
+  void _closeEditMode() {
+    if (!_editMode) return;
+    setState(() {
+      _editMode = false;
+    });
+  }
+
+  Future<void> _deleteTargetAt(int index) async {
+    if (index < 0 || index >= _recording.notes.length) {
+      return;
+    }
+    final updatedNotes = List<RecordedNote>.from(_recording.notes)
+      ..removeAt(index);
+    final updated = RecordingEntry(
+      id: _recording.id,
+      name: _recording.name,
+      createdAt: _recording.createdAt,
+      notes: updatedNotes,
     );
+    await RecordingStore.instance.update(updated);
+    _applyRecordingUpdate(updated);
   }
 
   void _applyRecordingUpdate(RecordingEntry updated) {
@@ -298,6 +320,22 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                             guidelineFraction: _guidelineFraction,
                             guidelineOffset: _guidelineOffset,
                           ),
+                          if (_editMode)
+                            Positioned.fill(
+                              child: _EditableTargetOverlay(
+                                notes: _recording.notes,
+                                tuningSystem: state.tuningSystem,
+                                baseMidi: _viewportBaseMidi,
+                                rowCount: _viewportRowCount,
+                                baseOffset: _viewportOffset,
+                                labelWidth: _tunerLabelWidth,
+                                guidelineFraction: _guidelineFraction,
+                                guidelineOffset: _guidelineOffset,
+                                scrollController: _editScrollController,
+                                verticalController: _editVerticalController,
+                                onDelete: _deleteTargetAt,
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -307,6 +345,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                       onStart: () => _handleStart(state),
                       onStop: () => _handleStop(state),
                       onEdit: _openEditRecording,
+                      editMode: _editMode,
+                      onConfirmEdit: _closeEditMode,
                       onOpenSettings: _showBpmSettings,
                     ),
                     const SizedBox(height: 12),
@@ -881,6 +921,8 @@ class _PlayPauseBar extends StatelessWidget {
     required this.onStart,
     required this.onStop,
     required this.onEdit,
+    required this.editMode,
+    required this.onConfirmEdit,
     required this.onOpenSettings,
   });
 
@@ -889,6 +931,8 @@ class _PlayPauseBar extends StatelessWidget {
   final VoidCallback onStart;
   final VoidCallback onStop;
   final VoidCallback onEdit;
+  final bool editMode;
+  final VoidCallback onConfirmEdit;
   final VoidCallback onOpenSettings;
 
   @override
@@ -914,26 +958,31 @@ class _PlayPauseBar extends StatelessWidget {
                 return Stack(
                   alignment: Alignment.center,
                   children: [
-                    IconButton(
-                      icon: Icon(
-                        listening ? Icons.pause : Icons.play_arrow,
-                        size: 36,
+                    if (!editMode)
+                      IconButton(
+                        icon: Icon(
+                          listening ? Icons.pause : Icons.play_arrow,
+                          size: 36,
+                        ),
+                        onPressed: listening ? onStop : onStart,
                       ),
-                      onPressed: listening ? onStop : onStart,
-                    ),
                     Align(
                       alignment: Alignment.centerRight,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (!editMode)
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined),
+                              onPressed: onEdit,
+                            ),
+                          if (!editMode) SizedBox(width: gap),
                           IconButton(
-                            icon: const Icon(Icons.edit_outlined),
-                            onPressed: onEdit,
-                          ),
-                          SizedBox(width: gap),
-                          IconButton(
-                            icon: const Icon(Icons.tune),
-                            onPressed: onOpenSettings,
+                            icon: Icon(
+                              editMode ? Icons.check : Icons.tune,
+                            ),
+                            onPressed:
+                                editMode ? onConfirmEdit : onOpenSettings,
                           ),
                         ],
                       ),
@@ -944,6 +993,299 @@ class _PlayPauseBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _EditableTargetOverlay extends StatefulWidget {
+  const _EditableTargetOverlay({
+    required this.notes,
+    required this.tuningSystem,
+    required this.baseMidi,
+    required this.rowCount,
+    required this.baseOffset,
+    required this.labelWidth,
+    required this.guidelineFraction,
+    required this.guidelineOffset,
+    required this.scrollController,
+    required this.verticalController,
+    required this.onDelete,
+  });
+
+  final List<RecordedNote> notes;
+  final String tuningSystem;
+  final int baseMidi;
+  final int rowCount;
+  final double baseOffset;
+  final double labelWidth;
+  final double guidelineFraction;
+  final double guidelineOffset;
+  final ScrollController scrollController;
+  final ScrollController verticalController;
+  final ValueChanged<int> onDelete;
+
+  static const _msToWidth = 0.08;
+  static const _minTileWidth = 24.0;
+
+  @override
+  State<_EditableTargetOverlay> createState() => _EditableTargetOverlayState();
+}
+
+class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
+  bool _syncedVertical = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final notes = widget.notes;
+    if (notes.isEmpty) {
+      return const Center(
+        child: Text(
+          'No target notes yet.',
+          style: TextStyle(color: Colors.white70),
+        ),
+      );
+    }
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final baseMidi = widget.baseMidi;
+        final rowCount = widget.rowCount;
+        final baseOffset = widget.baseOffset;
+        final tuningSystem = widget.tuningSystem;
+        final labelWidth = widget.labelWidth;
+        final guidelineFraction = widget.guidelineFraction;
+        final guidelineOffset = widget.guidelineOffset;
+        final scrollController = widget.scrollController;
+        final verticalController = widget.verticalController;
+        final totalMs = notes.fold<int>(0, (sum, note) => sum + note.durationMs);
+        final nowX =
+            constraints.maxWidth * guidelineFraction + guidelineOffset;
+        final plotRightPadding =
+            (constraints.maxWidth - nowX).clamp(0.0, constraints.maxWidth);
+        final plotWidth = max(
+          0.0,
+          constraints.maxWidth - labelWidth - plotRightPadding,
+        );
+        final width = max(plotWidth, totalMs * _EditableTargetOverlay._msToWidth)
+            .toDouble();
+        final rowHeight = constraints.maxHeight / rowCount;
+        final topMidi = baseMidi + rowCount - 1;
+        int? minMidi;
+        int? maxMidi;
+        for (final note in notes) {
+          final midi = _midiFromNoteLabel(note.note);
+          if (midi == null) continue;
+          minMidi = minMidi == null ? midi : min(minMidi!, midi);
+          maxMidi = maxMidi == null ? midi : max(maxMidi!, midi);
+        }
+        minMidi ??= baseMidi;
+        maxMidi ??= topMidi;
+        final extraAboveRows = max(0, maxMidi - topMidi);
+        final extraBelowRows = max(0, baseMidi - minMidi);
+        final totalRows = rowCount + extraAboveRows + extraBelowRows;
+        final extendedTopMidi = topMidi + extraAboveRows;
+        final contentHeight = rowHeight * totalRows;
+        if (!_syncedVertical) {
+          _syncedVertical = true;
+          SchedulerBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || !verticalController.hasClients) return;
+            final targetOffset = extraAboveRows * rowHeight;
+            verticalController.jumpTo(
+              targetOffset.clamp(
+                0.0,
+                max(0.0, contentHeight - constraints.maxHeight),
+              ),
+            );
+          });
+        }
+        var offsetMs = 0.0;
+        final blocks = <Widget>[];
+        for (var i = 0; i < notes.length; i++) {
+          final note = notes[i];
+          blocks.add(
+            _EditableTargetBlock(
+              index: i,
+              note: note,
+              tuningSystem: tuningSystem,
+              x: offsetMs * _EditableTargetOverlay._msToWidth,
+              width: max(
+                note.durationMs * _EditableTargetOverlay._msToWidth,
+                _EditableTargetOverlay._minTileWidth,
+              ).toDouble(),
+              top: _rowTopFor(
+                midiFromNote: _midiFromNoteLabel(note.note),
+                topMidi: extendedTopMidi,
+                baseOffset: baseOffset,
+                rowHeight: rowHeight,
+              ),
+              height: rowHeight,
+              onDelete: widget.onDelete,
+            ),
+          );
+          offsetMs += note.durationMs.toDouble();
+        }
+
+        final labelStyle = _labelStyleForSystem(tuningSystem);
+        final noteLabels = _noteLabelsForSystem(tuningSystem);
+        const sharpSemitones = {1, 3, 6, 8, 10};
+        final labelRows = <Widget>[];
+        for (var i = 0; i < totalRows; i++) {
+          final midi = extendedTopMidi - i;
+          final semitone = (midi % 12 + 12) % 12;
+          final octave = (midi / 12).floor() - 1;
+          final label = '${noteLabels[semitone]}$octave';
+          final isSharp = sharpSemitones.contains(semitone);
+          final baseStyle = labelStyle ??
+              TextStyle(
+                color: isSharp ? Colors.white : Colors.black87,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              );
+          final resolvedStyle =
+              baseStyle.copyWith(color: isSharp ? Colors.white : Colors.black87);
+          labelRows.add(
+            Positioned(
+              left: 0,
+              right: 0,
+              top: (i + baseOffset) * rowHeight,
+              height: rowHeight,
+              child: Container(
+                color: isSharp ? Colors.black : const Color(0xFFCBD1D6),
+                alignment: Alignment.center,
+                child: Text(label, style: resolvedStyle),
+              ),
+            ),
+          );
+        }
+
+        return ClipRect(
+          child: SingleChildScrollView(
+            controller: verticalController,
+            scrollDirection: Axis.vertical,
+            physics: const BouncingScrollPhysics(),
+            primary: false,
+            child: SizedBox(
+              height: contentHeight,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: labelWidth,
+                    height: contentHeight,
+                    child: Stack(
+                      children: [
+                        const Positioned.fill(
+                          child: ColoredBox(color: Color(0xFF23272B)),
+                        ),
+                        ...labelRows,
+                      ],
+                    ),
+                  ),
+                  SizedBox(
+                    width: plotWidth,
+                    height: contentHeight,
+                    child: ClipRect(
+                      child: SingleChildScrollView(
+                        controller: scrollController,
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        primary: false,
+                        child: SizedBox(
+                          width: width,
+                          height: contentHeight,
+                          child: Stack(children: blocks),
+                        ),
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: plotRightPadding),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  double _rowTopFor({
+    required int? midiFromNote,
+    required int topMidi,
+    required double baseOffset,
+    required double rowHeight,
+  }) {
+    final midi = midiFromNote ?? topMidi;
+    final rowIndex = topMidi - midi;
+    return (rowIndex + baseOffset) * rowHeight;
+  }
+}
+
+class _EditableTargetBlock extends StatelessWidget {
+  const _EditableTargetBlock({
+    required this.index,
+    required this.note,
+    required this.tuningSystem,
+    required this.x,
+    required this.width,
+    required this.top,
+    required this.height,
+    required this.onDelete,
+  });
+
+  final int index;
+  final RecordedNote note;
+  final String tuningSystem;
+  final double x;
+  final double width;
+  final double top;
+  final double height;
+  final ValueChanged<int> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _formatNoteForEdit(note.note, tuningSystem);
+    return Positioned(
+      left: x,
+      top: top,
+      width: width,
+      height: height,
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF2B6BFF).withOpacity(0.4),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              right: 0,
+              top: 0,
+              bottom: 0,
+              child: Center(
+                child: GestureDetector(
+                  onTap: () => onDelete(index),
+                  behavior: HitTestBehavior.opaque,
+                  child: const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: Icon(Icons.close, size: 18),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(right: 24),
+              child: Center(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
