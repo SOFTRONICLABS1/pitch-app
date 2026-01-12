@@ -231,16 +231,61 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _applyRecordingUpdate(updated);
   }
 
-  void _applyRecordingUpdate(RecordingEntry updated) {
+  static const _minDurationMs = 100;
+
+  Future<void> _adjustTargetDuration(
+    int index,
+    int deltaMs, {
+    required bool commit,
+  }) async {
+    if (index < 0 || index >= _recording.notes.length) {
+      return;
+    }
+    if (deltaMs != 0) {
+      final updatedNotes = List<RecordedNote>.from(_recording.notes);
+      final current = updatedNotes[index];
+      final nextDuration =
+          max(_minDurationMs, current.durationMs + deltaMs).toInt();
+      if (nextDuration == current.durationMs) {
+        if (commit) {
+          await RecordingStore.instance.update(_recording);
+        }
+        return;
+      }
+      updatedNotes[index] = RecordedNote(
+        note: current.note,
+        durationMs: nextDuration,
+      );
+      final updated = RecordingEntry(
+        id: _recording.id,
+        name: _recording.name,
+        createdAt: _recording.createdAt,
+        notes: updatedNotes,
+      );
+      _applyRecordingUpdate(updated, preload: false);
+    }
+    if (commit) {
+      await RecordingStore.instance.update(_recording);
+    }
+  }
+
+  void _applyRecordingUpdate(
+    RecordingEntry updated, {
+    bool preload = true,
+  }) {
     final result = _targetBlocksFromRecording(updated);
-    _stopHarmonics();
+    if (preload) {
+      _stopHarmonics();
+    }
     setState(() {
       _recording = updated;
       _targets = result.blocks;
       _totalDurationMs = result.totalDurationMs;
       _currentHarmonicsKey = null;
     });
-    _preloadHarmonics();
+    if (preload) {
+      _preloadHarmonics();
+    }
   }
 
   @override
@@ -334,6 +379,13 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                                 scrollController: _editScrollController,
                                 verticalController: _editVerticalController,
                                 onDelete: _deleteTargetAt,
+                                onDurationDrag: (index, deltaMs, commit) {
+                                  _adjustTargetDuration(
+                                    index,
+                                    deltaMs,
+                                    commit: commit,
+                                  );
+                                },
                               ),
                             ),
                         ],
@@ -1011,6 +1063,7 @@ class _EditableTargetOverlay extends StatefulWidget {
     required this.scrollController,
     required this.verticalController,
     required this.onDelete,
+    required this.onDurationDrag,
   });
 
   final List<RecordedNote> notes;
@@ -1024,6 +1077,7 @@ class _EditableTargetOverlay extends StatefulWidget {
   final ScrollController scrollController;
   final ScrollController verticalController;
   final ValueChanged<int> onDelete;
+  final void Function(int index, int deltaMs, bool commit) onDurationDrag;
 
   static const _msToWidth = 0.08;
   static const _minTileWidth = 24.0;
@@ -1034,6 +1088,7 @@ class _EditableTargetOverlay extends StatefulWidget {
 
 class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   bool _syncedVertical = false;
+  final Map<int, double> _dragRemainderByIndex = {};
 
   @override
   Widget build(BuildContext context) {
@@ -1099,15 +1154,18 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           });
         }
         var offsetMs = 0.0;
+        final lines = <Widget>[];
+        lines.add(_buildGridLine(x: 0, dragIndex: null));
         final blocks = <Widget>[];
         for (var i = 0; i < notes.length; i++) {
           final note = notes[i];
+          final x = offsetMs * _EditableTargetOverlay._msToWidth;
           blocks.add(
             _EditableTargetBlock(
               index: i,
               note: note,
               tuningSystem: tuningSystem,
-              x: offsetMs * _EditableTargetOverlay._msToWidth,
+              x: x,
               width: max(
                 note.durationMs * _EditableTargetOverlay._msToWidth,
                 _EditableTargetOverlay._minTileWidth,
@@ -1123,6 +1181,8 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
             ),
           );
           offsetMs += note.durationMs.toDouble();
+          final endX = offsetMs * _EditableTargetOverlay._msToWidth;
+          lines.add(_buildGridLine(x: endX, dragIndex: i));
         }
 
         final labelStyle = _labelStyleForSystem(tuningSystem);
@@ -1190,11 +1250,11 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                         scrollDirection: Axis.horizontal,
                         physics: const BouncingScrollPhysics(),
                         primary: false,
-                        child: SizedBox(
-                          width: width,
-                          height: contentHeight,
-                          child: Stack(children: blocks),
-                        ),
+          child: SizedBox(
+            width: width,
+            height: contentHeight,
+            child: Stack(children: [...blocks, ...lines]),
+          ),
                       ),
                     ),
                   ),
@@ -1217,6 +1277,51 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     final midi = midiFromNote ?? topMidi;
     final rowIndex = topMidi - midi;
     return (rowIndex + baseOffset) * rowHeight;
+  }
+
+  Widget _buildGridLine({required double x, int? dragIndex}) {
+    final line = Positioned(
+      left: x,
+      top: 0,
+      bottom: 0,
+      child: Container(
+        width: 5,
+        color: Colors.white,
+      ),
+    );
+    if (dragIndex == null) {
+      return line;
+    }
+    return Positioned(
+      left: x - 6,
+      top: 0,
+      bottom: 0,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onHorizontalDragUpdate: (details) {
+          final delta = details.delta.dx;
+          final remainder = _dragRemainderByIndex[dragIndex] ?? 0.0;
+          final totalDelta = remainder + delta;
+          final rawMs = totalDelta / _EditableTargetOverlay._msToWidth;
+          final deltaMs = rawMs > 0 ? rawMs.floor() : rawMs.ceil();
+          if (deltaMs == 0) {
+            _dragRemainderByIndex[dragIndex] = totalDelta;
+            return;
+          }
+          final consumedPx = deltaMs * _EditableTargetOverlay._msToWidth;
+          _dragRemainderByIndex[dragIndex] = totalDelta - consumedPx;
+          widget.onDurationDrag(dragIndex, deltaMs, false);
+        },
+        onHorizontalDragEnd: (_) {
+          _dragRemainderByIndex.remove(dragIndex);
+          widget.onDurationDrag(dragIndex, 0, true);
+        },
+        child: const SizedBox(
+          width: 17,
+          height: double.infinity,
+        ),
+      ),
+    );
   }
 }
 
