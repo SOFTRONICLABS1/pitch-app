@@ -399,6 +399,12 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
             },
           ),
           title: Text(_recording.name),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.tune),
+              onPressed: _showBpmSettings,
+            ),
+          ],
         ),
         body: SafeArea(
           child: CustomScrollView(
@@ -488,7 +494,6 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                       editMode: _editMode,
                       onConfirmEdit: () => _saveEditMode(),
                       onCancelEdit: () => _cancelEditMode(),
-                      onOpenSettings: _showBpmSettings,
                     ),
                     const SizedBox(height: 12),
                   ],
@@ -1065,7 +1070,6 @@ class _PlayPauseBar extends StatelessWidget {
     required this.editMode,
     required this.onConfirmEdit,
     required this.onCancelEdit,
-    required this.onOpenSettings,
   });
 
   final bool listening;
@@ -1076,7 +1080,6 @@ class _PlayPauseBar extends StatelessWidget {
   final bool editMode;
   final VoidCallback onConfirmEdit;
   final VoidCallback onCancelEdit;
-  final VoidCallback onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -1095,52 +1098,35 @@ class _PlayPauseBar extends StatelessWidget {
           ],
           SizedBox(
             height: 48,
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final gap = constraints.maxWidth * 0.1;
-                return Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    if (!editMode)
-                      IconButton(
-                        icon: Icon(
-                          listening ? Icons.pause : Icons.play_arrow,
-                          size: 36,
-                        ),
-                        onPressed: listening ? onStop : onStart,
-                      ),
-                    if (editMode)
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: onCancelEdit,
-                        ),
-                      ),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (!editMode)
-                            IconButton(
-                              icon: const Icon(Icons.edit_outlined),
-                              onPressed: onEdit,
-                            ),
-                          if (!editMode) SizedBox(width: gap),
-                          IconButton(
-                            icon: Icon(
-                              editMode ? Icons.check : Icons.tune,
-                            ),
-                            onPressed:
-                                editMode ? onConfirmEdit : onOpenSettings,
-                          ),
-                        ],
-                      ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (!editMode)
+                  IconButton(
+                    icon: Icon(
+                      listening ? Icons.pause : Icons.play_arrow,
+                      size: 36,
                     ),
-                  ],
-                );
-              },
+                    onPressed: listening ? onStop : onStart,
+                  ),
+                if (editMode)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: onCancelEdit,
+                    ),
+                  ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    icon: Icon(
+                      editMode ? Icons.check : Icons.edit_outlined,
+                    ),
+                    onPressed: editMode ? onConfirmEdit : onEdit,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
