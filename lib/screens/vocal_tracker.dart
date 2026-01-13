@@ -373,6 +373,10 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
 
     return WillPopScope(
       onWillPop: () async {
+        if (_editMode) {
+          await _cancelEditMode();
+          return false;
+        }
         await _handleStop(state);
         return true;
       },
@@ -380,6 +384,10 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
         appBar: AppBar(
           leading: BackButton(
             onPressed: () async {
+              if (_editMode) {
+                await _cancelEditMode();
+                return;
+              }
               await _handleStop(state);
               if (!mounted) return;
               Navigator.of(context).pop();
@@ -1174,7 +1182,17 @@ class _EditableTargetOverlay extends StatefulWidget {
 
 class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   bool _syncedVertical = false;
+  bool _syncedHorizontal = false;
   final Map<int, double> _dragRemainderByIndex = {};
+
+  @override
+  void didUpdateWidget(covariant _EditableTargetOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.notes != widget.notes) {
+      _syncedHorizontal = false;
+      _syncedVertical = false;
+    }
+  }
 
   Future<void> _openInsertNotes(int insertIndex) async {
     final selected = await showModalBottomSheet<List<String>>(
@@ -1246,10 +1264,19 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         final extendedTopMidi = topMidi + extraAboveRows;
         final contentHeight = rowHeight * totalRows;
         if (!_syncedVertical) {
-          _syncedVertical = true;
           SchedulerBinding.instance.addPostFrameCallback((_) {
             if (!mounted || !verticalController.hasClients) return;
-            final targetOffset = extraAboveRows * rowHeight;
+            final firstMidi = notes.isNotEmpty
+                ? _midiFromNoteLabel(notes.first.note)
+                : null;
+            final targetTop = _rowTopFor(
+              midiFromNote: firstMidi,
+              topMidi: extendedTopMidi,
+              baseOffset: baseOffset,
+              rowHeight: rowHeight,
+            );
+            final fallbackTop = extraAboveRows * rowHeight;
+            final targetOffset = firstMidi == null ? fallbackTop : targetTop;
             verticalController.jumpTo(
               targetOffset.clamp(
                 0.0,
@@ -1257,6 +1284,14 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
               ),
             );
           });
+          _syncedVertical = true;
+        }
+        if (!_syncedHorizontal) {
+          SchedulerBinding.instance.addPostFrameCallback((_) {
+            if (!mounted || !scrollController.hasClients) return;
+            scrollController.jumpTo(0.0);
+          });
+          _syncedHorizontal = true;
         }
         var offsetMs = 0.0;
         final linePositions = <_GridLinePosition>[];
@@ -2101,6 +2136,7 @@ class _ComposeRecordingSheet extends StatefulWidget {
 
 class _ComposeRecordingSheetState extends State<_ComposeRecordingSheet> {
   static const _defaultDurationMs = 1000;
+  static const _millisecondsPerSecond = 1000.0;
   static const _previewHeight = 170.0;
   static const _defaultOctave = 3;
 
@@ -2145,7 +2181,7 @@ class _ComposeRecordingSheetState extends State<_ComposeRecordingSheet> {
       for (final note in entry.notes) {
         _selectedNotes.add(note.note.toUpperCase());
         _durationControllers.add(
-          TextEditingController(text: note.durationMs.toString()),
+          TextEditingController(text: _formatSeconds(note.durationMs)),
         );
       }
     }
@@ -2168,7 +2204,7 @@ class _ComposeRecordingSheetState extends State<_ComposeRecordingSheet> {
     setState(() {
       _selectedNotes.add(note);
       _durationControllers.add(
-        TextEditingController(text: _defaultDurationMs.toString()),
+        TextEditingController(text: _formatSeconds(_defaultDurationMs)),
       );
       _activeNote = note;
     });
@@ -2184,7 +2220,7 @@ class _ComposeRecordingSheetState extends State<_ComposeRecordingSheet> {
       } else {
         _selectedNotes.add(note);
         _durationControllers.add(
-          TextEditingController(text: _defaultDurationMs.toString()),
+          TextEditingController(text: _formatSeconds(_defaultDurationMs)),
         );
       }
       _activeNote = note;
@@ -2268,20 +2304,25 @@ class _ComposeRecordingSheetState extends State<_ComposeRecordingSheet> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Enter duration (ms)'),
+              title: const Text('Enter duration (s)'),
               content: TextField(
                 controller: controller,
-                keyboardType: TextInputType.number,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                ],
                 onChanged: (value) {
                   final trimmed = value.trim();
                   final invalid =
-                      trimmed.isNotEmpty && int.tryParse(trimmed) == null;
+                      trimmed.isNotEmpty && double.tryParse(trimmed) == null;
                   setDialogState(() {
                     errorText = invalid ? 'Enter only the numbers.' : null;
                   });
                 },
                 decoration: InputDecoration(
                   filled: false,
+                  hintText: '1.0',
                   errorText: errorText,
                 ),
               ),
@@ -2295,14 +2336,16 @@ class _ComposeRecordingSheetState extends State<_ComposeRecordingSheet> {
                       ? null
                       : () {
                           final raw = controller.text.trim();
-                          final value = int.tryParse(raw);
-                          if (raw.isEmpty || value == null) {
+                          final seconds = double.tryParse(raw);
+                          if (raw.isEmpty || seconds == null) {
                             setDialogState(() {
                               errorText = 'Enter only the numbers.';
                             });
                             return;
                           }
-                          Navigator.of(context).pop(value);
+                          final ms =
+                              (seconds * _millisecondsPerSecond).round();
+                          Navigator.of(context).pop(ms);
                         },
                   child: const Text('Apply'),
                 ),
@@ -2319,7 +2362,7 @@ class _ComposeRecordingSheetState extends State<_ComposeRecordingSheet> {
       if (!_durationSelections.contains(i)) {
         continue;
       }
-      _durationControllers[i].text = duration.toString();
+      _durationControllers[i].text = _formatSeconds(duration);
     }
     await _saveRecording();
   }
@@ -2332,9 +2375,7 @@ class _ComposeRecordingSheetState extends State<_ComposeRecordingSheet> {
     try {
       final notes = <RecordedNote>[];
       for (var i = 0; i < _selectedNotes.length; i++) {
-        final duration =
-            int.tryParse(_durationControllers[i].text.trim()) ??
-                _defaultDurationMs;
+        final duration = _parseDurationMs(_durationControllers[i].text);
         notes.add(
           RecordedNote(
             note: _selectedNotes[i].toLowerCase(),
@@ -2595,7 +2636,7 @@ class _ComposeRecordingSheetState extends State<_ComposeRecordingSheet> {
           children: [
             Expanded(
               child: Text(
-                'Durations (ms)',
+                'Durations (s)',
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
@@ -2650,10 +2691,15 @@ class _ComposeRecordingSheetState extends State<_ComposeRecordingSheet> {
                     width: 120,
                     child: TextField(
                       controller: _durationControllers[index],
-                      keyboardType: TextInputType.number,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                      ],
                       decoration: const InputDecoration(
                         filled: true,
-                        hintText: '1000',
+                        hintText: '1.0',
+                        suffixText: 's',
                       ),
                     ),
                   ),
@@ -2694,6 +2740,29 @@ class _ComposeRecordingSheetState extends State<_ComposeRecordingSheet> {
         ),
       ],
     );
+  }
+
+  String _formatSeconds(int durationMs) {
+    final seconds = durationMs / _millisecondsPerSecond;
+    final fixed = seconds.toStringAsFixed(seconds.truncateToDouble() == seconds
+        ? 0
+        : 2);
+    return _trimTrailingZeros(fixed);
+  }
+
+  int _parseDurationMs(String raw) {
+    final seconds = double.tryParse(raw.trim());
+    if (seconds == null) {
+      return _defaultDurationMs;
+    }
+    final ms = (seconds * _millisecondsPerSecond).round();
+    return ms > 0 ? ms : _defaultDurationMs;
+  }
+
+  String _trimTrailingZeros(String value) {
+    if (!value.contains('.')) return value;
+    final trimmed = value.replaceAll(RegExp(r'0+$'), '');
+    return trimmed.replaceAll(RegExp(r'\.$'), '');
   }
 }
 

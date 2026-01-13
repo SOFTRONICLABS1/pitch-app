@@ -273,6 +273,7 @@ class _AddRecordingSheet extends StatefulWidget {
 
 class _AddRecordingSheetState extends State<_AddRecordingSheet> {
   static const _defaultDurationMs = 1000;
+  static const _millisecondsPerSecond = 1000.0;
   static const _previewHeight = 170.0;
   static const _defaultOctave = 3;
 
@@ -317,7 +318,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       for (final note in entry.notes) {
         _selectedNotes.add(note.note.toUpperCase());
         _durationControllers.add(
-          TextEditingController(text: note.durationMs.toString()),
+          TextEditingController(text: _formatSeconds(note.durationMs)),
         );
       }
     }
@@ -340,7 +341,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
     setState(() {
       _selectedNotes.add(note);
       _durationControllers.add(
-        TextEditingController(text: _defaultDurationMs.toString()),
+        TextEditingController(text: _formatSeconds(_defaultDurationMs)),
       );
       _activeNote = note;
     });
@@ -356,7 +357,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       } else {
         _selectedNotes.add(note);
         _durationControllers.add(
-          TextEditingController(text: _defaultDurationMs.toString()),
+          TextEditingController(text: _formatSeconds(_defaultDurationMs)),
         );
       }
       _activeNote = note;
@@ -440,20 +441,25 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Enter duration (ms)'),
+              title: const Text('Enter duration (s)'),
               content: TextField(
                 controller: controller,
-                keyboardType: TextInputType.number,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                ],
                 onChanged: (value) {
                   final trimmed = value.trim();
                   final invalid =
-                      trimmed.isNotEmpty && int.tryParse(trimmed) == null;
+                      trimmed.isNotEmpty && double.tryParse(trimmed) == null;
                   setDialogState(() {
                     errorText = invalid ? 'Enter only the numbers.' : null;
                   });
                 },
                 decoration: InputDecoration(
                   filled: false,
+                  hintText: '1.0',
                   errorText: errorText,
                 ),
               ),
@@ -467,14 +473,16 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
                       ? null
                       : () {
                           final raw = controller.text.trim();
-                          final value = int.tryParse(raw);
-                          if (raw.isEmpty || value == null) {
+                          final seconds = double.tryParse(raw);
+                          if (raw.isEmpty || seconds == null) {
                             setDialogState(() {
                               errorText = 'Enter only the numbers.';
                             });
                             return;
                           }
-                          Navigator.of(context).pop(value);
+                          final ms =
+                              (seconds * _millisecondsPerSecond).round();
+                          Navigator.of(context).pop(ms);
                         },
                   child: const Text('Apply'),
                 ),
@@ -491,7 +499,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       if (!_durationSelections.contains(i)) {
         continue;
       }
-      _durationControllers[i].text = duration.toString();
+      _durationControllers[i].text = _formatSeconds(duration);
     }
     await _saveRecording();
   }
@@ -504,9 +512,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
     try {
       final notes = <RecordedNote>[];
       for (var i = 0; i < _selectedNotes.length; i++) {
-        final duration =
-            int.tryParse(_durationControllers[i].text.trim()) ??
-                _defaultDurationMs;
+        final duration = _parseDurationMs(_durationControllers[i].text);
         notes.add(
           RecordedNote(
             note: _selectedNotes[i].toLowerCase(),
@@ -766,7 +772,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
           children: [
             Expanded(
               child: Text(
-                'Durations (ms)',
+                'Durations (s)',
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
@@ -822,10 +828,15 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
                     width: 120,
                     child: TextField(
                       controller: _durationControllers[index],
-                      keyboardType: TextInputType.number,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                      ],
                       decoration: const InputDecoration(
                         filled: true,
-                        hintText: '1000',
+                        hintText: '1.0',
+                        suffixText: 's',
                       ),
                     ),
                   ),
@@ -866,6 +877,29 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
         ),
       ],
     );
+  }
+
+  String _formatSeconds(int durationMs) {
+    final seconds = durationMs / _millisecondsPerSecond;
+    final fixed = seconds.toStringAsFixed(seconds.truncateToDouble() == seconds
+        ? 0
+        : 2);
+    return _trimTrailingZeros(fixed);
+  }
+
+  int _parseDurationMs(String raw) {
+    final seconds = double.tryParse(raw.trim());
+    if (seconds == null) {
+      return _defaultDurationMs;
+    }
+    final ms = (seconds * _millisecondsPerSecond).round();
+    return ms > 0 ? ms : _defaultDurationMs;
+  }
+
+  String _trimTrailingZeros(String value) {
+    if (!value.contains('.')) return value;
+    final trimmed = value.replaceAll(RegExp(r'0+$'), '');
+    return trimmed.replaceAll(RegExp(r'\.$'), '');
   }
 }
 
