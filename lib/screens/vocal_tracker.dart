@@ -382,7 +382,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       final beatMs = (60000 / max(1, _bpm)).round();
       final remainder = nextDuration % beatMs;
       if (remainder != 0) {
-        if (remainder >= (beatMs / 2)) {
+        if (remainder >= (beatMs * 0.1)) {
           nextDuration = nextDuration + (beatMs - remainder);
         } else {
           nextDuration = nextDuration - remainder;
@@ -1253,18 +1253,19 @@ class _PlayPauseBar extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.music_note,
-                          color: Colors.white,
+                      if (!editMode)
+                        IconButton(
+                          icon: const Icon(
+                            Icons.music_note,
+                            color: Colors.white,
+                          ),
+                          style: IconButton.styleFrom(
+                            backgroundColor: tanpuraEnabled
+                                ? Colors.orange
+                                : Colors.transparent,
+                          ),
+                          onPressed: onTanpuraToggle,
                         ),
-                        style: IconButton.styleFrom(
-                          backgroundColor: tanpuraEnabled
-                              ? Colors.orange
-                              : Colors.transparent,
-                        ),
-                        onPressed: onTanpuraToggle,
-                      ),
                       if (editMode)
                         IconButton(
                           icon: const Icon(Icons.close),
