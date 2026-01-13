@@ -3854,9 +3854,14 @@ class _TargetNotePainter extends CustomPainter {
 
       final rowIndex = _rowIndexForMidi(block.midi);
         final blockHeight = rowHeight;
-      final top = (rowIndex + baseOffset) * rowHeight;
+        final top = (rowIndex + baseOffset) * rowHeight;
         final rect = Rect.fromLTWH(leftEdge, top, blockWidth, blockHeight);
         canvas.drawRect(rect, paint);
+        final outline = Paint()
+          ..color = Colors.white.withOpacity(0.4)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.5;
+        canvas.drawRect(rect, outline);
 
       final textPainter = TextPainter(
         text: TextSpan(
