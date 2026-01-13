@@ -224,6 +224,9 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       _editNotes = List<RecordedNote>.from(_recording.notes);
       _editDirty = false;
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _editOverlayKey.currentState?.prepareInitialFocus();
+    });
   }
 
   Future<void> _saveEditMode() async {
@@ -1323,6 +1326,13 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
 
   void queueInsertAtEnd() {
     _queueInsert(widget.notes.length);
+  }
+
+  void prepareInitialFocus() {
+    if (!mounted) return;
+    setState(() {
+      _hasInitialFocus = false;
+    });
   }
 
   void clearPendingInsert() {
