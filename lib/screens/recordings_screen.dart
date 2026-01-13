@@ -21,6 +21,10 @@ class RecordingsScreen extends StatefulWidget {
 class _RecordingsScreenState extends State<RecordingsScreen> {
   List<RecordingEntry> _recordings = [];
   bool _loading = true;
+  static const _defaultRecordingIds = {
+    'default-mayamalavagowla',
+    'default-shankarabharanam',
+  };
 
   @override
   void initState() {
@@ -32,9 +36,63 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     final list = await RecordingStore.instance.load();
     if (!mounted) return;
     setState(() {
-      _recordings = list;
+      _recordings = [
+        ..._buildDefaultRecordings(),
+        ...list,
+      ];
       _loading = false;
     });
+  }
+
+  List<RecordingEntry> _buildDefaultRecordings() {
+    const beatMs = 1000;
+    const notes = [
+      RecordedNote(note: 'c3', durationMs: beatMs), // Sa
+      RecordedNote(note: 'c#3', durationMs: beatMs), // Ri1
+      RecordedNote(note: 'e3', durationMs: beatMs), // Ga2
+      RecordedNote(note: 'f3', durationMs: beatMs), // Ma1
+      RecordedNote(note: 'g3', durationMs: beatMs), // Pa
+      RecordedNote(note: 'g#3', durationMs: beatMs), // Da1
+      RecordedNote(note: 'b3', durationMs: beatMs), // Ni2
+      RecordedNote(note: 'c4', durationMs: beatMs), // Sa
+      RecordedNote(note: 'b3', durationMs: beatMs), // Ni2
+      RecordedNote(note: 'g#3', durationMs: beatMs), // Da1
+      RecordedNote(note: 'g3', durationMs: beatMs), // Pa
+      RecordedNote(note: 'f3', durationMs: beatMs), // Ma1
+      RecordedNote(note: 'e3', durationMs: beatMs), // Ga2
+      RecordedNote(note: 'c#3', durationMs: beatMs), // Ri1
+      RecordedNote(note: 'c3', durationMs: beatMs), // Sa
+    ];
+    return [
+      RecordingEntry(
+        id: 'default-mayamalavagowla',
+        name: 'Mayamalavagowla (C3–C4)',
+        createdAt: DateTime(2000, 1, 1),
+        notes: notes,
+      ),
+      RecordingEntry(
+        id: 'default-shankarabharanam',
+        name: 'Shankarabharanam (C3–C4)',
+        createdAt: DateTime(2000, 1, 1),
+        notes: const [
+          RecordedNote(note: 'c3', durationMs: beatMs), // Sa
+          RecordedNote(note: 'd3', durationMs: beatMs), // Ri2
+          RecordedNote(note: 'e3', durationMs: beatMs), // Ga2
+          RecordedNote(note: 'f3', durationMs: beatMs), // Ma1
+          RecordedNote(note: 'g3', durationMs: beatMs), // Pa
+          RecordedNote(note: 'a3', durationMs: beatMs), // Da2
+          RecordedNote(note: 'b3', durationMs: beatMs), // Ni2
+          RecordedNote(note: 'c4', durationMs: beatMs), // Sa
+          RecordedNote(note: 'b3', durationMs: beatMs), // Ni2
+          RecordedNote(note: 'a3', durationMs: beatMs), // Da2
+          RecordedNote(note: 'g3', durationMs: beatMs), // Pa
+          RecordedNote(note: 'f3', durationMs: beatMs), // Ma1
+          RecordedNote(note: 'e3', durationMs: beatMs), // Ga2
+          RecordedNote(note: 'd3', durationMs: beatMs), // Ri2
+          RecordedNote(note: 'c3', durationMs: beatMs), // Sa
+        ],
+      ),
+    ];
   }
 
   Future<void> _confirmDelete(RecordingEntry entry) async {
@@ -173,6 +231,8 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
                     final recording = _recordings[index];
+                    final isDefault =
+                        _defaultRecordingIds.contains(recording.id);
                     return Card(
                       child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(
@@ -207,7 +267,9 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                             const SizedBox(width: 6),
                             IconButton(
                               icon: const Icon(Icons.delete_outline),
-                              onPressed: () => _confirmDelete(recording),
+                              onPressed: isDefault
+                                  ? null
+                                  : () => _confirmDelete(recording),
                             ),
                           ],
                         ),
