@@ -24,6 +24,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   static const _defaultRecordingIds = {
     'default-mayamalavagowla',
     'default-shankarabharanam',
+    'default-mayamalavagowla-sarale',
   };
 
   @override
@@ -71,6 +72,12 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         notes: notes,
       ),
       RecordingEntry(
+        id: 'default-mayamalavagowla-sarale',
+        name: 'Mayamalavagowla Sarale Varase 1–14 (C3–C4)',
+        createdAt: DateTime(2000, 1, 1),
+        notes: _buildSaraleVaraseNotes(beatMs),
+      ),
+      RecordingEntry(
         id: 'default-shankarabharanam',
         name: 'Shankarabharanam (C3–C4)',
         createdAt: DateTime(2000, 1, 1),
@@ -93,6 +100,156 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         ],
       ),
     ];
+  }
+
+  List<RecordedNote> _buildSaraleVaraseNotes(int beatMs) {
+    const sequences = [
+      [
+        's r g m | p d | n S ||',
+        'S n d p | m g | r s ||',
+      ],
+      [
+        's r - s r - | s r | g m ||',
+        's r g m | p d | n S ||',
+        'S n - S n - | S n | d p ||',
+        'S n d p | m g | r s ||',
+      ],
+      [
+        's r g - s | r g - | s r ||',
+        's r g m | p d | n S ||',
+        'S n d - s | n d - | s n ||',
+        'S n d p | m g | r s ||',
+      ],
+      [
+        's r g m - | s r | g m - ||',
+        's r g m | p d | n s ||',
+        'S n d p - | S n | d p - ||',
+        'S n d p | m g | r s ||',
+      ],
+      [
+        's r g m | p , - | s r ||',
+        's r g m | p d | n S ||',
+        'S n d p | m , - | S n ||',
+        'S n d p | m g | r s ||',
+      ],
+      [
+        's r g m | p d - | s r ||',
+        's r g m | p d | n S ||',
+        'S n d p | m g - | S n ||',
+        'S n d p | m g | r s ||',
+      ],
+      [
+        's r g m | p d | n , ||',
+        's r g m | p d | n S ||',
+        'S n d p | m g | r , ||',
+        'S n d p | m g | r s ||',
+      ],
+      [
+        's r g m | p m | g r ||',
+        's r g m | p d | n S ||',
+        'S n d p | m p | d n ||',
+        'S n d p | m g | r s ||',
+      ],
+      [
+        's r g m | p m | d p ||',
+        's r g m | p d | n S ||',
+        'S n d p | m p | g m ||',
+        'S n d p | m g | r s ||',
+      ],
+      [
+        's r g m | p , | g m ||',
+        'p , , , | p , | , , ||',
+        'g m p d | n d | p m ||',
+        'g m p - g | m g | r s ||',
+      ],
+      [
+        'S , n d | n , | d p ||',
+        'd , p m | p , | p , ||',
+        'g m p d | n d | p m ||',
+        'g m p - g | m g | r s ||',
+      ],
+      [
+        'S S n d | n n | d p ||',
+        'd d p m | p , | p , ||',
+        'g m p d | n d | p m ||',
+        'g m p - g | m g | r s ||',
+      ],
+      [
+        's r g r | g , - | g m ||',
+        'p m p , - | d p | d , ||',
+        'm p d p | d n | d p ||',
+        'm p d p | m g | r s ||',
+      ],
+      [
+        's r g m | p , | p , ||',
+        'd d p , | m m | p , ||',
+        'd n S , | S n | d p ||',
+        'S n d p | m g | r s ||',
+      ],
+    ];
+
+    final notes = <RecordedNote>[];
+    for (final group in sequences) {
+      for (final line in group) {
+        _appendSaraleLine(notes, line, beatMs);
+      }
+    }
+    return notes;
+  }
+
+  void _appendSaraleLine(
+    List<RecordedNote> notes,
+    String line,
+    int beatMs,
+  ) {
+    final tokens = line
+        .replaceAll('|', ' ')
+        .replaceAll('||', ' ')
+        .trim()
+        .split(RegExp(r'\s+'));
+    for (final token in tokens) {
+      if (token.isEmpty) continue;
+      if (token == '-' || token == ',') {
+        if (notes.isNotEmpty) {
+          final last = notes.removeLast();
+          notes.add(
+            RecordedNote(
+              note: last.note,
+              durationMs: last.durationMs + beatMs,
+            ),
+          );
+        }
+        continue;
+      }
+      final mapped = _saraleNoteToWestern(token);
+      if (mapped == null) {
+        continue;
+      }
+      notes.add(RecordedNote(note: mapped, durationMs: beatMs));
+    }
+  }
+
+  String? _saraleNoteToWestern(String token) {
+    switch (token) {
+      case 's':
+        return 'c3';
+      case 'r':
+        return 'c#3';
+      case 'g':
+        return 'e3';
+      case 'm':
+        return 'f3';
+      case 'p':
+        return 'g3';
+      case 'd':
+        return 'g#3';
+      case 'n':
+        return 'b3';
+      case 'S':
+        return 'c4';
+      default:
+        return null;
+    }
   }
 
   Future<void> _confirmDelete(RecordingEntry entry) async {
