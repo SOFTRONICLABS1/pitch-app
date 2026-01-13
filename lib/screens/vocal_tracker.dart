@@ -310,7 +310,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     });
   }
 
-  static const _minDurationMs = 0;
+  static const _minDurationMs = 200;
   static const _defaultInsertDurationMs = 1000;
 
   Future<void> _insertTargetsAt(
@@ -1348,6 +1348,10 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   bool _syncedVertical = false;
   bool _syncedHorizontal = false;
   final Map<int, double> _dragRemainderByIndex = {};
+  double? _activeDragLineX;
+  int? _activeDragIndex;
+  int? _selectedNoteIndex;
+  double? _dragOriginLineX;
   int? _pendingInsertIndex;
   int? _pendingInsertMidi;
   double _currentScale = _EditableTargetOverlay._msToWidth;
@@ -1614,29 +1618,49 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
             baseOffset: baseOffset,
             rowHeight: rowHeight,
           );
+          final isSelected = _selectedNoteIndex == i;
           blocks.add(
             Positioned(
               left: x,
               top: blockTop,
               width: blockWidth,
               height: rowHeight,
-              child: LongPressDraggable<_NoteDragPayload>(
-                data: _NoteDragPayload(index: i),
-                axis: Axis.vertical,
-                feedback: Material(
-                  color: Colors.transparent,
-                  child: _EditableTargetContent(
-                    label: _formatNoteForEdit(note.note, tuningSystem),
-                    height: rowHeight,
-                    onDelete: null,
-                  ),
-                ),
-                childWhenDragging: const SizedBox.shrink(),
-                child: _EditableTargetContent(
-                  label: _formatNoteForEdit(note.note, tuningSystem),
-                  height: rowHeight,
-                  onDelete: () => widget.onDelete(i),
-                ),
+              child: GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedNoteIndex = i;
+                  });
+                },
+                child: isSelected
+                    ? Draggable<_NoteDragPayload>(
+                        data: _NoteDragPayload(index: i),
+                        axis: Axis.vertical,
+                        feedback: Material(
+                          color: Colors.transparent,
+                          child: _EditableTargetContent(
+                            label: _formatNoteForEdit(note.note, tuningSystem),
+                            height: rowHeight,
+                            onDelete: null,
+                            selected: true,
+                          ),
+                        ),
+                        childWhenDragging: const SizedBox.shrink(),
+                        child: _EditableTargetContent(
+                          label: _formatNoteForEdit(
+                            note.note,
+                            tuningSystem,
+                          ),
+                          height: rowHeight,
+                          onDelete: () => widget.onDelete(i),
+                          selected: true,
+                        ),
+                      )
+                    : _EditableTargetContent(
+                        label: _formatNoteForEdit(note.note, tuningSystem),
+                        height: rowHeight,
+                        onDelete: () => widget.onDelete(i),
+                        selected: false,
+                      ),
               ),
             ),
           );
@@ -1656,6 +1680,11 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           offsetMs += gridMs;
         }
         final maxMs = offsetMs;
+        final gridLines = (maxMs / gridMs).ceil();
+        for (var i = 0; i <= gridLines; i++) {
+          final x = i * gridMs * scale;
+          addLine(x: x, isStrong: false);
+        }
         final linePositions = lineByKey.values.toList()
           ..sort((a, b) => a.x.compareTo(b.x));
 
@@ -1779,15 +1808,27 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                     SizedBox(
                       width: labelWidth,
                       height: contentHeight,
-                      child: Stack(
-                        children: [
-                          const Positioned.fill(
-                            child: ColoredBox(color: Color(0xFF23272B)),
+                          child: Stack(
+                            children: [
+                              const Positioned.fill(
+                                child: ColoredBox(color: Color(0xFF23272B)),
+                              ),
+                              for (var i = 0; i < totalRows; i++)
+                                Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  top: (i + baseOffset) * rowHeight,
+                                  height: rowHeight,
+                                  child: ColoredBox(
+                                    color: i.isEven
+                                        ? const Color(0xFF2A2F33)
+                                        : const Color(0xFF343A3F),
+                                  ),
+                                ),
+                              ...labelRows,
+                            ],
                           ),
-                          ...labelRows,
-                        ],
-                      ),
-                    ),
+                        ),
                     SizedBox(
                       width: plotWidth,
                       height: contentHeight,
@@ -1802,6 +1843,18 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                             height: contentHeight,
                             child: Stack(
                               children: [
+                                for (var i = 0; i < totalRows; i++)
+                                  Positioned(
+                                    left: 0,
+                                    right: 0,
+                                    top: (i + baseOffset) * rowHeight,
+                                    height: rowHeight,
+                                    child: ColoredBox(
+                                      color: i.isEven
+                                          ? const Color(0xFF2A2F33)
+                                          : const Color(0xFF343A3F),
+                                    ),
+                                  ),
                                 ...blocks,
                                 Positioned.fill(
                                   child: DragTarget<_NoteDragPayload>(
@@ -1823,6 +1876,9 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                                         details.data.index,
                                         label,
                                       );
+                                      setState(() {
+                                        _selectedNoteIndex = null;
+                                      });
                                       _centerOnMidi(
                                         midi,
                                         rowHeight,
@@ -1852,6 +1908,30 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         return Stack(
           children: [
             scrollableContent,
+            if (_selectedNoteIndex != null)
+              Positioned(
+                left: labelWidth + 8,
+                top: 8,
+                child: IgnorePointer(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Drag up or down to move note',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             Positioned(
               left: labelWidth,
               right: plotRightPadding,
@@ -1864,6 +1944,30 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                 onBuildLine: _buildGridLine,
               ),
             ),
+            if (_activeDragLineX != null)
+              Positioned(
+                left: labelWidth + _activeDragLineX!,
+                top: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 2,
+                    color: Colors.orange.withOpacity(0.9),
+                  ),
+                ),
+              ),
+            if (_dragOriginLineX != null)
+              Positioned(
+                left: labelWidth + _dragOriginLineX!,
+                top: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  child: Container(
+                    width: 1,
+                    color: Colors.white.withOpacity(0.6),
+                  ),
+                ),
+              ),
           ],
         );
       },
@@ -1924,6 +2028,14 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
               if (showHandle)
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
+                  onHorizontalDragStart: (_) {
+                    if (dragIndex == null) return;
+                    setState(() {
+                      _activeDragIndex = dragIndex;
+                      _activeDragLineX = x;
+                      _dragOriginLineX = x;
+                    });
+                  },
                   onHorizontalDragUpdate: (details) {
                     if (dragIndex == null) return;
                     final delta = details.delta.dx;
@@ -1935,7 +2047,10 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                       _dragRemainderByIndex[dragIndex] = totalDelta;
                       return;
                     }
-                    final stepCount = (totalDelta / beatPx).round();
+                    final ratio = totalDelta / beatPx;
+                    final stepCount = ratio >= 0
+                        ? (ratio + 0.1).floor()
+                        : (ratio - 0.1).ceil();
                     if (stepCount == 0) {
                       _dragRemainderByIndex[dragIndex] = totalDelta;
                       return;
@@ -1944,11 +2059,35 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                     final consumedPx = stepCount * beatPx;
                     _dragRemainderByIndex[dragIndex] = totalDelta - consumedPx;
                     widget.onDurationDrag(dragIndex, deltaMs, false);
+                    setState(() {
+                      if (_activeDragIndex == dragIndex) {
+                        final current = (_activeDragLineX ?? x) + delta;
+                        final snapped = x + (stepCount * beatPx);
+                        _activeDragLineX =
+                            (current - snapped).abs() <= beatPx
+                                ? snapped
+                                : current;
+                      }
+                    });
                   },
                   onHorizontalDragEnd: (_) {
                     if (dragIndex == null) return;
                     _dragRemainderByIndex.remove(dragIndex);
                     widget.onDurationDrag(dragIndex, 0, true);
+                    setState(() {
+                      _activeDragLineX = null;
+                      _activeDragIndex = null;
+                      _dragOriginLineX = null;
+                    });
+                  },
+                  onHorizontalDragCancel: () {
+                    if (dragIndex == null) return;
+                    _dragRemainderByIndex.remove(dragIndex);
+                    setState(() {
+                      _activeDragLineX = null;
+                      _activeDragIndex = null;
+                      _dragOriginLineX = null;
+                    });
                   },
                   child: Container(
                     width: handleWidth,
@@ -2102,11 +2241,13 @@ class _EditableTargetContent extends StatelessWidget {
     required this.label,
     required this.height,
     required this.onDelete,
+    required this.selected,
   });
 
   final String label;
   final double height;
   final VoidCallback? onDelete;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -2115,6 +2256,7 @@ class _EditableTargetContent extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF2B6BFF).withOpacity(0.4),
         borderRadius: BorderRadius.circular(6),
+        border: selected ? Border.all(color: Colors.white, width: 1) : null,
       ),
       child: Stack(
         children: [
