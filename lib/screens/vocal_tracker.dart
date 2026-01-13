@@ -35,6 +35,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   late RecordingEntry _recording;
   final ScrollController _editScrollController = ScrollController();
   final ScrollController _editVerticalController = ScrollController();
+  final GlobalKey<_EditableTargetOverlayState> _editOverlayKey =
+      GlobalKey<_EditableTargetOverlayState>();
   int _bpm = 60;
   DateTime? _frozenAt;
   int _viewportBaseMidi = 33;
@@ -274,6 +276,19 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     });
   }
 
+  void _clearAllEditNotes() {
+    if (!_editMode) return;
+    setState(() {
+      _editNotes = [];
+      _editDirty = true;
+    });
+    _editOverlayKey.currentState?.clearPendingInsert();
+  }
+
+  void _queueInsertAtEnd() {
+    _editOverlayKey.currentState?.queueInsertAtEnd();
+  }
+
   Future<void> _deleteTargetAt(int index) async {
     final notes = _editNotes;
     if (notes == null || index < 0 || index >= notes.length) {
@@ -333,8 +348,15 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     var nextDuration =
         max(_minDurationMs, current.durationMs + deltaMs).toInt();
     if (commit) {
-      final beatMs = 60000 / max(1, _bpm);
-      nextDuration = ((nextDuration / beatMs).round() * beatMs).toInt();
+      final beatMs = (60000 / max(1, _bpm)).round();
+      final remainder = nextDuration % beatMs;
+      if (remainder != 0) {
+        if (remainder >= (beatMs / 2)) {
+          nextDuration = nextDuration + (beatMs - remainder);
+        } else {
+          nextDuration = nextDuration - remainder;
+        }
+      }
     }
     if (nextDuration == current.durationMs) {
       return;
@@ -403,6 +425,16 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
           ),
           title: Text(_recording.name),
           actions: [
+            if (_editMode && (_editNotes?.isEmpty ?? true))
+              IconButton(
+                icon: const Icon(Icons.add),
+                onPressed: _queueInsertAtEnd,
+              ),
+            if (_editMode)
+              IconButton(
+                icon: const Icon(Icons.delete_sweep_outlined),
+                onPressed: _clearAllEditNotes,
+              ),
             IconButton(
               icon: const Icon(Icons.tune),
               onPressed: _showBpmSettings,
@@ -464,6 +496,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                               if (_editMode)
                                 Positioned.fill(
                                   child: _EditableTargetOverlay(
+                                    key: _editOverlayKey,
                                     notes: _editNotes ?? _recording.notes,
                                     tuningSystem: state.tuningSystem,
                                     baseMidi: 21,
@@ -1141,6 +1174,7 @@ class _PlayPauseBar extends StatelessWidget {
 
 class _EditableTargetOverlay extends StatefulWidget {
   const _EditableTargetOverlay({
+    super.key,
     required this.notes,
     required this.tuningSystem,
     required this.baseMidi,
@@ -1206,6 +1240,17 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     });
   }
 
+  void queueInsertAtEnd() {
+    _queueInsert(widget.notes.length);
+  }
+
+  void clearPendingInsert() {
+    setState(() {
+      _pendingInsertIndex = null;
+      _pendingInsertMidi = null;
+    });
+  }
+
   void _commitInsertWithLabel(String label) {
     final insertIndex = _pendingInsertIndex;
     if (insertIndex == null) return;
@@ -1219,14 +1264,6 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   @override
   Widget build(BuildContext context) {
     final notes = widget.notes;
-    if (notes.isEmpty) {
-      return const Center(
-        child: Text(
-          'No target notes yet.',
-          style: TextStyle(color: Colors.white70),
-        ),
-      );
-    }
     return LayoutBuilder(
       builder: (context, constraints) {
         const controlGutterHeight = 72.0;
@@ -1242,11 +1279,11 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         final viewportHeight =
             max(0.0, constraints.maxHeight - controlGutterHeight);
         final totalMs = notes.fold<int>(0, (sum, note) => sum + note.durationMs);
+        final scale = _EditableTargetOverlay._msToWidth;
         final bpm = max(1, widget.bpm);
-        final scale = _EditableTargetOverlay._msToWidth * (60.0 / bpm);
-        final beatMs = 60000.0 / bpm;
+        final gridMs = 60000.0 / bpm;
         _currentScale = scale;
-        final pendingExtraMs = _pendingInsertIndex == null ? 0.0 : beatMs;
+        final pendingExtraMs = _pendingInsertIndex == null ? 0.0 : gridMs;
         final nowX =
             constraints.maxWidth * guidelineFraction + guidelineOffset;
         final plotRightPadding =
@@ -1299,31 +1336,47 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         var offsetMs = 0.0;
         double? pendingInsertX;
         final lineByKey = <int, _GridLinePosition>{};
-        void addLine(double x, {required bool isStrong, int? index}) {
+        void addLine({
+          required double x,
+          required bool isStrong,
+          int? dragIndex,
+          int? insertIndex,
+          bool showHandle = false,
+        }) {
           final key = x.round();
           final existing = lineByKey[key];
           if (existing != null) {
             if (isStrong && !existing.isStrong) {
               lineByKey[key] = _GridLinePosition(
                 x: existing.x,
-                index: existing.index,
+                dragIndex: existing.dragIndex,
                 isStrong: true,
+                insertIndex: existing.insertIndex,
+                showHandle: existing.showHandle,
               );
             }
             return;
           }
           lineByKey[key] = _GridLinePosition(
             x: x,
-            index: index,
+            dragIndex: dragIndex,
             isStrong: isStrong,
+            insertIndex: insertIndex,
+            showHandle: showHandle,
           );
         }
-        addLine(0, isStrong: true);
+        addLine(
+          x: 0,
+          isStrong: true,
+          insertIndex: null,
+          showHandle: false,
+          dragIndex: null,
+        );
         final blocks = <Widget>[];
         for (var i = 0; i < notes.length; i++) {
           if (_pendingInsertIndex == i) {
             pendingInsertX = offsetMs * scale;
-            offsetMs += beatMs;
+            offsetMs += gridMs;
           }
           final note = notes[i];
           final x = offsetMs * scale;
@@ -1349,18 +1402,24 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           );
           offsetMs += note.durationMs.toDouble();
           final endX = offsetMs * scale;
-          addLine(endX, isStrong: true, index: i);
+          addLine(
+            x: endX,
+            isStrong: true,
+            dragIndex: i,
+            insertIndex: i + 1,
+            showHandle: true,
+          );
         }
         if (_pendingInsertIndex != null &&
             _pendingInsertIndex == notes.length) {
           pendingInsertX = offsetMs * scale;
-          offsetMs += beatMs;
+          offsetMs += gridMs;
         }
         final maxMs = offsetMs;
-        final beatLines = (maxMs / beatMs).ceil();
-        for (var i = 0; i <= beatLines; i++) {
-          final x = i * beatMs * scale;
-          addLine(x, isStrong: false);
+        final gridLines = (maxMs / gridMs).ceil();
+        for (var i = 0; i <= gridLines; i++) {
+          final x = i * gridMs * scale;
+          addLine(x: x, isStrong: false);
         }
         final linePositions = lineByKey.values.toList()
           ..sort((a, b) => a.x.compareTo(b.x));
@@ -1404,7 +1463,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
 
         if (_pendingInsertIndex != null && pendingInsertX != null) {
           final insertWidth = max(
-            beatMs * scale,
+            gridMs * scale,
             _EditableTargetOverlay._minTileWidth,
           ).toDouble();
           final selectedMidi = _pendingInsertMidi;
@@ -1549,6 +1608,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     required double x,
     required bool showHandle,
     required bool isStrong,
+    required int? insertIndex,
     int? dragIndex,
   }) {
     const lineWidth = 1.0;
@@ -1556,7 +1616,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     const handleHeight = 28.0;
     final lineColor =
         Colors.white.withOpacity(isStrong ? 1.0 : 0.3);
-    if (dragIndex == null) {
+    if (dragIndex == null && insertIndex == null) {
       return Positioned(
         left: x,
         top: 0,
@@ -1567,7 +1627,6 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         ),
       );
     }
-    final insertIndex = dragIndex + 1;
     return Stack(
       children: [
         Positioned(
@@ -1589,6 +1648,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                 GestureDetector(
                   behavior: HitTestBehavior.opaque,
                   onHorizontalDragUpdate: (details) {
+                    if (dragIndex == null) return;
                     final delta = details.delta.dx;
                     final remainder = _dragRemainderByIndex[dragIndex] ?? 0.0;
                     final totalDelta = remainder + delta;
@@ -1603,6 +1663,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                     widget.onDurationDrag(dragIndex, deltaMs, false);
                   },
                   onHorizontalDragEnd: (_) {
+                    if (dragIndex == null) return;
                     _dragRemainderByIndex.remove(dragIndex);
                     widget.onDurationDrag(dragIndex, 0, true);
                   },
@@ -1622,23 +1683,24 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                   ),
                 ),
               if (showHandle) const SizedBox(height: 10),
-              GestureDetector(
-                onTap: () => _queueInsert(insertIndex),
-                child: Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2B6BFF),
-                    borderRadius: BorderRadius.circular(11),
-                    border: Border.all(color: Colors.white, width: 1),
-                  ),
-                  child: const Icon(
-                    Icons.add,
-                    size: 16,
-                    color: Colors.white,
+              if (insertIndex != null)
+                GestureDetector(
+                  onTap: () => _queueInsert(insertIndex),
+                  child: Container(
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2B6BFF),
+                      borderRadius: BorderRadius.circular(11),
+                      border: Border.all(color: Colors.white, width: 1),
+                    ),
+                    child: const Icon(
+                      Icons.add,
+                      size: 16,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -1650,13 +1712,17 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
 class _GridLinePosition {
   const _GridLinePosition({
     required this.x,
-    required this.index,
+    required this.dragIndex,
     required this.isStrong,
+    required this.insertIndex,
+    required this.showHandle,
   });
 
   final double x;
-  final int? index;
+  final int? dragIndex;
   final bool isStrong;
+  final int? insertIndex;
+  final bool showHandle;
 }
 
 class _GridLineOverlay extends StatelessWidget {
@@ -1674,6 +1740,7 @@ class _GridLineOverlay extends StatelessWidget {
     required double x,
     required bool showHandle,
     required bool isStrong,
+    required int? insertIndex,
     int? dragIndex,
   }) onBuildLine;
 
@@ -1695,9 +1762,10 @@ class _GridLineOverlay extends StatelessWidget {
             lines.add(
               onBuildLine(
                 x: left,
-                showHandle: pos.index != null,
+                showHandle: pos.showHandle,
                 isStrong: pos.isStrong,
-                dragIndex: pos.index,
+                insertIndex: pos.insertIndex,
+                dragIndex: pos.dragIndex,
               ),
             );
           }
