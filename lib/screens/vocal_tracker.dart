@@ -53,6 +53,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   double _lastTargetElapsedMs = 0.0;
   Duration _targetElapsedOffset = Duration.zero;
   double? _screenWidth;
+  double? _initialBaseMidi;
   static const _guidelineFraction = 0.8;
   static const _guidelineOffset = 0.0;
   static const _tunerLabelWidth = 58.0;
@@ -74,6 +75,9 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     final result = _targetBlocksFromRecording(_recording);
     _targets = result.blocks;
     _totalDurationMs = result.totalDurationMs;
+    if (_targets.isNotEmpty) {
+      _initialBaseMidi = _computeInitialBaseMidi(_targets.first.midi);
+    }
     _ticker = createTicker(_onTick);
     _running = false;
     _elapsed = Duration.zero;
@@ -412,6 +416,16 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     }
   }
 
+  double _computeInitialBaseMidi(int targetMidi) {
+    const alignment = 0.9;
+    const minMidi = 21.0;
+    const maxMidi = 108.0;
+    final maxBase = maxMidi - _viewportRowCount + 1;
+    final baseMidi =
+        targetMidi + ((alignment - 1) * _viewportRowCount + 0.5);
+    return baseMidi.clamp(minMidi, maxBase);
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = context.watch<PitchNotifier>();
@@ -489,6 +503,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                             showBlocks: false,
                             showLabels: !_editMode,
                             enableManualScroll: !_editMode,
+                            initialBaseMidi: _initialBaseMidi,
                             nowOverride: _running ? null : _frozenAt,
                             noteLabels: noteLabels,
                             labelTextStyle: labelStyle,
@@ -1428,7 +1443,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
               extendedTopMidi,
               baseOffset,
               viewportHeight,
-              alignment: 0.8,
+              alignment: 0.1,
             );
           }
         }
