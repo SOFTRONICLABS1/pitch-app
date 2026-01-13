@@ -1226,6 +1226,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     }
     return LayoutBuilder(
       builder: (context, constraints) {
+        const controlGutterHeight = 72.0;
         final baseMidi = widget.baseMidi;
         final rowCount = widget.rowCount;
         final baseOffset = widget.baseOffset;
@@ -1235,6 +1236,8 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         final guidelineOffset = widget.guidelineOffset;
         final scrollController = widget.scrollController;
         final verticalController = widget.verticalController;
+        final viewportHeight =
+            max(0.0, constraints.maxHeight - controlGutterHeight);
         final totalMs = notes.fold<int>(0, (sum, note) => sum + note.durationMs);
         final nowX =
             constraints.maxWidth * guidelineFraction + guidelineOffset;
@@ -1246,7 +1249,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         );
         final width = max(plotWidth, totalMs * _EditableTargetOverlay._msToWidth)
             .toDouble();
-        final rowHeight = constraints.maxHeight / rowCount;
+        final rowHeight = rowCount > 0 ? viewportHeight / rowCount : 0.0;
         final topMidi = baseMidi + rowCount - 1;
         int? minMidi;
         int? maxMidi;
@@ -1280,7 +1283,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
             verticalController.jumpTo(
               targetOffset.clamp(
                 0.0,
-                max(0.0, contentHeight - constraints.maxHeight),
+                max(0.0, contentHeight - viewportHeight),
               ),
             );
           });
@@ -1358,48 +1361,54 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           );
         }
 
-        final scrollableContent = ClipRect(
-          child: SingleChildScrollView(
-            controller: verticalController,
-            scrollDirection: Axis.vertical,
-            physics: const BouncingScrollPhysics(),
-            primary: false,
-            child: SizedBox(
-              height: contentHeight,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: labelWidth,
-                    height: contentHeight,
-                    child: Stack(
-                      children: [
-                        const Positioned.fill(
-                          child: ColoredBox(color: Color(0xFF23272B)),
-                        ),
-                        ...labelRows,
-                      ],
+        final scrollableContent = Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          height: viewportHeight,
+          child: ClipRect(
+            child: SingleChildScrollView(
+              controller: verticalController,
+              scrollDirection: Axis.vertical,
+              physics: const BouncingScrollPhysics(),
+              primary: false,
+              child: SizedBox(
+                height: contentHeight,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: labelWidth,
+                      height: contentHeight,
+                      child: Stack(
+                        children: [
+                          const Positioned.fill(
+                            child: ColoredBox(color: Color(0xFF23272B)),
+                          ),
+                          ...labelRows,
+                        ],
+                      ),
                     ),
-                  ),
-                  SizedBox(
-                    width: plotWidth,
-                    height: contentHeight,
-                    child: ClipRect(
-                      child: SingleChildScrollView(
-                        controller: scrollController,
-                        scrollDirection: Axis.horizontal,
-                        physics: const BouncingScrollPhysics(),
-                        primary: false,
-                        child: SizedBox(
-                          width: width,
-                          height: contentHeight,
-                          child: Stack(children: blocks),
+                    SizedBox(
+                      width: plotWidth,
+                      height: contentHeight,
+                      child: ClipRect(
+                        child: SingleChildScrollView(
+                          controller: scrollController,
+                          scrollDirection: Axis.horizontal,
+                          physics: const BouncingScrollPhysics(),
+                          primary: false,
+                          child: SizedBox(
+                            width: width,
+                            height: contentHeight,
+                            child: Stack(children: blocks),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  SizedBox(width: plotRightPadding),
-                ],
+                    SizedBox(width: plotRightPadding),
+                  ],
+                ),
               ),
             ),
           ),
