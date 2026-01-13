@@ -1168,6 +1168,7 @@ class _EditableTargetOverlay extends StatefulWidget {
 
   static const _msToWidth = 0.08;
   static const _minTileWidth = 24.0;
+  static const _defaultInsertDurationMs = 1000;
 
   @override
   State<_EditableTargetOverlay> createState() => _EditableTargetOverlayState();
@@ -1177,6 +1178,8 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   bool _syncedVertical = false;
   bool _syncedHorizontal = false;
   final Map<int, double> _dragRemainderByIndex = {};
+  int? _pendingInsertIndex;
+  int? _pendingInsertMidi;
 
   @override
   void didUpdateWidget(covariant _EditableTargetOverlay oldWidget) {
@@ -1184,26 +1187,26 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     if (oldWidget.notes != widget.notes) {
       _syncedHorizontal = false;
       _syncedVertical = false;
+      _pendingInsertIndex = null;
+      _pendingInsertMidi = null;
     }
   }
 
-  Future<void> _openInsertNotes(int insertIndex) async {
-    final selected = await showModalBottomSheet<List<String>>(
-      context: context,
-      backgroundColor: const Color(0xFF23272B),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      isScrollControlled: true,
-      builder: (context) => _InsertNotesSheet(
-        tuningSystem: widget.tuningSystem,
-      ),
-    );
-    if (!mounted || selected == null || selected.isEmpty) {
-      return;
-    }
-    widget.onInsertNotes(insertIndex, selected);
+  void _queueInsert(int insertIndex) {
+    setState(() {
+      _pendingInsertIndex = insertIndex;
+      _pendingInsertMidi = null;
+    });
+  }
+
+  void _commitInsertWithLabel(String label) {
+    final insertIndex = _pendingInsertIndex;
+    if (insertIndex == null) return;
+    widget.onInsertNotes(insertIndex, [label]);
+    setState(() {
+      _pendingInsertIndex = null;
+      _pendingInsertMidi = null;
+    });
   }
 
   @override
@@ -1337,10 +1340,79 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
               right: 0,
               top: (i + baseOffset) * rowHeight,
               height: rowHeight,
-              child: Container(
-                color: isSharp ? Colors.black : const Color(0xFFCBD1D6),
-                alignment: Alignment.center,
-                child: Text(label, style: resolvedStyle),
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _commitInsertWithLabel(label),
+                child: Container(
+                  color: isSharp ? Colors.black : const Color(0xFFCBD1D6),
+                  alignment: Alignment.center,
+                  child: Text(label, style: resolvedStyle),
+                ),
+              ),
+            ),
+          );
+        }
+
+        if (_pendingInsertIndex != null) {
+          final insertIndex = _pendingInsertIndex!;
+          final insertOffsetMs = notes
+              .take(insertIndex)
+              .fold<double>(0, (sum, note) => sum + note.durationMs);
+          final insertX =
+              insertOffsetMs * _EditableTargetOverlay._msToWidth;
+          final insertWidth = max(
+            _EditableTargetOverlay._defaultInsertDurationMs *
+                _EditableTargetOverlay._msToWidth,
+            _EditableTargetOverlay._minTileWidth,
+          ).toDouble();
+          final selectedMidi = _pendingInsertMidi;
+          blocks.add(
+            Positioned(
+              left: insertX,
+              top: 0,
+              width: insertWidth,
+              height: contentHeight,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTapDown: (details) {
+                  final localY = details.localPosition.dy;
+                  final rowIndex = (localY / rowHeight).floor();
+                  final midi =
+                      (extendedTopMidi - rowIndex).clamp(minMidi, maxMidi);
+                  setState(() {
+                    _pendingInsertMidi = midi;
+                  });
+                },
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.white24),
+                          color: Colors.white10,
+                        ),
+                      ),
+                    ),
+                    if (selectedMidi != null)
+                      Positioned(
+                        top: _rowTopFor(
+                          midiFromNote: selectedMidi,
+                          topMidi: extendedTopMidi,
+                          baseOffset: baseOffset,
+                          rowHeight: rowHeight,
+                        ),
+                        left: 0,
+                        right: 0,
+                        height: rowHeight,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.white),
+                            color: Colors.white24,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           );
@@ -1506,7 +1578,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                 ),
               if (showHandle) const SizedBox(height: 10),
               GestureDetector(
-                onTap: () => _openInsertNotes(insertIndex),
+                onTap: () => _queueInsert(insertIndex),
                 child: Container(
                   width: 22,
                   height: 22,
