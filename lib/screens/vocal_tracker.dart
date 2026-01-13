@@ -81,7 +81,12 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _preloadHarmonics();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      context.read<PitchNotifier>().stop();
+      final pitchState = context.read<PitchNotifier>();
+      if (_historySnapshot == null && pitchState.history.isNotEmpty) {
+        _historySnapshot = List<PitchPoint>.from(pitchState.history);
+        pitchState.replaceHistory(const []);
+      }
+      pitchState.stop();
     });
   }
 
