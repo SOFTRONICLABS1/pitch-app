@@ -272,7 +272,7 @@ class _AddRecordingSheet extends StatefulWidget {
 }
 
 class _AddRecordingSheetState extends State<_AddRecordingSheet> {
-  static const _defaultDurationMs = 1000;
+  static const _defaultDurationSeconds = 1.0;
   static const _previewHeight = 170.0;
   static const _defaultOctave = 3;
 
@@ -309,6 +309,27 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
   final Map<int, GlobalKey> _octaveKeys = {};
   bool _didScrollToDefaultOctave = false;
 
+  String _formatSeconds(double seconds) {
+    final text = seconds.toStringAsFixed(3);
+    return text.replaceFirst(RegExp(r'\.?0+$'), '');
+  }
+
+  String _formatSecondsFromMs(int durationMs) {
+    return _formatSeconds(durationMs / 1000.0);
+  }
+
+  double? _parseSeconds(String input) {
+    final value = double.tryParse(input);
+    if (value == null || value < 0) {
+      return null;
+    }
+    return value;
+  }
+
+  int _secondsToMs(double seconds) {
+    return (seconds * 1000).round();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -317,7 +338,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       for (final note in entry.notes) {
         _selectedNotes.add(note.note.toUpperCase());
         _durationControllers.add(
-          TextEditingController(text: note.durationMs.toString()),
+          TextEditingController(text: _formatSecondsFromMs(note.durationMs)),
         );
       }
     }
@@ -340,7 +361,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
     setState(() {
       _selectedNotes.add(note);
       _durationControllers.add(
-        TextEditingController(text: _defaultDurationMs.toString()),
+        TextEditingController(text: _formatSeconds(_defaultDurationSeconds)),
       );
       _activeNote = note;
     });
@@ -356,7 +377,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       } else {
         _selectedNotes.add(note);
         _durationControllers.add(
-          TextEditingController(text: _defaultDurationMs.toString()),
+          TextEditingController(text: _formatSeconds(_defaultDurationSeconds)),
         );
       }
       _activeNote = note;
@@ -433,25 +454,30 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       return;
     }
     final controller = TextEditingController();
-    final duration = await showDialog<int>(
+    final duration = await showDialog<double>(
       context: context,
       builder: (context) {
         String? errorText;
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('Enter duration (ms)'),
+              title: const Text('Enter duration (sec)'),
               content: TextField(
                 controller: controller,
-                keyboardType: TextInputType.number,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 onChanged: (value) {
                   final trimmed = value.trim();
                   final invalid =
-                      trimmed.isNotEmpty && int.tryParse(trimmed) == null;
+                      trimmed.isNotEmpty && _parseSeconds(trimmed) == null;
                   setDialogState(() {
-                    errorText = invalid ? 'Enter only the numbers.' : null;
+                    errorText = invalid ? 'Enter a valid number.' : null;
                   });
                 },
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                ],
                 decoration: InputDecoration(
                   filled: false,
                   errorText: errorText,
@@ -467,10 +493,10 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
                       ? null
                       : () {
                           final raw = controller.text.trim();
-                          final value = int.tryParse(raw);
+                          final value = _parseSeconds(raw);
                           if (raw.isEmpty || value == null) {
                             setDialogState(() {
-                              errorText = 'Enter only the numbers.';
+                              errorText = 'Enter a valid number.';
                             });
                             return;
                           }
@@ -491,7 +517,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       if (!_durationSelections.contains(i)) {
         continue;
       }
-      _durationControllers[i].text = duration.toString();
+      _durationControllers[i].text = _formatSeconds(duration);
     }
     await _saveRecording();
   }
@@ -504,13 +530,13 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
     try {
       final notes = <RecordedNote>[];
       for (var i = 0; i < _selectedNotes.length; i++) {
-        final duration =
-            int.tryParse(_durationControllers[i].text.trim()) ??
-                _defaultDurationMs;
+        final seconds =
+            _parseSeconds(_durationControllers[i].text.trim()) ??
+                _defaultDurationSeconds;
         notes.add(
           RecordedNote(
             note: _selectedNotes[i].toLowerCase(),
-            durationMs: duration,
+            durationMs: _secondsToMs(seconds),
           ),
         );
       }
@@ -766,7 +792,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
           children: [
             Expanded(
               child: Text(
-                'Durations (ms)',
+                'Durations (sec)',
                 style: Theme.of(context)
                     .textTheme
                     .titleMedium
@@ -822,10 +848,15 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
                     width: 120,
                     child: TextField(
                       controller: _durationControllers[index],
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+                      ],
                       decoration: const InputDecoration(
                         filled: true,
-                        hintText: '1000',
+                        hintText: '1.0',
                       ),
                     ),
                   ),
@@ -1099,11 +1130,34 @@ class _EditRecordingSheet extends StatefulWidget {
 }
 
 class _EditRecordingSheetState extends State<_EditRecordingSheet> {
+  static const _defaultDurationSeconds = 0.5;
+
   final List<TextEditingController> _noteControllers = [];
   final List<TextEditingController> _durationControllers = [];
   final List<String?> _noteErrors = [];
   final List<String?> _durationErrors = [];
   bool _saving = false;
+
+  String _formatSeconds(double seconds) {
+    final text = seconds.toStringAsFixed(3);
+    return text.replaceFirst(RegExp(r'\.?0+$'), '');
+  }
+
+  String _formatSecondsFromMs(int durationMs) {
+    return _formatSeconds(durationMs / 1000.0);
+  }
+
+  double? _parseSeconds(String input) {
+    final value = double.tryParse(input);
+    if (value == null || value < 0) {
+      return null;
+    }
+    return value;
+  }
+
+  int _secondsToMs(double seconds) {
+    return (seconds * 1000).round();
+  }
 
   @override
   void initState() {
@@ -1116,7 +1170,7 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
         ),
       );
       _durationControllers.add(
-        TextEditingController(text: note.durationMs.toString()),
+        TextEditingController(text: _formatSecondsFromMs(note.durationMs)),
       );
       _noteErrors.add(null);
       _durationErrors.add(null);
@@ -1202,12 +1256,13 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
         if (normalized.isEmpty) {
           continue;
         }
-        final duration =
-            int.tryParse(_durationControllers[i].text.trim()) ?? 500;
+        final seconds =
+            _parseSeconds(_durationControllers[i].text.trim()) ??
+                _defaultDurationSeconds;
         notes.add(
           RecordedNote(
             note: normalized,
-            durationMs: duration,
+            durationMs: _secondsToMs(seconds),
           ),
         );
       }
@@ -1291,20 +1346,22 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
                       width: 120,
                       child: TextField(
                         controller: _durationControllers[index],
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
                         onChanged: (value) {
                           final invalid = value.isNotEmpty &&
-                              !RegExp(r'^[0-9]+$').hasMatch(value);
+                              _parseSeconds(value.trim()) == null;
                           setState(() {
                             _durationErrors[index] =
-                                invalid ? 'Enter only numbers.' : null;
+                                invalid ? 'Enter a valid number.' : null;
                           });
                         },
                         inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
+                          FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
                         ],
                         decoration: InputDecoration(
-                          labelText: 'ms',
+                          labelText: 'sec',
                           filled: true,
                           errorText: _durationErrors[index],
                         ),
