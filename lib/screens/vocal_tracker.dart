@@ -1656,11 +1656,6 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           offsetMs += gridMs;
         }
         final maxMs = offsetMs;
-        final gridLines = (maxMs / gridMs).ceil();
-        for (var i = 0; i <= gridLines; i++) {
-          final x = i * gridMs * scale;
-          addLine(x: x, isStrong: false);
-        }
         final linePositions = lineByKey.values.toList()
           ..sort((a, b) => a.x.compareTo(b.x));
 
