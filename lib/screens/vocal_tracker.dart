@@ -1285,10 +1285,16 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           _syncedHorizontal = true;
         }
         var offsetMs = 0.0;
+        double? pendingInsertX;
         final linePositions = <_GridLinePosition>[];
         linePositions.add(const _GridLinePosition(x: 0, index: null));
         final blocks = <Widget>[];
         for (var i = 0; i < notes.length; i++) {
+          if (_pendingInsertIndex == i) {
+            pendingInsertX =
+                offsetMs * _EditableTargetOverlay._msToWidth;
+            offsetMs += _EditableTargetOverlay._defaultInsertDurationMs;
+          }
           final note = notes[i];
           final x = offsetMs * _EditableTargetOverlay._msToWidth;
           blocks.add(
@@ -1314,6 +1320,10 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           offsetMs += note.durationMs.toDouble();
           final endX = offsetMs * _EditableTargetOverlay._msToWidth;
           linePositions.add(_GridLinePosition(x: endX, index: i));
+        }
+        if (_pendingInsertIndex != null &&
+            _pendingInsertIndex == notes.length) {
+          pendingInsertX = offsetMs * _EditableTargetOverlay._msToWidth;
         }
 
         final labelStyle = _labelStyleForSystem(tuningSystem);
@@ -1353,13 +1363,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           );
         }
 
-        if (_pendingInsertIndex != null) {
-          final insertIndex = _pendingInsertIndex!;
-          final insertOffsetMs = notes
-              .take(insertIndex)
-              .fold<double>(0, (sum, note) => sum + note.durationMs);
-          final insertX =
-              insertOffsetMs * _EditableTargetOverlay._msToWidth;
+        if (_pendingInsertIndex != null && pendingInsertX != null) {
           final insertWidth = max(
             _EditableTargetOverlay._defaultInsertDurationMs *
                 _EditableTargetOverlay._msToWidth,
@@ -1368,7 +1372,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           final selectedMidi = _pendingInsertMidi;
           blocks.add(
             Positioned(
-              left: insertX,
+              left: pendingInsertX,
               top: 0,
               width: insertWidth,
               height: contentHeight,
