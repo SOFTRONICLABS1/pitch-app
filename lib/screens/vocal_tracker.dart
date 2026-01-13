@@ -35,6 +35,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   late RecordingEntry _recording;
   final ScrollController _editScrollController = ScrollController();
   final ScrollController _editVerticalController = ScrollController();
+  final TunerDisplayController _tunerController = TunerDisplayController();
   final GlobalKey<_EditableTargetOverlayState> _editOverlayKey =
       GlobalKey<_EditableTargetOverlayState>();
   int _bpm = 60;
@@ -149,6 +150,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     });
     final targetElapsed = _effectiveTargetElapsed();
     _updateHarmonics(targetElapsed);
+    _ensureTargetVisible(targetElapsed);
     _lastTargetElapsedMs = targetElapsed.inMilliseconds.toDouble();
   }
 
@@ -416,6 +418,41 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     }
   }
 
+  void _ensureTargetVisible(Duration targetElapsed) {
+    if (_editMode || _targets.isEmpty) {
+      return;
+    }
+    final index = _currentTargetIndex(targetElapsed);
+    if (index == null) {
+      return;
+    }
+    final midi = _targets[index].midi;
+    final bottom = _viewportBaseMidi;
+    final top = _viewportBaseMidi + _viewportRowCount - 1;
+    if (midi < bottom || midi > top) {
+      _tunerController.scrollToMidi(midi, alignment: 0.7);
+    }
+  }
+
+  int? _currentTargetIndex(Duration targetElapsed) {
+    if (_targets.isEmpty || _totalDurationMs <= 0) {
+      return null;
+    }
+    final scale = 60.0 / max(1, _bpm).toDouble();
+    final loopMs = max(1, _totalDurationMs).toDouble() * scale;
+    final elapsedMs = targetElapsed.inMilliseconds.toDouble();
+    final cycleOffset = (elapsedMs / loopMs).floor() * loopMs;
+    final position = elapsedMs - cycleOffset;
+    for (var i = 0; i < _targets.length; i++) {
+      final start = _targets[i].startOffsetMs * scale;
+      final end = start + _targets[i].durationMs * scale;
+      if (position >= start && position <= end) {
+        return i;
+      }
+    }
+    return null;
+  }
+
   double _computeInitialBaseMidi(int targetMidi) {
     const alignment = 0.9;
     const minMidi = 21.0;
@@ -504,6 +541,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                             showLabels: !_editMode,
                             enableManualScroll: !_editMode,
                             initialBaseMidi: _initialBaseMidi,
+                            controller: _tunerController,
                             nowOverride: _running ? null : _frozenAt,
                             noteLabels: noteLabels,
                             labelTextStyle: labelStyle,
@@ -1400,8 +1438,9 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         final viewportHeight =
             max(0.0, constraints.maxHeight - controlGutterHeight);
         final totalMs = notes.fold<int>(0, (sum, note) => sum + note.durationMs);
-        final scale = _EditableTargetOverlay._msToWidth;
         final bpm = max(1, widget.bpm);
+        final bpmScale = 60.0 / bpm;
+        final scale = _EditableTargetOverlay._msToWidth * bpmScale;
         final gridMs = 60000.0 / bpm;
         _currentScale = scale;
         final pendingExtraMs = _pendingInsertIndex == null ? 0.0 : gridMs;
@@ -1837,13 +1876,19 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                     final delta = details.delta.dx;
                     final remainder = _dragRemainderByIndex[dragIndex] ?? 0.0;
                     final totalDelta = remainder + delta;
-                    final rawMs = totalDelta / _currentScale;
-                    final deltaMs = rawMs > 0 ? rawMs.floor() : rawMs.ceil();
-                    if (deltaMs == 0) {
+                    final beatMs = (60000 / max(1, widget.bpm)).round();
+                    final beatPx = beatMs * _currentScale;
+                    if (beatPx <= 0) {
                       _dragRemainderByIndex[dragIndex] = totalDelta;
                       return;
                     }
-                    final consumedPx = deltaMs * _currentScale;
+                    final stepCount = (totalDelta / beatPx).round();
+                    if (stepCount == 0) {
+                      _dragRemainderByIndex[dragIndex] = totalDelta;
+                      return;
+                    }
+                    final deltaMs = stepCount * beatMs;
+                    final consumedPx = stepCount * beatPx;
                     _dragRemainderByIndex[dragIndex] = totalDelta - consumedPx;
                     widget.onDurationDrag(dragIndex, deltaMs, false);
                   },
@@ -3343,8 +3388,8 @@ class _TargetNotePainter extends CustomPainter {
     final rowHeight = size.height / rowCount;
     final speed = plotWidth / _trackWindowMs;
     final elapsedMs = elapsed.inMilliseconds.toDouble();
-    final scale = 1.0;
-    final loopMs = max(1, totalDurationMs).toDouble();
+    final scale = 60.0 / max(1, bpm).toDouble();
+    final loopMs = max(1, totalDurationMs).toDouble() * scale;
     final windowMs = _trackWindowMs.toDouble();
     final paint = Paint()..color = _blockColor.withOpacity(0.4);
     final textStyle = (tuningSystem == 'carnatic'

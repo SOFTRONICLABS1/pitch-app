@@ -23,6 +23,24 @@ const _westernNoteLabels = [
 ];
 const _defaultRowCount = 30;
 
+class TunerDisplayController {
+  void Function(int midi, double alignment)? _scrollToMidi;
+
+  void _bind(void Function(int midi, double alignment) callback) {
+    _scrollToMidi = callback;
+  }
+
+  void _unbind(void Function(int midi, double alignment) callback) {
+    if (_scrollToMidi == callback) {
+      _scrollToMidi = null;
+    }
+  }
+
+  void scrollToMidi(int midi, {double alignment = 0.7}) {
+    _scrollToMidi?.call(midi, alignment);
+  }
+}
+
 class TunerDisplay extends StatefulWidget {
   const TunerDisplay({
     super.key,
@@ -31,6 +49,7 @@ class TunerDisplay extends StatefulWidget {
     this.showLabels = true,
     this.enableManualScroll = false,
     this.initialBaseMidi,
+    this.controller,
     this.nowOverride,
     this.onBaseMidiChanged,
     this.onViewportChanged,
@@ -46,6 +65,7 @@ class TunerDisplay extends StatefulWidget {
   final bool showLabels;
   final bool enableManualScroll;
   final double? initialBaseMidi;
+  final TunerDisplayController? controller;
   final DateTime? nowOverride;
   final ValueChanged<int>? onBaseMidiChanged;
   final void Function(int baseMidi, double baseOffset)? onViewportChanged;
@@ -84,6 +104,8 @@ class _TunerDisplayState extends State<TunerDisplay>
   Duration? _scrollStart;
   double? _lastMidi;
   bool _appliedInitialBase = false;
+  late final void Function(int midi, double alignment) _scrollCallback =
+      (midi, alignment) => scrollToMidi(midi, alignment: alignment);
   late List<_NoteRow> _rows = _buildRows(
     _baseMidiFloor,
     widget.rowCount,
@@ -94,6 +116,7 @@ class _TunerDisplayState extends State<TunerDisplay>
   @override
   void initState() {
     super.initState();
+    widget.controller?._bind(_scrollCallback);
     if (widget.initialBaseMidi != null) {
       _applyInitialBase(widget.initialBaseMidi!);
     }
@@ -123,11 +146,16 @@ class _TunerDisplayState extends State<TunerDisplay>
         widget.initialBaseMidi != oldWidget.initialBaseMidi) {
       _applyInitialBase(widget.initialBaseMidi!);
     }
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller?._unbind(_scrollCallback);
+      widget.controller?._bind(_scrollCallback);
+    }
     _scheduleUpdate();
   }
 
   @override
   void dispose() {
+    widget.controller?._unbind(_scrollCallback);
     _ticker.dispose();
     _dataImage?.dispose();
     super.dispose();
@@ -310,9 +338,28 @@ class _TunerDisplayState extends State<TunerDisplay>
     if (deltaRows == 0) {
       return;
     }
+    _setBaseMidi(_baseMidi - deltaRows);
+  }
+
+  void _applyInitialBase(double baseMidi) {
+    _appliedInitialBase = true;
+    _setBaseMidi(baseMidi, rebuild: false, notify: false);
+  }
+
+  void scrollToMidi(int midi, {double alignment = 0.7}) {
+    final baseMidi =
+        midi + ((alignment - 1) * widget.rowCount + 0.5);
+    _setBaseMidi(baseMidi);
+  }
+
+  void _setBaseMidi(
+    double baseMidi, {
+    bool rebuild = true,
+    bool notify = true,
+  }) {
     final maxBase = (_maxMidi - widget.rowCount + 1).toDouble();
     final nextBase =
-        (_baseMidi - deltaRows).clamp(_minMidi.toDouble(), maxBase);
+        baseMidi.clamp(_minMidi.toDouble(), maxBase);
     if (nextBase == _baseMidi) {
       return;
     }
@@ -321,31 +368,27 @@ class _TunerDisplayState extends State<TunerDisplay>
     _baseMidiFloor = _baseMidi.floor();
     _baseOffset = _baseMidi - _baseMidiFloor;
     _targetBaseMidi = _baseMidiFloor;
-    setState(() {
+    if (rebuild) {
+      setState(() {
+        _rows = _buildRows(
+          _baseMidiFloor,
+          widget.rowCount,
+          widget.noteLabels,
+          widget.labelTextStyle,
+        );
+      });
+    } else {
       _rows = _buildRows(
         _baseMidiFloor,
         widget.rowCount,
         widget.noteLabels,
         widget.labelTextStyle,
       );
-    });
-    widget.onBaseMidiChanged?.call(_baseMidiFloor);
-    widget.onViewportChanged?.call(_baseMidiFloor, _baseOffset);
-  }
-
-  void _applyInitialBase(double baseMidi) {
-    _appliedInitialBase = true;
-    _scrollStart = null;
-    _baseMidi = baseMidi;
-    _baseMidiFloor = _baseMidi.floor();
-    _baseOffset = _baseMidi - _baseMidiFloor;
-    _targetBaseMidi = _baseMidiFloor;
-    _rows = _buildRows(
-      _baseMidiFloor,
-      widget.rowCount,
-      widget.noteLabels,
-      widget.labelTextStyle,
-    );
+    }
+    if (notify) {
+      widget.onBaseMidiChanged?.call(_baseMidiFloor);
+      widget.onViewportChanged?.call(_baseMidiFloor, _baseOffset);
+    }
   }
 }
 
