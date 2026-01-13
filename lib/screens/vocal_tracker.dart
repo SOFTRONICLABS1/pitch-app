@@ -334,6 +334,28 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     });
   }
 
+  void _updateTargetNoteAt(int index, String label) {
+    final notes = _editNotes;
+    if (notes == null || index < 0 || index >= notes.length) {
+      return;
+    }
+    final tuningSystem = context.read<PitchNotifier>().tuningSystem;
+    final normalized = _normalizeNoteForStorage(label, tuningSystem);
+    if (normalized.isEmpty) {
+      return;
+    }
+    final updatedNotes = List<RecordedNote>.from(notes);
+    final current = updatedNotes[index];
+    updatedNotes[index] = RecordedNote(
+      note: normalized,
+      durationMs: current.durationMs,
+    );
+    setState(() {
+      _editNotes = updatedNotes;
+      _editDirty = true;
+    });
+  }
+
   Future<void> _adjustTargetDuration(
     int index,
     int deltaMs, {
@@ -515,10 +537,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                                         commit: commit,
                                       );
                                     },
-                                    onInsertNotes: _insertTargetsAt,
-                                    bpm: _bpm,
-                                  ),
-                                ),
+                                onInsertNotes: _insertTargetsAt,
+                                onNoteChanged: _updateTargetNoteAt,
+                                bpm: _bpm,
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -1188,6 +1211,7 @@ class _EditableTargetOverlay extends StatefulWidget {
     required this.onDelete,
     required this.onDurationDrag,
     required this.onInsertNotes,
+    required this.onNoteChanged,
     required this.bpm,
   });
 
@@ -1204,6 +1228,7 @@ class _EditableTargetOverlay extends StatefulWidget {
   final ValueChanged<int> onDelete;
   final void Function(int index, int deltaMs, bool commit) onDurationDrag;
   final void Function(int insertIndex, List<String> notes) onInsertNotes;
+  final void Function(int index, String label) onNoteChanged;
   final int bpm;
 
   static const _msToWidth = 0.08;
@@ -1223,6 +1248,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   double _currentScale = _EditableTargetOverlay._msToWidth;
   double _plotWidth = 0.0;
   int? _lastFocusMidi;
+  final GlobalKey _dragTargetKey = GlobalKey();
 
   @override
   void didUpdateWidget(covariant _EditableTargetOverlay oldWidget) {
@@ -1423,24 +1449,40 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           }
           final note = notes[i];
           final x = offsetMs * scale;
+          final blockWidth = max(
+            note.durationMs * scale,
+            _EditableTargetOverlay._minTileWidth,
+          ).toDouble();
+          final blockTop = _rowTopFor(
+            midiFromNote: _midiFromNoteLabel(note.note),
+            topMidi: extendedTopMidi,
+            baseOffset: baseOffset,
+            rowHeight: rowHeight,
+          );
           blocks.add(
-            _EditableTargetBlock(
-              index: i,
-              note: note,
-              tuningSystem: tuningSystem,
-              x: x,
-              width: max(
-                note.durationMs * scale,
-                _EditableTargetOverlay._minTileWidth,
-              ).toDouble(),
-              top: _rowTopFor(
-                midiFromNote: _midiFromNoteLabel(note.note),
-                topMidi: extendedTopMidi,
-                baseOffset: baseOffset,
-                rowHeight: rowHeight,
-              ),
+            Positioned(
+              left: x,
+              top: blockTop,
+              width: blockWidth,
               height: rowHeight,
-              onDelete: widget.onDelete,
+              child: LongPressDraggable<_NoteDragPayload>(
+                data: _NoteDragPayload(index: i),
+                axis: Axis.vertical,
+                feedback: Material(
+                  color: Colors.transparent,
+                  child: _EditableTargetContent(
+                    label: _formatNoteForEdit(note.note, tuningSystem),
+                    height: rowHeight,
+                    onDelete: null,
+                  ),
+                ),
+                childWhenDragging: const SizedBox.shrink(),
+                child: _EditableTargetContent(
+                  label: _formatNoteForEdit(note.note, tuningSystem),
+                  height: rowHeight,
+                  onDelete: () => widget.onDelete(i),
+                ),
+              ),
             ),
           );
           offsetMs += note.durationMs.toDouble();
@@ -1608,7 +1650,43 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                           child: SizedBox(
                             width: width,
                             height: contentHeight,
-                            child: Stack(children: blocks),
+                            child: Stack(
+                              children: [
+                                ...blocks,
+                                Positioned.fill(
+                                  child: DragTarget<_NoteDragPayload>(
+                                    key: _dragTargetKey,
+                                    onAcceptWithDetails: (details) {
+                                      final box = _dragTargetKey
+                                          .currentContext
+                                          ?.findRenderObject() as RenderBox?;
+                                      if (box == null) return;
+                                      final local =
+                                          box.globalToLocal(details.offset);
+                                      final rowIndex =
+                                          (local.dy / rowHeight).floor();
+                                      final midi = (extendedTopMidi - rowIndex)
+                                          .clamp(minMidi, maxMidi);
+                                      final label =
+                                          _labelForMidi(midi, tuningSystem);
+                                      widget.onNoteChanged(
+                                        details.data.index,
+                                        label,
+                                      );
+                                      _centerOnMidi(
+                                        midi,
+                                        rowHeight,
+                                        extendedTopMidi,
+                                        baseOffset,
+                                        viewportHeight,
+                                      );
+                                    },
+                                    builder: (context, _, __) =>
+                                        const SizedBox.expand(),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -1825,49 +1903,73 @@ class _GridLineOverlay extends StatelessWidget {
   }
 }
 
-class _EditableTargetBlock extends StatelessWidget {
-  const _EditableTargetBlock({
-    required this.index,
-    required this.note,
-    required this.tuningSystem,
-    required this.x,
+class _NoteDragPayload {
+  const _NoteDragPayload({required this.index});
+
+  final int index;
+}
+
+class _EditableTargetChip extends StatelessWidget {
+  const _EditableTargetChip({
+    required this.label,
     required this.width,
-    required this.top,
+    required this.height,
+  });
+
+  final String label;
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        color: const Color(0xFF2B6BFF).withOpacity(0.6),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _EditableTargetContent extends StatelessWidget {
+  const _EditableTargetContent({
+    required this.label,
     required this.height,
     required this.onDelete,
   });
 
-  final int index;
-  final RecordedNote note;
-  final String tuningSystem;
-  final double x;
-  final double width;
-  final double top;
+  final String label;
   final double height;
-  final ValueChanged<int> onDelete;
+  final VoidCallback? onDelete;
 
   @override
   Widget build(BuildContext context) {
-    final label = _formatNoteForEdit(note.note, tuningSystem);
-    return Positioned(
-      left: x,
-      top: top,
-      width: width,
+    return Container(
       height: height,
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF2B6BFF).withOpacity(0.4),
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Stack(
-          children: [
+      decoration: BoxDecoration(
+        color: const Color(0xFF2B6BFF).withOpacity(0.4),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Stack(
+        children: [
+          if (onDelete != null)
             Positioned(
               right: 0,
               top: 0,
               bottom: 0,
               child: Center(
                 child: GestureDetector(
-                  onTap: () => onDelete(index),
+                  onTap: onDelete,
                   behavior: HitTestBehavior.opaque,
                   child: const SizedBox(
                     width: 18,
@@ -1877,20 +1979,19 @@ class _EditableTargetBlock extends StatelessWidget {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(right: 24),
-              child: Center(
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
+          Padding(
+            padding: const EdgeInsets.only(right: 24),
+            child: Center(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
