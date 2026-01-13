@@ -205,6 +205,32 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     });
   }
 
+  Future<void> _showTanpuraWarning() async {
+    if (!mounted) return;
+    if (await HeadsetService.isHeadsetConnected()) {
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Warning'),
+          content: const Text(
+            'Tanpura playback can affect pitch detection. '
+            'Use headphones for accurate plotting.',
+            style: TextStyle(color: Colors.white),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _ensureTanpuraState(PitchNotifier state) async {
     if (_tanpuraEnabled && !state.tanpuraPlaying) {
       await state.toggleTanpura();
@@ -474,6 +500,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       _harmonicsEnabled = false;
       _stopHarmonics();
       if (!state.tanpuraPlaying) {
+        await _showTanpuraWarning();
+        if (!mounted) return;
         await state.toggleTanpura();
       }
     } else {
@@ -538,6 +566,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       notes: draft.notes,
     );
     await RecordingStore.instance.save(entry);
+    await _handleStop(state);
     _applyRecordingUpdate(entry);
   }
 
@@ -1477,10 +1506,8 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   bool _syncedVertical = false;
   bool _syncedHorizontal = false;
   final Map<int, double> _dragRemainderByIndex = {};
-  double? _activeDragLineX;
   int? _activeDragIndex;
   int? _selectedNoteIndex;
-  double? _dragOriginLineX;
   double? _activeBeatPx;
   int? _pendingInsertIndex;
   int? _pendingInsertMidi;
@@ -2074,64 +2101,6 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                 onBuildLine: _buildGridLine,
               ),
             ),
-            AnimatedBuilder(
-              animation: scrollController,
-              builder: (context, _) {
-                final scrollOffset = scrollController.positions.isNotEmpty
-                    ? scrollController.positions.first.pixels
-                    : 0.0;
-                final children = <Widget>[];
-                if (_activeDragLineX != null) {
-                  children.add(
-                    Positioned(
-                      left: labelWidth + _activeDragLineX! - scrollOffset,
-                      top: 0,
-                      bottom: 0,
-                      child: IgnorePointer(
-                        child: Container(
-                          width: 2,
-                          color: Colors.orange.withOpacity(0.9),
-                        ),
-                      ),
-                    ),
-                  );
-                }
-                if (_activeDragLineX != null && _activeBeatPx != null) {
-                  children.add(
-                    Positioned(
-                      left: labelWidth +
-                          _activeDragLineX! +
-                          _activeBeatPx! -
-                          scrollOffset,
-                      top: 0,
-                      bottom: 0,
-                      child: IgnorePointer(
-                        child: Container(
-                          width: 1,
-                          color: Colors.white.withOpacity(0.4),
-                        ),
-                      ),
-                    ),
-                  );
-                }
-                if (_dragOriginLineX != null) {
-                  children.add(
-                    Positioned(
-                      left: labelWidth + _dragOriginLineX! - scrollOffset,
-                      top: 0,
-                      bottom: 0,
-                      child: IgnorePointer(
-                        child: Container(
-                          width: 1,
-                          color: Colors.white.withOpacity(0.6),
-                        ),
-                      ),
-                    ),
-                  );
-                }
-                return Stack(children: children);
-              },
-            ),
           ],
         );
       },
@@ -2183,6 +2152,28 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
             color: lineColor,
           ),
         ),
+        if (dragIndex != null && dragIndex == _activeDragIndex)
+          Positioned(
+            left: x,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              width: 2,
+              color: Colors.orange.withOpacity(0.9),
+            ),
+          ),
+        if (dragIndex != null &&
+            dragIndex == _activeDragIndex &&
+            _activeBeatPx != null)
+          Positioned(
+            left: x + _activeBeatPx!,
+            top: 0,
+            bottom: 0,
+            child: Container(
+              width: 1,
+              color: Colors.white.withOpacity(0.4),
+            ),
+          ),
         Positioned(
           left: x - (handleWidth / 2),
           bottom: 8,
@@ -2198,8 +2189,6 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                     final beatPx = beatMs * _currentScale;
                     setState(() {
                       _activeDragIndex = dragIndex;
-                      _activeDragLineX = x;
-                      _dragOriginLineX = x;
                       _activeBeatPx = beatPx > 0 ? beatPx : null;
                     });
                   },
@@ -2228,7 +2217,6 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                     widget.onDurationDrag(dragIndex, deltaMs, false);
                     setState(() {
                       if (_activeDragIndex == dragIndex) {
-                        _activeDragLineX = x + (stepCount * beatPx);
                         _activeBeatPx = beatPx;
                       }
                     });
@@ -2238,9 +2226,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                     _dragRemainderByIndex.remove(dragIndex);
                     widget.onDurationDrag(dragIndex, 0, true);
                     setState(() {
-                      _activeDragLineX = null;
                       _activeDragIndex = null;
-                      _dragOriginLineX = null;
                       _activeBeatPx = null;
                     });
                   },
@@ -2248,9 +2234,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                     if (dragIndex == null) return;
                     _dragRemainderByIndex.remove(dragIndex);
                     setState(() {
-                      _activeDragLineX = null;
                       _activeDragIndex = null;
-                      _dragOriginLineX = null;
                       _activeBeatPx = null;
                     });
                   },
