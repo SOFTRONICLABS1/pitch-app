@@ -1221,14 +1221,13 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   int? _pendingInsertIndex;
   int? _pendingInsertMidi;
   double _currentScale = _EditableTargetOverlay._msToWidth;
+  double _plotWidth = 0.0;
+  int? _lastFocusMidi;
 
   @override
   void didUpdateWidget(covariant _EditableTargetOverlay oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.notes != widget.notes) {
-      _syncedHorizontal = false;
-      _syncedVertical = false;
-      _pendingInsertIndex = null;
+    if (oldWidget.notes != widget.notes && _pendingInsertIndex == null) {
       _pendingInsertMidi = null;
     }
   }
@@ -1238,6 +1237,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
       _pendingInsertIndex = insertIndex;
       _pendingInsertMidi = null;
     });
+    _centerOnInsertColumn();
   }
 
   void queueInsertAtEnd() {
@@ -1251,14 +1251,69 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     });
   }
 
+  void _centerOnInsertColumn() {
+    if (_plotWidth <= 0) return;
+    final insertIndex = _pendingInsertIndex;
+    if (insertIndex == null) return;
+    var offsetMs = 0.0;
+    for (var i = 0; i < widget.notes.length && i < insertIndex; i++) {
+      offsetMs += widget.notes[i].durationMs.toDouble();
+    }
+    final targetX = offsetMs * _currentScale;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.scrollController.hasClients) return;
+      final centered = (targetX - (_plotWidth / 2))
+          .clamp(0.0, widget.scrollController.position.maxScrollExtent);
+      widget.scrollController.animateTo(
+        centered,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  void _centerOnMidi(
+    int midi,
+    double rowHeight,
+    int topMidi,
+    double baseOffset,
+    double viewportHeight,
+  ) {
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.verticalController.hasClients) return;
+      final top = _rowTopFor(
+        midiFromNote: midi,
+        topMidi: topMidi,
+        baseOffset: baseOffset,
+        rowHeight: rowHeight,
+      );
+      final target = (top - (viewportHeight - rowHeight) / 2)
+          .clamp(0.0, widget.verticalController.position.maxScrollExtent);
+      widget.verticalController.animateTo(
+        target,
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
   void _commitInsertWithLabel(String label) {
     final insertIndex = _pendingInsertIndex;
     if (insertIndex == null) return;
     widget.onInsertNotes(insertIndex, [label]);
     setState(() {
-      _pendingInsertIndex = null;
+      _pendingInsertIndex = insertIndex + 1;
       _pendingInsertMidi = null;
+      _lastFocusMidi = _midiFromNoteLabel(label);
     });
+    _centerOnInsertColumn();
+  }
+
+  String _labelForMidi(int midi, String tuningSystem) {
+    final labels = _noteLabelsForSystem(tuningSystem);
+    final semitone = (midi % 12 + 12) % 12;
+    final octave = (midi / 12).floor() - 1;
+    return '${labels[semitone]}$octave';
   }
 
   @override
@@ -1292,6 +1347,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           0.0,
           constraints.maxWidth - labelWidth - plotRightPadding,
         );
+        _plotWidth = plotWidth;
         final width = max(plotWidth, (totalMs + pendingExtraMs) * scale)
             .toDouble();
         final rowHeight = rowCount > 0 ? viewportHeight / rowCount : 0.0;
@@ -1304,34 +1360,21 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         final extendedTopMidi = topMidi + extraAboveRows;
         final contentHeight = rowHeight * totalRows;
         if (!_syncedVertical) {
-          SchedulerBinding.instance.addPostFrameCallback((_) {
-            if (!mounted || !verticalController.hasClients) return;
-            final firstMidi = notes.isNotEmpty
-                ? _midiFromNoteLabel(notes.first.note)
-                : null;
-            final targetTop = _rowTopFor(
-              midiFromNote: firstMidi,
-              topMidi: extendedTopMidi,
-              baseOffset: baseOffset,
-              rowHeight: rowHeight,
-            );
-            final fallbackTop = extraAboveRows * rowHeight;
-            final targetOffset = firstMidi == null ? fallbackTop : targetTop;
-            verticalController.jumpTo(
-              targetOffset.clamp(
-                0.0,
-                max(0.0, contentHeight - viewportHeight),
-              ),
-            );
-          });
           _syncedVertical = true;
         }
         if (!_syncedHorizontal) {
-          SchedulerBinding.instance.addPostFrameCallback((_) {
-            if (!mounted || !scrollController.hasClients) return;
-            scrollController.jumpTo(0.0);
-          });
           _syncedHorizontal = true;
+        }
+        if (_lastFocusMidi != null) {
+          final midi = _lastFocusMidi!;
+          _lastFocusMidi = null;
+          _centerOnMidi(
+            midi,
+            rowHeight,
+            extendedTopMidi,
+            baseOffset,
+            viewportHeight,
+          );
         }
         var offsetMs = 0.0;
         double? pendingInsertX;
@@ -1480,9 +1523,15 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                   final rowIndex = (localY / rowHeight).floor();
                   final midi =
                       (extendedTopMidi - rowIndex).clamp(minMidi, maxMidi);
-                  setState(() {
-                    _pendingInsertMidi = midi;
-                  });
+                  final label = _labelForMidi(midi, tuningSystem);
+                  _commitInsertWithLabel(label);
+                  _centerOnMidi(
+                    midi,
+                    rowHeight,
+                    extendedTopMidi,
+                    baseOffset,
+                    viewportHeight,
+                  );
                 },
                 child: Stack(
                   children: [
