@@ -421,6 +421,30 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     }
   }
 
+  Future<void> _toggleTanpura(PitchNotifier state) async {
+    final nextEnabled = !_tanpuraEnabled;
+    setState(() {
+      _tanpuraEnabled = nextEnabled;
+      _lastTargetElapsedMs = 0.0;
+      _targetElapsedOffset = _elapsed;
+      _currentHarmonicsKey = null;
+    });
+    if (_tanpuraEnabled) {
+      _harmonicsEnabled = false;
+      _stopHarmonics();
+      if (_running) {
+        await _ensureTanpuraState(state);
+      }
+    } else {
+      await _stopTanpuraIfNeeded(state);
+      if (_running && !_harmonicsEnabled) {
+        await _showHarmonicsWarning();
+        if (!mounted) return;
+        _harmonicsEnabled = true;
+      }
+    }
+  }
+
   void _ensureTargetVisible(Duration targetElapsed) {
     if (_editMode || _targets.isEmpty) {
       return;
@@ -609,6 +633,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                       onStop: () => _handleStop(state),
                       onEdit: _openEditRecording,
                       editMode: _editMode,
+                      tanpuraEnabled: _tanpuraEnabled,
+                      onTanpuraToggle: () => _toggleTanpura(state),
                       onConfirmEdit: () => _saveEditMode(),
                       onCancelEdit: () => _cancelEditMode(),
                     ),
@@ -1185,6 +1211,8 @@ class _PlayPauseBar extends StatelessWidget {
     required this.onStop,
     required this.onEdit,
     required this.editMode,
+    required this.tanpuraEnabled,
+    required this.onTanpuraToggle,
     required this.onConfirmEdit,
     required this.onCancelEdit,
   });
@@ -1195,6 +1223,8 @@ class _PlayPauseBar extends StatelessWidget {
   final VoidCallback onStop;
   final VoidCallback onEdit;
   final bool editMode;
+  final bool tanpuraEnabled;
+  final VoidCallback onTanpuraToggle;
   final VoidCallback onConfirmEdit;
   final VoidCallback onCancelEdit;
 
@@ -1218,6 +1248,31 @@ class _PlayPauseBar extends StatelessWidget {
             child: Stack(
               alignment: Alignment.center,
               children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(
+                          Icons.music_note,
+                          color: Colors.white,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: tanpuraEnabled
+                              ? Colors.orange
+                              : Colors.transparent,
+                        ),
+                        onPressed: onTanpuraToggle,
+                      ),
+                      if (editMode)
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: onCancelEdit,
+                        ),
+                    ],
+                  ),
+                ),
                 if (!editMode)
                   IconButton(
                     icon: Icon(
@@ -1225,14 +1280,6 @@ class _PlayPauseBar extends StatelessWidget {
                       size: 36,
                     ),
                     onPressed: listening ? onStop : onStart,
-                  ),
-                if (editMode)
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: onCancelEdit,
-                    ),
                   ),
                 Align(
                   alignment: Alignment.centerRight,
