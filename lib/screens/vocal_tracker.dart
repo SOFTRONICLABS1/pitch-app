@@ -13,6 +13,9 @@ import '../models/recording.dart';
 import '../services/recording_store.dart';
 import '../state/pitch_notifier.dart';
 import '../services/headset_service.dart';
+import '../screens/recordings_screen.dart';
+import '../widgets/control_bar.dart';
+import '../widgets/pitch_controls.dart';
 import '../widgets/tuner_display.dart';
 
 class VocalTrackerScreen extends StatefulWidget {
@@ -432,17 +435,71 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     if (_tanpuraEnabled) {
       _harmonicsEnabled = false;
       _stopHarmonics();
-      if (_running) {
-        await _ensureTanpuraState(state);
+      if (!state.tanpuraPlaying) {
+        await state.toggleTanpura();
       }
     } else {
-      await _stopTanpuraIfNeeded(state);
+      if (state.tanpuraPlaying) {
+        await state.toggleTanpura();
+      }
       if (_running && !_harmonicsEnabled) {
         await _showHarmonicsWarning();
         if (!mounted) return;
         _harmonicsEnabled = true;
       }
     }
+  }
+
+  Future<void> _handleRecording(PitchNotifier state) async {
+    if (!state.recording) {
+      await state.startRecording();
+      return;
+    }
+    final draft = state.stopRecording();
+    if (draft.notes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No notes captured.')),
+      );
+      return;
+    }
+    final existing = await RecordingStore.instance.load();
+    final controller = TextEditingController(
+      text: 'Recording ${existing.length + 1}',
+    );
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Save recording'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'Recording name'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(controller.text.trim()),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
+    if (name == null || name.isEmpty) {
+      return;
+    }
+    final entry = RecordingEntry(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name,
+      createdAt: draft.endedAt,
+      notes: draft.notes,
+    );
+    await RecordingStore.instance.save(entry);
   }
 
   void _ensureTargetVisible(Duration targetElapsed) {
@@ -626,18 +683,38 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                         ],
                       ),
                     ),
-                    _PlayPauseBar(
-                      listening: state.listening,
-                      errorMessage: state.errorMessage,
-                      onStart: () => _handleStart(state),
-                      onStop: () => _handleStop(state),
-                      onEdit: _openEditRecording,
-                      editMode: _editMode,
-                      tanpuraEnabled: _tanpuraEnabled,
-                      onTanpuraToggle: () => _toggleTanpura(state),
-                      onConfirmEdit: () => _saveEditMode(),
-                      onCancelEdit: () => _cancelEditMode(),
-                    ),
+                    if (_editMode)
+                      _PlayPauseBar(
+                        listening: state.listening,
+                        errorMessage: state.errorMessage,
+                        onStart: () => _handleStart(state),
+                        onStop: () => _handleStop(state),
+                        onEdit: _openEditRecording,
+                        editMode: _editMode,
+                        tanpuraEnabled: _tanpuraEnabled,
+                        onTanpuraToggle: () => _toggleTanpura(state),
+                        onConfirmEdit: () => _saveEditMode(),
+                        onCancelEdit: () => _cancelEditMode(),
+                      ),
+                    if (!_editMode)
+                      ControlBar(
+                        listening: state.listening,
+                        recording: state.recording,
+                        errorMessage: state.errorMessage,
+                        tanpuraPlaying: state.tanpuraPlaying,
+                        onStart: () => _handleStart(state),
+                        onStop: () => _handleStop(state),
+                        onOpenRecordings: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const RecordingsScreen(),
+                            ),
+                          );
+                        },
+                        onOpenTanpura: () => _toggleTanpura(state),
+                        onToggleRecording: () => _handleRecording(state),
+                        onEdit: _openEditRecording,
+                      ),
                     const SizedBox(height: 12),
                   ],
                 ),
@@ -675,6 +752,19 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                    SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(value: 'western', label: Text('Western')),
+                        ButtonSegment(value: 'carnatic', label: Text('Carnatic')),
+                      ],
+                      selected: {pitchState.tuningSystem},
+                      onSelectionChanged: (value) {
+                        if (value.isEmpty) return;
+                        pitchState.setTuningSystem(value.first);
+                        setSheetState(() {});
+                      },
+                    ),
+                    const SizedBox(height: 12),
                     Text(
                     'BPM',
                     style: Theme.of(context)
@@ -713,7 +803,6 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                     positions: const {
                       20: 0,
                       40: 2,
-                      60: 4,
                       120: 10,
                       240: 22,
                     },
@@ -1352,6 +1441,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   int? _activeDragIndex;
   int? _selectedNoteIndex;
   double? _dragOriginLineX;
+  double? _activeBeatPx;
   int? _pendingInsertIndex;
   int? _pendingInsertMidi;
   double _currentScale = _EditableTargetOverlay._msToWidth;
@@ -1944,30 +2034,64 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                 onBuildLine: _buildGridLine,
               ),
             ),
-            if (_activeDragLineX != null)
-              Positioned(
-                left: labelWidth + _activeDragLineX!,
-                top: 0,
-                bottom: 0,
-                child: IgnorePointer(
-                  child: Container(
-                    width: 2,
-                    color: Colors.orange.withOpacity(0.9),
-                  ),
-                ),
-              ),
-            if (_dragOriginLineX != null)
-              Positioned(
-                left: labelWidth + _dragOriginLineX!,
-                top: 0,
-                bottom: 0,
-                child: IgnorePointer(
-                  child: Container(
-                    width: 1,
-                    color: Colors.white.withOpacity(0.6),
-                  ),
-                ),
-              ),
+            AnimatedBuilder(
+              animation: scrollController,
+              builder: (context, _) {
+                final scrollOffset = scrollController.positions.isNotEmpty
+                    ? scrollController.positions.first.pixels
+                    : 0.0;
+                final children = <Widget>[];
+                if (_activeDragLineX != null) {
+                  children.add(
+                    Positioned(
+                      left: labelWidth + _activeDragLineX! - scrollOffset,
+                      top: 0,
+                      bottom: 0,
+                      child: IgnorePointer(
+                        child: Container(
+                          width: 2,
+                          color: Colors.orange.withOpacity(0.9),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                if (_activeDragLineX != null && _activeBeatPx != null) {
+                  children.add(
+                    Positioned(
+                      left: labelWidth +
+                          _activeDragLineX! +
+                          _activeBeatPx! -
+                          scrollOffset,
+                      top: 0,
+                      bottom: 0,
+                      child: IgnorePointer(
+                        child: Container(
+                          width: 1,
+                          color: Colors.white.withOpacity(0.4),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                if (_dragOriginLineX != null) {
+                  children.add(
+                    Positioned(
+                      left: labelWidth + _dragOriginLineX! - scrollOffset,
+                      top: 0,
+                      bottom: 0,
+                      child: IgnorePointer(
+                        child: Container(
+                          width: 1,
+                          color: Colors.white.withOpacity(0.6),
+                        ),
+                      ),
+                    ),
+                  );
+                }
+                return Stack(children: children);
+              },
+            ),
           ],
         );
       },
@@ -2030,10 +2154,13 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                   behavior: HitTestBehavior.opaque,
                   onHorizontalDragStart: (_) {
                     if (dragIndex == null) return;
+                    final beatMs = (60000 / max(1, widget.bpm)).round();
+                    final beatPx = beatMs * _currentScale;
                     setState(() {
                       _activeDragIndex = dragIndex;
                       _activeDragLineX = x;
                       _dragOriginLineX = x;
+                      _activeBeatPx = beatPx > 0 ? beatPx : null;
                     });
                   },
                   onHorizontalDragUpdate: (details) {
@@ -2067,6 +2194,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                             (current - snapped).abs() <= beatPx
                                 ? snapped
                                 : current;
+                        _activeBeatPx = beatPx;
                       }
                     });
                   },
@@ -2078,6 +2206,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                       _activeDragLineX = null;
                       _activeDragIndex = null;
                       _dragOriginLineX = null;
+                      _activeBeatPx = null;
                     });
                   },
                   onHorizontalDragCancel: () {
@@ -2087,6 +2216,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                       _activeDragLineX = null;
                       _activeDragIndex = null;
                       _dragOriginLineX = null;
+                      _activeBeatPx = null;
                     });
                   },
                   child: Container(

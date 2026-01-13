@@ -9,10 +9,11 @@ class ControlBar extends StatelessWidget {
     required this.tanpuraPlaying,
     required this.onStart,
     required this.onStop,
-    required this.onOpenSettings,
     required this.onOpenRecordings,
+    this.onOpenSettings,
     required this.onOpenTanpura,
     required this.onToggleRecording,
+    this.onEdit,
   });
 
   final bool listening;
@@ -21,10 +22,11 @@ class ControlBar extends StatelessWidget {
   final bool tanpuraPlaying;
   final VoidCallback onStart;
   final VoidCallback onStop;
-  final VoidCallback onOpenSettings;
   final VoidCallback onOpenRecordings;
+  final VoidCallback? onOpenSettings;
   final VoidCallback onOpenTanpura;
   final VoidCallback onToggleRecording;
+  final VoidCallback? onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -88,14 +90,24 @@ class ControlBar extends StatelessWidget {
                   ),
                 ),
               ),
-              Expanded(
-                child: Center(
-                  child: IconButton(
-                    icon: const Icon(Icons.settings, size: 30),
-                    onPressed: onOpenSettings,
+              if (onEdit != null)
+                Expanded(
+                  child: Center(
+                    child: IconButton(
+                      icon: const Icon(Icons.edit_outlined, size: 30),
+                      onPressed: onEdit,
+                    ),
                   ),
                 ),
-              ),
+              if (onOpenSettings != null)
+                Expanded(
+                  child: Center(
+                    child: IconButton(
+                      icon: const Icon(Icons.settings, size: 30),
+                      onPressed: onOpenSettings,
+                    ),
+                  ),
+                ),
             ],
           ),
         ],

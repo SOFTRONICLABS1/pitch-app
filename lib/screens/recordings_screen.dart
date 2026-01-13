@@ -111,6 +111,21 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     await _load();
   }
 
+  Future<void> _openNewTracker() async {
+    final entry = RecordingEntry(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: 'Recording ${_recordings.length + 1}',
+      createdAt: DateTime.now(),
+      notes: const [],
+    );
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => VocalTrackerScreen(recording: entry),
+      ),
+    );
+    await _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final tuningSystem = context.watch<PitchNotifier>().tuningSystem;
@@ -120,7 +135,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
-            onPressed: _showAddRecordingOptions,
+            onPressed: _openNewTracker,
           ),
         ],
       ),
@@ -185,7 +200,9 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                           children: [
                             IconButton(
                               icon: const Icon(Icons.play_arrow),
-                              onPressed: () => _openTracker(recording),
+                              onPressed: recording.notes.isEmpty
+                                  ? null
+                                  : () => _openTracker(recording),
                             ),
                             const SizedBox(width: 6),
                             IconButton(

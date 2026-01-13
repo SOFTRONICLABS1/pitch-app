@@ -191,7 +191,7 @@ class _PitchHomePageState extends State<PitchHomePage> {
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 12)),
             SliverFillRemaining(
-              hasScrollBody: false,
+              hasScrollBody: true,
               child: Column(
                 children: [
                   Expanded(
