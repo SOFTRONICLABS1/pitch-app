@@ -21,12 +21,14 @@ const _westernNoteLabels = [
   'A#',
   'B',
 ];
+const _defaultRowCount = 30;
 
 class TunerDisplay extends StatefulWidget {
   const TunerDisplay({
     super.key,
     required this.history,
     this.showBlocks = true,
+    this.showLabels = true,
     this.nowOverride,
     this.onBaseMidiChanged,
     this.onViewportChanged,
@@ -34,10 +36,12 @@ class TunerDisplay extends StatefulWidget {
     this.labelTextStyle,
     this.guidelineFraction = 1.0,
     this.guidelineOffset = -15.0,
+    this.rowCount = _defaultRowCount,
   });
 
   final List<PitchPoint> history;
   final bool showBlocks;
+  final bool showLabels;
   final DateTime? nowOverride;
   final ValueChanged<int>? onBaseMidiChanged;
   final void Function(int baseMidi, double baseOffset)? onViewportChanged;
@@ -45,6 +49,7 @@ class TunerDisplay extends StatefulWidget {
   final TextStyle? labelTextStyle;
   final double guidelineFraction;
   final double guidelineOffset;
+  final int rowCount;
 
   @override
   State<TunerDisplay> createState() => _TunerDisplayState();
@@ -54,7 +59,6 @@ class _TunerDisplayState extends State<TunerDisplay>
     with SingleTickerProviderStateMixin {
   static const _sampleCount = 2048;
   static const _frameInterval = Duration(milliseconds: 16);
-  static const _rowCount = 30;
   static const _minMidi = 21;
   static const _maxMidi = 108;
   static const _scrollStep = 6;
@@ -77,7 +81,7 @@ class _TunerDisplayState extends State<TunerDisplay>
   double? _lastMidi;
   late List<_NoteRow> _rows = _buildRows(
     _baseMidiFloor,
-    _rowCount,
+    widget.rowCount,
     widget.noteLabels,
     widget.labelTextStyle,
   );
@@ -97,10 +101,11 @@ class _TunerDisplayState extends State<TunerDisplay>
   void didUpdateWidget(TunerDisplay oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.noteLabels != widget.noteLabels ||
-        oldWidget.labelTextStyle != widget.labelTextStyle) {
+        oldWidget.labelTextStyle != widget.labelTextStyle ||
+        oldWidget.rowCount != widget.rowCount) {
       _rows = _buildRows(
         _baseMidiFloor,
-        _rowCount,
+        widget.rowCount,
         widget.noteLabels,
         widget.labelTextStyle,
       );
@@ -208,6 +213,7 @@ class _TunerDisplayState extends State<TunerDisplay>
           labelTextStyle: widget.labelTextStyle,
           guidelineFraction: widget.guidelineFraction,
           guidelineOffset: widget.guidelineOffset,
+          showLabels: widget.showLabels,
         ),
         isComplex: true,
         willChange: true,
@@ -222,7 +228,7 @@ class _TunerDisplayState extends State<TunerDisplay>
     }
     final latest = widget.history.last;
     final midi = _midiFromFrequency(latest.frequency);
-    final topMidi = _baseMidiFloor + _rowCount - 1;
+    final topMidi = _baseMidiFloor + widget.rowCount - 1;
     final upperTrigger = topMidi - _edgeThreshold;
     final lowerTrigger = _baseMidiFloor + _edgeThreshold;
     var nextBase = _targetBaseMidi;
@@ -234,7 +240,7 @@ class _TunerDisplayState extends State<TunerDisplay>
         nextBase = _targetBaseMidi - _scrollStep;
       }
     }
-    nextBase = nextBase.clamp(_minMidi, _maxMidi - _rowCount + 1);
+    nextBase = nextBase.clamp(_minMidi, _maxMidi - widget.rowCount + 1);
     if (nextBase != _targetBaseMidi) {
       _targetBaseMidi = nextBase;
       _scrollFrom = _baseMidi;
@@ -261,7 +267,7 @@ class _TunerDisplayState extends State<TunerDisplay>
         _baseOffset = nextOffset;
         _rows = _buildRows(
           _baseMidiFloor,
-          _rowCount,
+          widget.rowCount,
           widget.noteLabels,
           widget.labelTextStyle,
         );
@@ -306,6 +312,7 @@ class _TunerPainter extends CustomPainter {
     required this.labelTextStyle,
     required this.guidelineFraction,
     required this.guidelineOffset,
+    required this.showLabels,
   });
 
   final List<PitchPoint> history;
@@ -319,6 +326,7 @@ class _TunerPainter extends CustomPainter {
   final TextStyle? labelTextStyle;
   final double guidelineFraction;
   final double guidelineOffset;
+  final bool showLabels;
 
   static const labelWidth = 58.0;
   static const timeSpan = Duration(milliseconds: 6400);
@@ -350,31 +358,33 @@ class _TunerPainter extends CustomPainter {
       canvas.drawRect(rect, paint);
     }
 
-    // Label column background
-    final labelPaint = Paint()..color = const Color(0xFF23272B);
-    canvas.drawRect(
-      const Rect.fromLTWH(0, 0, labelWidth, double.infinity),
-      labelPaint,
-    );
-
-    // Note labels
-    for (var i = -1; i <= rows.length; i++) {
-      final top = (i * rowHeight) + rowShift;
-      final rect = Rect.fromLTWH(0, top, labelWidth, rowHeight);
-      final row = _rowForIndex(i, rows, noteLabels, labelTextStyle);
-      final isSharp = _isSharpSemitone(row.midi);
-      final labelBg = Paint()
-        ..color = isSharp ? Colors.black : const Color(0xFFCBD1D6);
-      canvas.drawRect(rect, labelBg);
-
-      final textPainter = row.labelPainter;
-      textPainter.paint(
-        canvas,
-        Offset(
-          rect.left + (labelWidth - textPainter.width) / 2,
-          rect.top + (rowHeight - textPainter.height) / 2,
-        ),
+    if (showLabels) {
+      // Label column background
+      final labelPaint = Paint()..color = const Color(0xFF23272B);
+      canvas.drawRect(
+        const Rect.fromLTWH(0, 0, labelWidth, double.infinity),
+        labelPaint,
       );
+
+      // Note labels
+      for (var i = -1; i <= rows.length; i++) {
+        final top = (i * rowHeight) + rowShift;
+        final rect = Rect.fromLTWH(0, top, labelWidth, rowHeight);
+        final row = _rowForIndex(i, rows, noteLabels, labelTextStyle);
+        final isSharp = _isSharpSemitone(row.midi);
+        final labelBg = Paint()
+          ..color = isSharp ? Colors.black : const Color(0xFFCBD1D6);
+        canvas.drawRect(rect, labelBg);
+
+        final textPainter = row.labelPainter;
+        textPainter.paint(
+          canvas,
+          Offset(
+            rect.left + (labelWidth - textPainter.width) / 2,
+            rect.top + (rowHeight - textPainter.height) / 2,
+          ),
+        );
+      }
     }
 
     if (program == null || dataImage == null) {

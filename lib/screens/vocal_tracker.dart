@@ -410,7 +410,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
               ),
               const SliverToBoxAdapter(child: SizedBox(height: 12)),
               SliverFillRemaining(
-                hasScrollBody: false,
+                hasScrollBody: true,
                 child: Column(
                   children: [
                     Expanded(
@@ -419,9 +419,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                           TunerDisplay(
                             history: _filteredHistory(state.history),
                             showBlocks: false,
+                            showLabels: !_editMode,
                             nowOverride: _running ? null : _frozenAt,
                             noteLabels: noteLabels,
                             labelTextStyle: labelStyle,
+                            rowCount: _viewportRowCount,
                             guidelineFraction: _guidelineFraction,
                             guidelineOffset: _guidelineOffset,
                             onViewportChanged: (base, offset) {
@@ -445,17 +447,17 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                             guidelineFraction: _guidelineFraction,
                             guidelineOffset: _guidelineOffset,
                           ),
-                          if (_editMode)
-                            Positioned.fill(
-                              child: _EditableTargetOverlay(
-                                notes: _editNotes ?? _recording.notes,
-                                tuningSystem: state.tuningSystem,
-                                baseMidi: _viewportBaseMidi,
-                                rowCount: _viewportRowCount,
-                                baseOffset: _viewportOffset,
-                                labelWidth: _tunerLabelWidth,
-                                guidelineFraction: _guidelineFraction,
-                                guidelineOffset: _guidelineOffset,
+                              if (_editMode)
+                                Positioned.fill(
+                                  child: _EditableTargetOverlay(
+                                    notes: _editNotes ?? _recording.notes,
+                                    tuningSystem: state.tuningSystem,
+                                    baseMidi: 21,
+                                    rowCount: _viewportRowCount,
+                                    baseOffset: 0.0,
+                                    labelWidth: _tunerLabelWidth,
+                                    guidelineFraction: _guidelineFraction,
+                                    guidelineOffset: _guidelineOffset,
                                 scrollController: _editScrollController,
                                 verticalController: _editVerticalController,
                                 onDelete: _deleteTargetAt,
@@ -1251,16 +1253,8 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
             .toDouble();
         final rowHeight = rowCount > 0 ? viewportHeight / rowCount : 0.0;
         final topMidi = baseMidi + rowCount - 1;
-        int? minMidi;
-        int? maxMidi;
-        for (final note in notes) {
-          final midi = _midiFromNoteLabel(note.note);
-          if (midi == null) continue;
-          minMidi = minMidi == null ? midi : min(minMidi!, midi);
-          maxMidi = maxMidi == null ? midi : max(maxMidi!, midi);
-        }
-        minMidi ??= baseMidi;
-        maxMidi ??= topMidi;
+        const minMidi = 21;
+        const maxMidi = 108;
         final extraAboveRows = max(0, maxMidi - topMidi);
         final extraBelowRows = max(0, baseMidi - minMidi);
         final totalRows = rowCount + extraAboveRows + extraBelowRows;
