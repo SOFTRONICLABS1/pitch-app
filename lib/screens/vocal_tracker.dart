@@ -3135,8 +3135,8 @@ class _TargetNotePainter extends CustomPainter {
     final rowHeight = size.height / rowCount;
     final speed = plotWidth / _trackWindowMs;
     final elapsedMs = elapsed.inMilliseconds.toDouble();
-    final scale = 60.0 / max(1, bpm).toDouble();
-    final loopMs = max(1, totalDurationMs).toDouble() * scale;
+    final scale = 1.0;
+    final loopMs = max(1, totalDurationMs).toDouble();
     final windowMs = _trackWindowMs.toDouble();
     final paint = Paint()..color = _blockColor.withOpacity(0.4);
     final textStyle = (tuningSystem == 'carnatic'
