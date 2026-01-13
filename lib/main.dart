@@ -365,18 +365,18 @@ const _westernNoteLabels = [
 ];
 
 const _carnaticNoteLabels = [
-  'Sa-',
-  'Ri1-',
-  'Ri2-',
-  'Ga1-',
-  'Ga2-',
-  'Ma1-',
-  'Ma2-',
-  'Pa-',
-  'Da1-',
-  'Da2-',
-  'Ni1-',
-  'Ni2-',
+  'Sa',
+  'Ri1',
+  'Ri2',
+  'Ga1',
+  'Ga2',
+  'Ma1',
+  'Ma2',
+  'Pa',
+  'Da1',
+  'Da2',
+  'Ni1',
+  'Ni2',
 ];
 
 List<String> _noteLabelsForSystem(String tuningSystem) {

@@ -1092,18 +1092,24 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     int? cycleIndex;
     double? durationMs;
     double? bestStart;
+    double? bestEnd;
+    const gapMs = 60.0;
     for (var k = minCycle; k <= maxCycle; k++) {
       final cycleOffset = k * loopMs;
       for (var i = 0; i < _targets.length; i++) {
         final start = _targets[i].startOffsetMs * scale + cycleOffset;
         final duration = _targets[i].durationMs * scale;
         final end = start + duration;
-        final overlaps = end >= previousElapsedMs && start <= elapsedMs;
+        final effectiveEnd = end - min(gapMs, duration * 0.5);
+        final overlaps =
+            effectiveEnd >= previousElapsedMs && start <= elapsedMs;
         if (!overlaps) {
           continue;
         }
-        if (bestStart == null || start < bestStart) {
+        if (start <= elapsedMs &&
+            (bestStart == null || start >= bestStart)) {
           bestStart = start;
+          bestEnd = end;
           index = i;
           cycleIndex = k;
           durationMs = duration;
@@ -1114,12 +1120,18 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     if (index == null || durationMs == null || cycleIndex == null) {
       return;
     }
+    final effectiveDuration = max(0.0, durationMs - gapMs);
     final key = cycleIndex * 10000 + index;
     if (_currentHarmonicsKey == key) {
-      return;
+      final end = bestEnd ?? 0.0;
+      if (end <= previousElapsedMs) {
+        _currentHarmonicsKey = null;
+      } else {
+        return;
+      }
     }
     _currentHarmonicsKey = key;
-    _playHarmonicFor(_targets[index], durationMs);
+    _playHarmonicFor(_targets[index], effectiveDuration);
   }
 
   void _playHarmonicFor(_TargetBlock block, double durationMs) {
@@ -1849,20 +1861,61 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         final noteLabels = _noteLabelsForSystem(tuningSystem);
         const sharpSemitones = {1, 3, 6, 8, 10};
         final labelRows = <Widget>[];
+        final octaveBands = <Widget>[];
+        var bandStartRow = 0;
+        int? currentOctave;
+        for (var i = 0; i <= totalRows; i++) {
+          final midi = extendedTopMidi - i;
+          final octave = (midi / 12).floor() - 1;
+          if (currentOctave == null) {
+            currentOctave = octave;
+            bandStartRow = 0;
+          } else if (i == totalRows || octave != currentOctave) {
+            final bandTop = (bandStartRow + baseOffset) * rowHeight;
+            final bandHeight = (i - bandStartRow) * rowHeight;
+            if (bandHeight > 0) {
+              final bandColor = _octaveBandColor(currentOctave * 12);
+              octaveBands.add(
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: bandTop,
+                  height: bandHeight,
+                  child: IgnorePointer(
+                    child: Container(
+                      color: bandColor.withOpacity(0.12),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '$currentOctave',
+                        style: TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.w700,
+                          color: bandColor.withOpacity(0.35),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }
+            currentOctave = octave;
+            bandStartRow = i;
+          }
+        }
         for (var i = 0; i < totalRows; i++) {
           final midi = extendedTopMidi - i;
           final semitone = (midi % 12 + 12) % 12;
-          final octave = (midi / 12).floor() - 1;
-          final label = '${noteLabels[semitone]}$octave';
+          final label = noteLabels[semitone];
           final isSharp = sharpSemitones.contains(semitone);
+          final rowBg = i.isEven ? Colors.white : Colors.black;
+          final rowTextColor = i.isEven ? Colors.black : Colors.white;
           final baseStyle = labelStyle ??
               TextStyle(
-                color: isSharp ? Colors.white : Colors.black87,
+                color: rowTextColor,
                 fontSize: 14,
                 fontWeight: FontWeight.w600,
               );
-          final resolvedStyle =
-              baseStyle.copyWith(color: isSharp ? Colors.white : Colors.black87);
+          final resolvedStyle = baseStyle.copyWith(color: rowTextColor);
           labelRows.add(
             Positioned(
               left: 0,
@@ -1872,10 +1925,16 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => _commitInsertWithLabel(label),
-                child: Container(
-                  color: isSharp ? Colors.black : const Color(0xFFCBD1D6),
-                  alignment: Alignment.center,
-                  child: Text(label, style: resolvedStyle),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        color: rowBg,
+                        alignment: Alignment.center,
+                        child: Text(label, style: resolvedStyle),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -1965,16 +2024,26 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                     SizedBox(
                       width: labelWidth,
                       height: contentHeight,
-                          child: Stack(
-                            children: [
-                              const Positioned.fill(
-                                child: ColoredBox(color: Color(0xFF23272B)),
+                      child: Stack(
+                        children: [
+                          const Positioned.fill(
+                            child: ColoredBox(color: Color(0xFF23272B)),
+                          ),
+                          for (var i = 0; i < totalRows; i++)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              top: (i + baseOffset) * rowHeight,
+                              height: rowHeight,
+                              child: ColoredBox(
+                                color: _octaveBandColor(extendedTopMidi - i),
                               ),
-                              for (var i = 0; i < totalRows; i++)
-                                Positioned(
-                                  left: 0,
-                                  right: 0,
-                                  top: (i + baseOffset) * rowHeight,
+                            ),
+                          for (var i = 0; i < totalRows; i++)
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              top: (i + baseOffset) * rowHeight,
                                   height: rowHeight,
                                   child: ColoredBox(
                                     color: i.isEven
@@ -2012,6 +2081,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                                           : const Color(0xFF343A3F),
                                     ),
                                   ),
+                                ...octaveBands,
                                 ...blocks,
                                 Positioned.fill(
                                   child: DragTarget<_NoteDragPayload>(
@@ -2116,6 +2186,19 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     final midi = midiFromNote ?? topMidi;
     final rowIndex = topMidi - midi;
     return (rowIndex + baseOffset) * rowHeight;
+  }
+
+  Color _octaveBandColor(int midi) {
+    const bands = [
+      Color(0xFF1DB954),
+      Color(0xFF2F80ED),
+      Color(0xFFF2994A),
+      Color(0xFF9B51E0),
+      Color(0xFFEB5757),
+    ];
+    final octave = (midi / 12).floor() - 1;
+    final index = octave.abs() % bands.length;
+    return bands[index];
   }
 
   Widget _buildGridLine({
@@ -2374,13 +2457,13 @@ class _EditableTargetChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
       ),
       alignment: Alignment.center,
-      child: Text(
-        label,
-        style: const TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
     );
   }
 }
@@ -2409,6 +2492,15 @@ class _EditableTargetContent extends StatelessWidget {
       ),
       child: Stack(
         children: [
+          Center(
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
           if (onDelete != null)
             Positioned(
               right: 0,
@@ -2426,18 +2518,6 @@ class _EditableTargetContent extends StatelessWidget {
                 ),
               ),
             ),
-          Padding(
-            padding: const EdgeInsets.only(right: 24),
-            child: Center(
-              child: Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ),
         ],
       ),
     );
@@ -3745,7 +3825,7 @@ class _TargetNotePainter extends CustomPainter {
               )
             : const TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w800,
               ))
         .copyWith(color: Colors.white);
 
@@ -3844,19 +3924,6 @@ _TargetBuildResult _targetBlocksFromRecording(RecordingEntry entry) {
       offsetMs += note.durationMs;
       continue;
     }
-    if (targets.isNotEmpty && targets.last.midi == midi) {
-      final last = targets.removeLast();
-      targets.add(
-        _TargetBlock(
-          midi: last.midi,
-          label: last.label,
-          durationMs: last.durationMs + note.durationMs,
-          startOffsetMs: last.startOffsetMs,
-        ),
-      );
-      offsetMs += note.durationMs;
-      continue;
-    }
     targets.add(
       _TargetBlock(
         midi: midi,
@@ -3911,18 +3978,18 @@ const _westernNoteLabels = [
 ];
 
 const _carnaticNoteLabels = [
-  'Sa-',
-  'Ri1-',
-  'Ri2-',
-  'Ga1-',
-  'Ga2-',
-  'Ma1-',
-  'Ma2-',
-  'Pa-',
-  'Da1-',
-  'Da2-',
-  'Ni1-',
-  'Ni2-',
+  'Sa',
+  'Ri1',
+  'Ri2',
+  'Ga1',
+  'Ga2',
+  'Ma1',
+  'Ma2',
+  'Pa',
+  'Da1',
+  'Da2',
+  'Ni1',
+  'Ni2',
 ];
 
 List<String> _noteLabelsForSystem(String tuningSystem) {
@@ -3945,7 +4012,7 @@ TextStyle? _labelStyleForSystem(String tuningSystem) {
 
 String _displayLabel(String westernNote, String tuningSystem) {
   if (tuningSystem != 'carnatic') {
-    return westernNote;
+    return westernNote.replaceAll(RegExp(r'-?\d+$'), '');
   }
   final match = RegExp(r'^([A-G])(#?)(-?\d+)$').firstMatch(westernNote);
   if (match == null) {
@@ -3953,8 +4020,7 @@ String _displayLabel(String westernNote, String tuningSystem) {
   }
   final name = match.group(1);
   final sharp = match.group(2);
-  final octave = match.group(3);
-  if (name == null || octave == null) {
+  if (name == null) {
     return westernNote;
   }
   final baseIndex = switch (name) {
@@ -3969,7 +4035,7 @@ String _displayLabel(String westernNote, String tuningSystem) {
   };
   final semitone = (baseIndex + (sharp == '#' ? 1 : 0)) % 12;
   final label = _carnaticNoteLabels[semitone];
-  return '$label$octave ($westernNote)';
+  return label;
 }
 
 String _composeDisplayLabel(String westernNote, String tuningSystem) {
@@ -4007,7 +4073,7 @@ String _formatNoteForEdit(String note, String tuningSystem) {
     return '';
   }
   if (tuningSystem != 'carnatic') {
-    return trimmed.toUpperCase();
+    return trimmed.toUpperCase().replaceAll(RegExp(r'-?\d+$'), '');
   }
   final carnatic = RegExp(
     r'^(sa|ri1|ri2|ga1|ga2|ma1|ma2|pa|da1|da2|ni1|ni2)-?(\d+)$',
@@ -4029,16 +4095,14 @@ String _formatNoteForEdit(String note, String tuningSystem) {
       'ni2': 'Ni2',
     };
     final name = (carnatic.group(1) ?? '').toLowerCase();
-    final octave = carnatic.group(2) ?? '';
     final label = casing[name] ?? name.toUpperCase();
-    return '$label-$octave';
+    return label;
   }
   final western = RegExp(r'^([A-Ga-g])(#?)(-?\d+)$').firstMatch(trimmed);
   if (western != null) {
     final name = western.group(1);
     final sharp = western.group(2);
-    final octave = western.group(3);
-    if (name != null && octave != null) {
+    if (name != null) {
       final baseIndex = switch (name.toUpperCase()) {
         'C' => 0,
         'D' => 2,
@@ -4051,7 +4115,7 @@ String _formatNoteForEdit(String note, String tuningSystem) {
       };
       final semitone = (baseIndex + (sharp == '#' ? 1 : 0)) % 12;
       final label = _carnaticNoteLabels[semitone];
-      return '$label$octave';
+      return label;
     }
   }
   return trimmed.toUpperCase();

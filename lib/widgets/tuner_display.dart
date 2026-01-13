@@ -471,6 +471,58 @@ class _TunerPainter extends CustomPainter {
       canvas.drawRect(rect, paint);
     }
 
+    // Octave bands on the plot area
+    final plotLeft = labelWidth;
+    final plotRight = size.width - plotRightPadding;
+    if (plotRight > plotLeft) {
+      int? currentOctave;
+      var bandStart = 0;
+      for (var i = 0; i <= rows.length; i++) {
+        final midi = i < rows.length ? rows[i].midi : rows.last.midi - 1;
+        final octave = (midi / 12).floor() - 1;
+        if (currentOctave == null) {
+          currentOctave = octave;
+          bandStart = 0;
+        } else if (i == rows.length || octave != currentOctave) {
+          final bandTop = (bandStart * rowHeight) + rowShift;
+          final bandHeight = (i - bandStart) * rowHeight;
+          if (bandHeight > 0) {
+            final bandColor = _octaveBandColor(currentOctave);
+            final bandRect = Rect.fromLTWH(
+              plotLeft,
+              bandTop,
+              plotRight - plotLeft,
+              bandHeight,
+            );
+            canvas.drawRect(
+              bandRect,
+              Paint()..color = bandColor.withOpacity(0.12),
+            );
+            final textPainter = TextPainter(
+              text: TextSpan(
+                text: '$currentOctave',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w700,
+                  color: bandColor.withOpacity(0.35),
+                ),
+              ),
+              textDirection: TextDirection.ltr,
+            )..layout(maxWidth: bandRect.width);
+            textPainter.paint(
+              canvas,
+              Offset(
+                bandRect.left + (bandRect.width - textPainter.width) / 2,
+                bandRect.top + (bandRect.height - textPainter.height) / 2,
+              ),
+            );
+          }
+          currentOctave = octave;
+          bandStart = i;
+        }
+      }
+    }
+
     if (showLabels) {
       // Label column background
       final labelPaint = Paint()..color = const Color(0xFF23272B);
@@ -488,7 +540,6 @@ class _TunerPainter extends CustomPainter {
         final labelBg = Paint()
           ..color = isSharp ? Colors.black : const Color(0xFFCBD1D6);
         canvas.drawRect(rect, labelBg);
-
         final textPainter = row.labelPainter;
         textPainter.paint(
           canvas,
@@ -594,6 +645,18 @@ class _TunerPainter extends CustomPainter {
       Offset(nowX, size.height),
       guidelinePaint,
     );
+  }
+
+  Color _octaveBandColor(int octave) {
+    const bands = [
+      Color(0xFF1DB954),
+      Color(0xFF2F80ED),
+      Color(0xFFF2994A),
+      Color(0xFF9B51E0),
+      Color(0xFFEB5757),
+    ];
+    final index = octave.abs() % bands.length;
+    return bands[index];
   }
 
   @override
@@ -733,7 +796,7 @@ List<_NoteRow> _buildRows(
   for (var midi = baseMidi; midi < baseMidi + count; midi++) {
     final semitone = midi % 12;
     final octave = (midi / 12).floor() - 1;
-    final label = '${noteLabels[semitone]}$octave';
+    final label = noteLabels[semitone];
     final minHz = _midiToHz(midi);
     final maxHz = _midiToHz(midi + 1);
     final isSharp = sharpSemitones.contains(semitone);

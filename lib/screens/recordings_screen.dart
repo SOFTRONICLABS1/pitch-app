@@ -985,18 +985,18 @@ class _SelectedNotesPreview extends StatelessWidget {
 }
 
 const _carnaticNoteLabels = [
-  'Sa-',
-  'Ri1-',
-  'Ri2-',
-  'Ga1-',
-  'Ga2-',
-  'Ma1-',
-  'Ma2-',
-  'Pa-',
-  'Da1-',
-  'Da2-',
-  'Ni1-',
-  'Ni2-',
+  'Sa',
+  'Ri1',
+  'Ri2',
+  'Ga1',
+  'Ga2',
+  'Ma1',
+  'Ma2',
+  'Pa',
+  'Da1',
+  'Da2',
+  'Ni1',
+  'Ni2',
 ];
 
 String _displayLabel(String westernNote, String tuningSystem) {
