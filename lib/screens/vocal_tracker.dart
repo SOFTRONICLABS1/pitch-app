@@ -316,6 +316,44 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   static const _minDurationMs = 200;
   static const _defaultInsertDurationMs = 1000;
 
+  void _quantizeEditNotesToBpm(int bpm) {
+    final notes = _editNotes;
+    if (!_editMode || notes == null || notes.isEmpty) {
+      return;
+    }
+    final beatMs = (60000 / max(1, bpm)).round();
+    var changed = false;
+    final updated = <RecordedNote>[];
+    for (final note in notes) {
+      var nextDuration = note.durationMs;
+      final remainder = nextDuration % beatMs;
+      if (remainder != 0) {
+        if (remainder >= (beatMs * 0.1)) {
+          nextDuration = nextDuration + (beatMs - remainder);
+        } else {
+          nextDuration = nextDuration - remainder;
+        }
+        nextDuration = max(_minDurationMs, nextDuration);
+      }
+      if (nextDuration != note.durationMs) {
+        changed = true;
+      }
+      updated.add(
+        RecordedNote(
+          note: note.note,
+          durationMs: nextDuration,
+        ),
+      );
+    }
+    if (!changed) {
+      return;
+    }
+    setState(() {
+      _editNotes = updated;
+      _editDirty = true;
+    });
+  }
+
   Future<void> _insertTargetsAt(
     int insertIndex,
     List<String> selectedNotes,
@@ -796,6 +834,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                         _bpm = next;
                         _currentHarmonicsKey = null;
                       });
+                      _quantizeEditNotesToBpm(next);
                     },
                   ),
                   const SizedBox(height: 4),
@@ -803,6 +842,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                     positions: const {
                       20: 0,
                       40: 2,
+                      60: 4,
                       120: 10,
                       240: 22,
                     },
