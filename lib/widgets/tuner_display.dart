@@ -29,6 +29,7 @@ class TunerDisplay extends StatefulWidget {
     required this.history,
     this.showBlocks = true,
     this.showLabels = true,
+    this.enableManualScroll = false,
     this.nowOverride,
     this.onBaseMidiChanged,
     this.onViewportChanged,
@@ -42,6 +43,7 @@ class TunerDisplay extends StatefulWidget {
   final List<PitchPoint> history;
   final bool showBlocks;
   final bool showLabels;
+  final bool enableManualScroll;
   final DateTime? nowOverride;
   final ValueChanged<int>? onBaseMidiChanged;
   final void Function(int baseMidi, double baseOffset)? onViewportChanged;
@@ -199,26 +201,41 @@ class _TunerDisplayState extends State<TunerDisplay>
 
   @override
   Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: CustomPaint(
-        painter: _TunerPainter(
-          history: widget.history,
-          program: _program,
-          dataImage: _dataImage,
-          sampleCount: _sampleCount,
-          nowOverride: widget.nowOverride,
-          rows: _rows,
-          baseOffset: _baseOffset,
-          noteLabels: widget.noteLabels,
-          labelTextStyle: widget.labelTextStyle,
-          guidelineFraction: widget.guidelineFraction,
-          guidelineOffset: widget.guidelineOffset,
-          showLabels: widget.showLabels,
-        ),
-        isComplex: true,
-        willChange: true,
-        child: const SizedBox.expand(),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final rowHeight =
+            widget.rowCount > 0 ? constraints.maxHeight / widget.rowCount : 0.0;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onVerticalDragUpdate: widget.enableManualScroll
+              ? (details) {
+                  if (rowHeight <= 0) return;
+                  _applyManualScroll(details.delta.dy / rowHeight);
+                }
+              : null,
+          child: RepaintBoundary(
+            child: CustomPaint(
+              painter: _TunerPainter(
+                history: widget.history,
+                program: _program,
+                dataImage: _dataImage,
+                sampleCount: _sampleCount,
+                nowOverride: widget.nowOverride,
+                rows: _rows,
+                baseOffset: _baseOffset,
+                noteLabels: widget.noteLabels,
+                labelTextStyle: widget.labelTextStyle,
+                guidelineFraction: widget.guidelineFraction,
+                guidelineOffset: widget.guidelineOffset,
+                showLabels: widget.showLabels,
+              ),
+              isComplex: true,
+              willChange: true,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -276,6 +293,33 @@ class _TunerDisplayState extends State<TunerDisplay>
       widget.onViewportChanged?.call(_baseMidiFloor, _baseOffset);
     }
     _lastMidi = midi;
+  }
+
+  void _applyManualScroll(double deltaRows) {
+    if (deltaRows == 0) {
+      return;
+    }
+    final maxBase = (_maxMidi - widget.rowCount + 1).toDouble();
+    final nextBase =
+        (_baseMidi - deltaRows).clamp(_minMidi.toDouble(), maxBase);
+    if (nextBase == _baseMidi) {
+      return;
+    }
+    _scrollStart = null;
+    _baseMidi = nextBase;
+    _baseMidiFloor = _baseMidi.floor();
+    _baseOffset = _baseMidi - _baseMidiFloor;
+    _targetBaseMidi = _baseMidiFloor;
+    setState(() {
+      _rows = _buildRows(
+        _baseMidiFloor,
+        widget.rowCount,
+        widget.noteLabels,
+        widget.labelTextStyle,
+      );
+    });
+    widget.onBaseMidiChanged?.call(_baseMidiFloor);
+    widget.onViewportChanged?.call(_baseMidiFloor, _baseOffset);
   }
 }
 

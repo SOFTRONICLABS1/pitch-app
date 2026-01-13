@@ -488,6 +488,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                             history: _filteredHistory(state.history),
                             showBlocks: false,
                             showLabels: !_editMode,
+                            enableManualScroll: !_editMode,
                             nowOverride: _running ? null : _frozenAt,
                             noteLabels: noteLabels,
                             labelTextStyle: labelStyle,
@@ -1248,6 +1249,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   double _currentScale = _EditableTargetOverlay._msToWidth;
   double _plotWidth = 0.0;
   int? _lastFocusMidi;
+  bool _hasInitialFocus = false;
   final GlobalKey _dragTargetKey = GlobalKey();
 
   @override
@@ -1305,15 +1307,38 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     double baseOffset,
     double viewportHeight,
   ) {
+    _scrollToMidi(
+      midi,
+      rowHeight,
+      topMidi,
+      baseOffset,
+      viewportHeight,
+      alignment: 0.5,
+    );
+  }
+
+  void _scrollToMidi(
+    int midi,
+    double rowHeight,
+    int topMidi,
+    double baseOffset,
+    double viewportHeight, {
+    required double alignment,
+    bool onlyIfAbove = false,
+  }) {
     SchedulerBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !widget.verticalController.hasClients) return;
+      final currentOffset = widget.verticalController.position.pixels;
       final top = _rowTopFor(
         midiFromNote: midi,
         topMidi: topMidi,
         baseOffset: baseOffset,
         rowHeight: rowHeight,
       );
-      final target = (top - (viewportHeight - rowHeight) / 2)
+      if (onlyIfAbove && top >= currentOffset) {
+        return;
+      }
+      final target = (top - (viewportHeight * alignment - rowHeight / 2))
           .clamp(0.0, widget.verticalController.position.maxScrollExtent);
       widget.verticalController.animateTo(
         target,
@@ -1391,6 +1416,22 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         if (!_syncedHorizontal) {
           _syncedHorizontal = true;
         }
+        if (!_hasInitialFocus && notes.isNotEmpty) {
+          _hasInitialFocus = true;
+          final normalized =
+              _normalizeNoteForStorage(notes.first.note, tuningSystem);
+          final midi = _midiFromNoteLabel(normalized);
+          if (midi != null) {
+            _scrollToMidi(
+              midi,
+              rowHeight,
+              extendedTopMidi,
+              baseOffset,
+              viewportHeight,
+              alignment: 0.8,
+            );
+          }
+        }
         if (_lastFocusMidi != null) {
           final midi = _lastFocusMidi!;
           _lastFocusMidi = null;
@@ -1454,7 +1495,9 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
             _EditableTargetOverlay._minTileWidth,
           ).toDouble();
           final blockTop = _rowTopFor(
-            midiFromNote: _midiFromNoteLabel(note.note),
+            midiFromNote: _midiFromNoteLabel(
+              _normalizeNoteForStorage(note.note, tuningSystem),
+            ),
             topMidi: extendedTopMidi,
             baseOffset: baseOffset,
             rowHeight: rowHeight,
