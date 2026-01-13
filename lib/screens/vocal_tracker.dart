@@ -286,7 +286,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     });
   }
 
-  static const _minDurationMs = 500;
+  static const _minDurationMs = 0;
   static const _defaultInsertDurationMs = 1000;
 
   Future<void> _insertTargetsAt(
@@ -296,6 +296,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     if (selectedNotes.isEmpty) return;
     final tuningSystem = context.read<PitchNotifier>().tuningSystem;
     final notes = List<RecordedNote>.from(_editNotes ?? _recording.notes);
+    final defaultDurationMs = (60000 / max(1, _bpm)).round();
     final normalizedNotes = selectedNotes
         .map((note) => _normalizeNoteForStorage(note, tuningSystem))
         .where((note) => note.isNotEmpty)
@@ -308,7 +309,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
         for (final note in normalizedNotes)
           RecordedNote(
             note: note,
-            durationMs: _defaultInsertDurationMs,
+            durationMs: defaultDurationMs,
           ),
       ],
     );
@@ -327,23 +328,25 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     if (notes == null || index < 0 || index >= notes.length) {
       return;
     }
-    if (deltaMs != 0) {
-      final updatedNotes = List<RecordedNote>.from(notes);
-      final current = updatedNotes[index];
-      final nextDuration =
-          max(_minDurationMs, current.durationMs + deltaMs).toInt();
-      if (nextDuration == current.durationMs) {
-        return;
-      }
-      updatedNotes[index] = RecordedNote(
-        note: current.note,
-        durationMs: nextDuration,
-      );
-      setState(() {
-        _editNotes = updatedNotes;
-        _editDirty = true;
-      });
+    final updatedNotes = List<RecordedNote>.from(notes);
+    final current = updatedNotes[index];
+    var nextDuration =
+        max(_minDurationMs, current.durationMs + deltaMs).toInt();
+    if (commit) {
+      final beatMs = 60000 / max(1, _bpm);
+      nextDuration = ((nextDuration / beatMs).round() * beatMs).toInt();
     }
+    if (nextDuration == current.durationMs) {
+      return;
+    }
+    updatedNotes[index] = RecordedNote(
+      note: current.note,
+      durationMs: nextDuration,
+    );
+    setState(() {
+      _editNotes = updatedNotes;
+      _editDirty = true;
+    });
   }
 
   void _applyRecordingUpdate(
@@ -469,19 +472,20 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                                     labelWidth: _tunerLabelWidth,
                                     guidelineFraction: _guidelineFraction,
                                     guidelineOffset: _guidelineOffset,
-                                scrollController: _editScrollController,
-                                verticalController: _editVerticalController,
-                                onDelete: _deleteTargetAt,
-                                onDurationDrag: (index, deltaMs, commit) {
-                                  _adjustTargetDuration(
-                                    index,
-                                    deltaMs,
-                                    commit: commit,
-                                  );
-                                },
-                                onInsertNotes: _insertTargetsAt,
-                              ),
-                            ),
+                                    scrollController: _editScrollController,
+                                    verticalController: _editVerticalController,
+                                    onDelete: _deleteTargetAt,
+                                    onDurationDrag: (index, deltaMs, commit) {
+                                      _adjustTargetDuration(
+                                        index,
+                                        deltaMs,
+                                        commit: commit,
+                                      );
+                                    },
+                                    onInsertNotes: _insertTargetsAt,
+                                    bpm: _bpm,
+                                  ),
+                                ),
                         ],
                       ),
                     ),
@@ -1150,6 +1154,7 @@ class _EditableTargetOverlay extends StatefulWidget {
     required this.onDelete,
     required this.onDurationDrag,
     required this.onInsertNotes,
+    required this.bpm,
   });
 
   final List<RecordedNote> notes;
@@ -1165,6 +1170,7 @@ class _EditableTargetOverlay extends StatefulWidget {
   final ValueChanged<int> onDelete;
   final void Function(int index, int deltaMs, bool commit) onDurationDrag;
   final void Function(int insertIndex, List<String> notes) onInsertNotes;
+  final int bpm;
 
   static const _msToWidth = 0.08;
   static const _minTileWidth = 24.0;
@@ -1180,6 +1186,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   final Map<int, double> _dragRemainderByIndex = {};
   int? _pendingInsertIndex;
   int? _pendingInsertMidi;
+  double _currentScale = _EditableTargetOverlay._msToWidth;
 
   @override
   void didUpdateWidget(covariant _EditableTargetOverlay oldWidget) {
@@ -1235,6 +1242,11 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         final viewportHeight =
             max(0.0, constraints.maxHeight - controlGutterHeight);
         final totalMs = notes.fold<int>(0, (sum, note) => sum + note.durationMs);
+        final bpm = max(1, widget.bpm);
+        final scale = _EditableTargetOverlay._msToWidth * (60.0 / bpm);
+        final beatMs = 60000.0 / bpm;
+        _currentScale = scale;
+        final pendingExtraMs = _pendingInsertIndex == null ? 0.0 : beatMs;
         final nowX =
             constraints.maxWidth * guidelineFraction + guidelineOffset;
         final plotRightPadding =
@@ -1243,7 +1255,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           0.0,
           constraints.maxWidth - labelWidth - plotRightPadding,
         );
-        final width = max(plotWidth, totalMs * _EditableTargetOverlay._msToWidth)
+        final width = max(plotWidth, (totalMs + pendingExtraMs) * scale)
             .toDouble();
         final rowHeight = rowCount > 0 ? viewportHeight / rowCount : 0.0;
         final topMidi = baseMidi + rowCount - 1;
@@ -1286,17 +1298,35 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         }
         var offsetMs = 0.0;
         double? pendingInsertX;
-        final linePositions = <_GridLinePosition>[];
-        linePositions.add(const _GridLinePosition(x: 0, index: null));
+        final lineByKey = <int, _GridLinePosition>{};
+        void addLine(double x, {required bool isStrong, int? index}) {
+          final key = x.round();
+          final existing = lineByKey[key];
+          if (existing != null) {
+            if (isStrong && !existing.isStrong) {
+              lineByKey[key] = _GridLinePosition(
+                x: existing.x,
+                index: existing.index,
+                isStrong: true,
+              );
+            }
+            return;
+          }
+          lineByKey[key] = _GridLinePosition(
+            x: x,
+            index: index,
+            isStrong: isStrong,
+          );
+        }
+        addLine(0, isStrong: true);
         final blocks = <Widget>[];
         for (var i = 0; i < notes.length; i++) {
           if (_pendingInsertIndex == i) {
-            pendingInsertX =
-                offsetMs * _EditableTargetOverlay._msToWidth;
-            offsetMs += _EditableTargetOverlay._defaultInsertDurationMs;
+            pendingInsertX = offsetMs * scale;
+            offsetMs += beatMs;
           }
           final note = notes[i];
-          final x = offsetMs * _EditableTargetOverlay._msToWidth;
+          final x = offsetMs * scale;
           blocks.add(
             _EditableTargetBlock(
               index: i,
@@ -1304,7 +1334,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
               tuningSystem: tuningSystem,
               x: x,
               width: max(
-                note.durationMs * _EditableTargetOverlay._msToWidth,
+                note.durationMs * scale,
                 _EditableTargetOverlay._minTileWidth,
               ).toDouble(),
               top: _rowTopFor(
@@ -1318,13 +1348,22 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
             ),
           );
           offsetMs += note.durationMs.toDouble();
-          final endX = offsetMs * _EditableTargetOverlay._msToWidth;
-          linePositions.add(_GridLinePosition(x: endX, index: i));
+          final endX = offsetMs * scale;
+          addLine(endX, isStrong: true, index: i);
         }
         if (_pendingInsertIndex != null &&
             _pendingInsertIndex == notes.length) {
-          pendingInsertX = offsetMs * _EditableTargetOverlay._msToWidth;
+          pendingInsertX = offsetMs * scale;
+          offsetMs += beatMs;
         }
+        final maxMs = offsetMs;
+        final beatLines = (maxMs / beatMs).ceil();
+        for (var i = 0; i <= beatLines; i++) {
+          final x = i * beatMs * scale;
+          addLine(x, isStrong: false);
+        }
+        final linePositions = lineByKey.values.toList()
+          ..sort((a, b) => a.x.compareTo(b.x));
 
         final labelStyle = _labelStyleForSystem(tuningSystem);
         final noteLabels = _noteLabelsForSystem(tuningSystem);
@@ -1365,8 +1404,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
 
         if (_pendingInsertIndex != null && pendingInsertX != null) {
           final insertWidth = max(
-            _EditableTargetOverlay._defaultInsertDurationMs *
-                _EditableTargetOverlay._msToWidth,
+            beatMs * scale,
             _EditableTargetOverlay._minTileWidth,
           ).toDouble();
           final selectedMidi = _pendingInsertMidi;
@@ -1510,11 +1548,14 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   Widget _buildGridLine({
     required double x,
     required bool showHandle,
+    required bool isStrong,
     int? dragIndex,
   }) {
     const lineWidth = 1.0;
     const handleWidth = 20.0;
     const handleHeight = 28.0;
+    final lineColor =
+        Colors.white.withOpacity(isStrong ? 1.0 : 0.3);
     if (dragIndex == null) {
       return Positioned(
         left: x,
@@ -1522,7 +1563,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         bottom: 0,
         child: Container(
           width: lineWidth,
-          color: Colors.white,
+          color: lineColor,
         ),
       );
     }
@@ -1535,7 +1576,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           bottom: 0,
           child: Container(
             width: lineWidth,
-            color: Colors.white,
+            color: lineColor,
           ),
         ),
         Positioned(
@@ -1551,13 +1592,13 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                     final delta = details.delta.dx;
                     final remainder = _dragRemainderByIndex[dragIndex] ?? 0.0;
                     final totalDelta = remainder + delta;
-                    final rawMs = totalDelta / _EditableTargetOverlay._msToWidth;
+                    final rawMs = totalDelta / _currentScale;
                     final deltaMs = rawMs > 0 ? rawMs.floor() : rawMs.ceil();
                     if (deltaMs == 0) {
                       _dragRemainderByIndex[dragIndex] = totalDelta;
                       return;
                     }
-                    final consumedPx = deltaMs * _EditableTargetOverlay._msToWidth;
+                    final consumedPx = deltaMs * _currentScale;
                     _dragRemainderByIndex[dragIndex] = totalDelta - consumedPx;
                     widget.onDurationDrag(dragIndex, deltaMs, false);
                   },
@@ -1610,10 +1651,12 @@ class _GridLinePosition {
   const _GridLinePosition({
     required this.x,
     required this.index,
+    required this.isStrong,
   });
 
   final double x;
   final int? index;
+  final bool isStrong;
 }
 
 class _GridLineOverlay extends StatelessWidget {
@@ -1630,6 +1673,7 @@ class _GridLineOverlay extends StatelessWidget {
   final Widget Function({
     required double x,
     required bool showHandle,
+    required bool isStrong,
     int? dragIndex,
   }) onBuildLine;
 
@@ -1652,6 +1696,7 @@ class _GridLineOverlay extends StatelessWidget {
               onBuildLine(
                 x: left,
                 showHandle: pos.index != null,
+                isStrong: pos.isStrong,
                 dragIndex: pos.index,
               ),
             );
