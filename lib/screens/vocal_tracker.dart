@@ -1454,80 +1454,56 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     const lineWidth = 1.0;
     const handleWidth = 20.0;
     const handleHeight = 28.0;
-    final line = Positioned(
-      left: x,
-      top: 0,
-      bottom: 0,
-      child: Container(
-        width: lineWidth,
-        color: Colors.white,
-      ),
-    );
     if (dragIndex == null) {
-      return line;
+      return Positioned(
+        left: x,
+        top: 0,
+        bottom: 0,
+        child: Container(
+          width: lineWidth,
+          color: Colors.white,
+        ),
+      );
     }
     final insertIndex = dragIndex + 1;
-    return Positioned(
-      left: x - (handleWidth / 2),
-      top: 0,
-      bottom: 0,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onHorizontalDragUpdate: (details) {
-          final delta = details.delta.dx;
-          final remainder = _dragRemainderByIndex[dragIndex] ?? 0.0;
-          final totalDelta = remainder + delta;
-          final rawMs = totalDelta / _EditableTargetOverlay._msToWidth;
-          final deltaMs = rawMs > 0 ? rawMs.floor() : rawMs.ceil();
-          if (deltaMs == 0) {
-            _dragRemainderByIndex[dragIndex] = totalDelta;
-            return;
-          }
-          final consumedPx = deltaMs * _EditableTargetOverlay._msToWidth;
-          _dragRemainderByIndex[dragIndex] = totalDelta - consumedPx;
-          widget.onDurationDrag(dragIndex, deltaMs, false);
-        },
-        onHorizontalDragEnd: (_) {
-          _dragRemainderByIndex.remove(dragIndex);
-          widget.onDurationDrag(dragIndex, 0, true);
-        },
-        child: SizedBox(
-          width: handleWidth,
-          height: double.infinity,
-          child: Stack(
-            alignment: Alignment.center,
+    return Stack(
+      children: [
+        Positioned(
+          left: x,
+          top: 0,
+          bottom: 0,
+          child: Container(
+            width: lineWidth,
+            color: Colors.white,
+          ),
+        ),
+        Positioned(
+          left: x - (handleWidth / 2),
+          bottom: 8,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Align(
-                alignment: Alignment.center,
-                child: Container(
-                  width: lineWidth,
-                  height: double.infinity,
-                  color: Colors.white,
-                ),
-              ),
-              Positioned(
-                bottom: 8,
-                child: GestureDetector(
-                  onTap: () => _openInsertNotes(insertIndex),
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2B6BFF),
-                      borderRadius: BorderRadius.circular(11),
-                      border: Border.all(color: Colors.white, width: 1),
-                    ),
-                    child: const Icon(
-                      Icons.add,
-                      size: 16,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
               if (showHandle)
-                Positioned(
-                  bottom: 40,
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onHorizontalDragUpdate: (details) {
+                    final delta = details.delta.dx;
+                    final remainder = _dragRemainderByIndex[dragIndex] ?? 0.0;
+                    final totalDelta = remainder + delta;
+                    final rawMs = totalDelta / _EditableTargetOverlay._msToWidth;
+                    final deltaMs = rawMs > 0 ? rawMs.floor() : rawMs.ceil();
+                    if (deltaMs == 0) {
+                      _dragRemainderByIndex[dragIndex] = totalDelta;
+                      return;
+                    }
+                    final consumedPx = deltaMs * _EditableTargetOverlay._msToWidth;
+                    _dragRemainderByIndex[dragIndex] = totalDelta - consumedPx;
+                    widget.onDurationDrag(dragIndex, deltaMs, false);
+                  },
+                  onHorizontalDragEnd: (_) {
+                    _dragRemainderByIndex.remove(dragIndex);
+                    widget.onDurationDrag(dragIndex, 0, true);
+                  },
                   child: Container(
                     width: handleWidth,
                     height: handleHeight,
@@ -1543,10 +1519,28 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                     ),
                   ),
                 ),
+              if (showHandle) const SizedBox(height: 10),
+              GestureDetector(
+                onTap: () => _openInsertNotes(insertIndex),
+                child: Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2B6BFF),
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(color: Colors.white, width: 1),
+                  ),
+                  child: const Icon(
+                    Icons.add,
+                    size: 16,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 }
