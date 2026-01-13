@@ -538,6 +538,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       notes: draft.notes,
     );
     await RecordingStore.instance.save(entry);
+    _applyRecordingUpdate(entry);
   }
 
   void _ensureTargetVisible(Duration targetElapsed) {
@@ -834,7 +835,6 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                         _bpm = next;
                         _currentHarmonicsKey = null;
                       });
-                      _quantizeEditNotesToBpm(next);
                     },
                   ),
                   const SizedBox(height: 4),
@@ -2228,12 +2228,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                     widget.onDurationDrag(dragIndex, deltaMs, false);
                     setState(() {
                       if (_activeDragIndex == dragIndex) {
-                        final current = (_activeDragLineX ?? x) + delta;
-                        final snapped = x + (stepCount * beatPx);
-                        _activeDragLineX =
-                            (current - snapped).abs() <= beatPx
-                                ? snapped
-                                : current;
+                        _activeDragLineX = x + (stepCount * beatPx);
                         _activeBeatPx = beatPx;
                       }
                     });
