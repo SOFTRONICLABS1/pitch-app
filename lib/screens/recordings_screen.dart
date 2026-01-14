@@ -680,9 +680,16 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       notes: const [],
       group: meta.group?.trim().isEmpty == true ? null : meta.group,
     );
+    final groupName = entry.group?.trim().isNotEmpty == true
+        ? entry.group!.trim()
+        : _ungroupedLabel;
+    final settings = _groupSettingsFor(groupName);
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => VocalTrackerScreen(recording: entry),
+        builder: (_) => VocalTrackerScreen(
+          recording: entry,
+          initialCarnaticRootSemitone: settings.rootSemitone,
+        ),
       ),
     );
     await _load();

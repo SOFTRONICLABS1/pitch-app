@@ -58,6 +58,7 @@ class TunerDisplay extends StatefulWidget {
     this.guidelineFraction = 1.0,
     this.guidelineOffset = -15.0,
     this.rowCount = _defaultRowCount,
+    this.rootSemitone = 0,
   });
 
   final List<PitchPoint> history;
@@ -74,6 +75,7 @@ class TunerDisplay extends StatefulWidget {
   final double guidelineFraction;
   final double guidelineOffset;
   final int rowCount;
+  final int rootSemitone;
 
   @override
   State<TunerDisplay> createState() => _TunerDisplayState();
@@ -267,6 +269,7 @@ class _TunerDisplayState extends State<TunerDisplay>
                 guidelineFraction: widget.guidelineFraction,
                 guidelineOffset: widget.guidelineOffset,
                 showLabels: widget.showLabels,
+                rootSemitone: widget.rootSemitone,
               ),
               isComplex: true,
               willChange: true,
@@ -426,6 +429,7 @@ class _TunerPainter extends CustomPainter {
     required this.guidelineFraction,
     required this.guidelineOffset,
     required this.showLabels,
+    required this.rootSemitone,
   });
 
   final List<PitchPoint> history;
@@ -440,6 +444,7 @@ class _TunerPainter extends CustomPainter {
   final double guidelineFraction;
   final double guidelineOffset;
   final bool showLabels;
+  final int rootSemitone;
 
   static const labelWidth = 58.0;
   static const timeSpan = Duration(milliseconds: 6400);
@@ -479,7 +484,8 @@ class _TunerPainter extends CustomPainter {
       var bandStart = 0;
       for (var i = 0; i <= rows.length; i++) {
         final midi = i < rows.length ? rows[i].midi : rows.last.midi - 1;
-        final octave = (midi / 12).floor() - 1;
+        final adjustedMidi = midi + rootSemitone;
+        final octave = (adjustedMidi / 12).floor() - 1;
         if (currentOctave == null) {
           currentOctave = octave;
           bandStart = 0;

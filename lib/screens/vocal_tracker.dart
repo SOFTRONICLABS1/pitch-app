@@ -687,9 +687,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
             state.tuningSystem,
             rootSemitone: _rootSemitone,
           );
+    final rootSemitoneForView =
+        state.tuningSystem == 'carnatic' ? _rootSemitone : 0;
     final noteLabels = _noteLabelsForSystem(
       state.tuningSystem,
-      rootSemitone: _rootSemitone,
+      rootSemitone: rootSemitoneForView,
     );
     final labelStyle = _labelStyleForSystem(state.tuningSystem);
     _screenWidth = MediaQuery.of(context).size.width;
@@ -769,6 +771,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                             rowCount: _viewportRowCount,
                             guidelineFraction: _guidelineFraction,
                             guidelineOffset: _guidelineOffset,
+                            rootSemitone: rootSemitoneForView,
                             onViewportChanged: (base, offset) {
                               if (!mounted) return;
                               setState(() {
@@ -787,7 +790,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                             rowCount: _viewportRowCount,
                             baseOffset: _viewportOffset,
                             tuningSystem: state.tuningSystem,
-                            rootSemitone: _rootSemitone,
+                            rootSemitone: rootSemitoneForView,
                             guidelineFraction: _guidelineFraction,
                             guidelineOffset: _guidelineOffset,
                           ),
@@ -801,7 +804,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                                     rowCount: _viewportRowCount,
                                     baseOffset: 0.0,
                                     labelWidth: _tunerLabelWidth,
-                                    rootSemitone: _rootSemitone,
+                                    rootSemitone: rootSemitoneForView,
                                     guidelineFraction: _guidelineFraction,
                                     guidelineOffset: _guidelineOffset,
                                     scrollController: _editScrollController,
@@ -1977,9 +1980,12 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         final octaveBands = <Widget>[];
         var bandStartRow = 0;
         int? currentOctave;
+        final bandRootSemitone =
+            widget.tuningSystem == 'carnatic' ? widget.rootSemitone : 0;
         for (var i = 0; i <= totalRows; i++) {
           final midi = extendedTopMidi - i;
-          final octave = (midi / 12).floor() - 1;
+          final adjustedMidi = midi + bandRootSemitone;
+          final octave = (adjustedMidi / 12).floor() - 1;
           if (currentOctave == null) {
             currentOctave = octave;
             bandStartRow = 0;
@@ -1987,7 +1993,10 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
             final bandTop = (bandStartRow + baseOffset) * rowHeight;
             final bandHeight = (i - bandStartRow) * rowHeight;
             if (bandHeight > 0) {
-              final bandColor = _octaveBandColor(currentOctave * 12);
+              final bandColor = _octaveBandColor(
+                currentOctave * 12,
+                bandRootSemitone,
+              );
               octaveBands.add(
                 Positioned(
                   left: 0,
@@ -2149,7 +2158,10 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                               top: (i + baseOffset) * rowHeight,
                               height: rowHeight,
                               child: ColoredBox(
-                                color: _octaveBandColor(extendedTopMidi - i),
+                                color: _octaveBandColor(
+                                  extendedTopMidi - i,
+                                  bandRootSemitone,
+                                ),
                               ),
                             ),
                           for (var i = 0; i < totalRows; i++)
@@ -2301,7 +2313,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     return (rowIndex + baseOffset) * rowHeight;
   }
 
-  Color _octaveBandColor(int midi) {
+  Color _octaveBandColor(int midi, int rootSemitone) {
     const bands = [
       Color(0xFF1DB954),
       Color(0xFF2F80ED),
@@ -2309,7 +2321,8 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
       Color(0xFF9B51E0),
       Color(0xFFEB5757),
     ];
-    final octave = (midi / 12).floor() - 1;
+    final adjustedMidi = midi + rootSemitone;
+    final octave = (adjustedMidi / 12).floor() - 1;
     final index = octave.abs() % bands.length;
     return bands[index];
   }
@@ -4064,7 +4077,7 @@ _TargetBuildResult _targetBlocksFromRecording(
     targets.add(
       _TargetBlock(
         midi: adjustedMidi,
-        label: note.note.toUpperCase(),
+        label: _westernLabelForMidi(adjustedMidi),
         durationMs: note.durationMs,
         startOffsetMs: offsetMs,
       ),
@@ -4115,6 +4128,12 @@ const _westernNoteLabels = [
   'A#',
   'B',
 ];
+
+String _westernLabelForMidi(int midi) {
+  final semitone = (midi % 12 + 12) % 12;
+  final octave = (midi / 12).floor() - 1;
+  return '${_westernNoteLabels[semitone]}$octave';
+}
 
 const _carnaticNoteLabels = [
   'Sa',
