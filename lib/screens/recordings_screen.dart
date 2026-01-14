@@ -11,7 +11,7 @@ import 'package:provider/provider.dart';
 import '../models/recording.dart';
 import '../services/recording_store.dart';
 import '../state/pitch_notifier.dart';
-import 'gamified_vocal_tracker.dart';
+import 'gamified_game_menu.dart';
 import 'vocal_tracker.dart';
 
 class RecordingsScreen extends StatefulWidget {
@@ -419,7 +419,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     }
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => GamifiedVocalTrackerScreen(recording: entry),
+        builder: (_) => GamifiedGameMenuScreen(recording: entry),
       ),
     );
   }

@@ -10,13 +10,17 @@ import '../dsp/pitch_detection.dart';
 import '../models/recording.dart';
 import '../state/pitch_notifier.dart';
 
+enum GameVisualTheme { arcade, retro, tactical }
+
 class GamifiedVocalTrackerScreen extends StatefulWidget {
   const GamifiedVocalTrackerScreen({
     super.key,
     required this.recording,
+    this.theme = GameVisualTheme.arcade,
   });
 
   final RecordingEntry recording;
+  final GameVisualTheme theme;
 
   @override
   State<GamifiedVocalTrackerScreen> createState() =>
@@ -364,6 +368,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
   Widget build(BuildContext context) {
     final pitchState = context.watch<PitchNotifier>();
     final tuningSystem = pitchState.tuningSystem;
+    final palette = _paletteFor(widget.theme);
     final hasNotes = widget.recording.notes.isNotEmpty;
     final current = _targets.isEmpty
         ? null
@@ -386,6 +391,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
         : null;
 
     return Scaffold(
+      backgroundColor: palette.screen,
       appBar: AppBar(
         title: Text(widget.recording.name),
         actions: [
@@ -402,14 +408,29 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
           children: [
             Row(
               children: [
-                _StatCard(label: 'Score', value: '$_score'),
+                _StatCard(
+                  label: 'Score',
+                  value: '$_score',
+                  background: palette.panel,
+                  valueColor: palette.textPrimary,
+                  labelColor: palette.textSecondary,
+                ),
                 const SizedBox(width: 12),
                 _StatCard(
                   label: 'Accuracy',
                   value: '${(_accuracy * 100).round()}%',
+                  background: palette.panel,
+                  valueColor: palette.textPrimary,
+                  labelColor: palette.textSecondary,
                 ),
                 const SizedBox(width: 12),
-                _StatCard(label: 'Streak', value: '$_streak'),
+                _StatCard(
+                  label: 'Streak',
+                  value: '$_streak',
+                  background: palette.panel,
+                  valueColor: palette.textPrimary,
+                  labelColor: palette.textSecondary,
+                ),
               ],
             ),
             if (pitchState.errorMessage != null) ...[
@@ -435,8 +456,15 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2C3136),
+                  color: palette.panel,
                   borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: palette.glow,
+                      blurRadius: 24,
+                      spreadRadius: -8,
+                    ),
+                  ],
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -470,8 +498,8 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
                                 fontSize: 36,
                                 fontWeight: FontWeight.w800,
                                 color: isMatch
-                                    ? Colors.greenAccent
-                                    : Colors.white70,
+                                    ? palette.accent
+                                    : palette.textPrimary.withOpacity(0.75),
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -483,7 +511,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
                                   style: Theme.of(context)
                                       .textTheme
                                       .labelLarge
-                                      ?.copyWith(color: Colors.white54),
+                                      ?.copyWith(color: palette.textSecondary),
                                 ),
                                 const SizedBox(width: 12),
                                 Icon(
@@ -491,8 +519,8 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
                                       ? Icons.check_circle
                                       : Icons.circle_outlined,
                                   color: isMatch
-                                      ? Colors.greenAccent
-                                      : Colors.white38,
+                                      ? palette.accent
+                                      : palette.textSecondary.withOpacity(0.6),
                                 ),
                               ],
                             ),
@@ -508,7 +536,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
                               style: Theme.of(context)
                                   .textTheme
                                   .labelMedium
-                                  ?.copyWith(color: Colors.white54),
+                                  ?.copyWith(color: palette.textSecondary),
                             ),
                           ],
                         ),
@@ -518,7 +546,8 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
                     LinearProgressIndicator(
                       value: progress,
                       minHeight: 8,
-                      backgroundColor: Colors.white12,
+                      backgroundColor: palette.textSecondary.withOpacity(0.2),
+                      color: palette.accent,
                     ),
                     const SizedBox(height: 24),
                     Text(
@@ -528,7 +557,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
                       style: Theme.of(context)
                           .textTheme
                           .labelLarge
-                          ?.copyWith(color: Colors.white60),
+                          ?.copyWith(color: palette.textSecondary),
                     ),
                   ],
                 ),
@@ -693,10 +722,19 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({required this.label, required this.value});
+  const _StatCard({
+    required this.label,
+    required this.value,
+    required this.background,
+    required this.valueColor,
+    required this.labelColor,
+  });
 
   final String label;
   final String value;
+  final Color background;
+  final Color valueColor;
+  final Color labelColor;
 
   @override
   Widget build(BuildContext context) {
@@ -704,16 +742,17 @@ class _StatCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFF2C3136),
+          color: background,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Column(
           children: [
             Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
+                color: valueColor,
               ),
             ),
             const SizedBox(height: 4),
@@ -722,12 +761,63 @@ class _StatCard extends StatelessWidget {
               style: Theme.of(context)
                   .textTheme
                   .labelSmall
-                  ?.copyWith(color: Colors.white60),
+                  ?.copyWith(color: labelColor),
             ),
           ],
         ),
       ),
     );
+  }
+}
+
+class _GamePalette {
+  const _GamePalette({
+    required this.screen,
+    required this.panel,
+    required this.accent,
+    required this.textPrimary,
+    required this.textSecondary,
+    required this.glow,
+  });
+
+  final Color screen;
+  final Color panel;
+  final Color accent;
+  final Color textPrimary;
+  final Color textSecondary;
+  final Color glow;
+}
+
+_GamePalette _paletteFor(GameVisualTheme theme) {
+  switch (theme) {
+    case GameVisualTheme.retro:
+      return const _GamePalette(
+        screen: Color(0xFF181014),
+        panel: Color(0xFF2A1E25),
+        accent: Color(0xFFFFD369),
+        textPrimary: Color(0xFFF8F3E6),
+        textSecondary: Color(0xFFB8A68A),
+        glow: Color(0x66FF7A00),
+      );
+    case GameVisualTheme.tactical:
+      return const _GamePalette(
+        screen: Color(0xFF0F1418),
+        panel: Color(0xFF1B242A),
+        accent: Color(0xFF5AD4FF),
+        textPrimary: Color(0xFFE7EEF2),
+        textSecondary: Color(0xFF9AA7B2),
+        glow: Color(0x6649B6D6),
+      );
+    case GameVisualTheme.arcade:
+    default:
+      return const _GamePalette(
+        screen: Color(0xFF10101A),
+        panel: Color(0xFF1E2033),
+        accent: Color(0xFF63F0FF),
+        textPrimary: Color(0xFFF0F3FF),
+        textSecondary: Color(0xFF8F96B8),
+        glow: Color(0x664D2BFF),
+      );
   }
 }
 
