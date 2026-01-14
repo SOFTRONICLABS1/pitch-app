@@ -27,6 +27,7 @@ class VocalTrackerScreen extends StatefulWidget {
     this.allowSettings = true,
     this.initialBpm,
     this.initialTanpuraEnabled = false,
+    this.initialCarnaticRootSemitone = 0,
   });
 
   final RecordingEntry recording;
@@ -35,6 +36,7 @@ class VocalTrackerScreen extends StatefulWidget {
   final bool allowSettings;
   final int? initialBpm;
   final bool initialTanpuraEnabled;
+  final int initialCarnaticRootSemitone;
 
   @override
   State<VocalTrackerScreen> createState() => _VocalTrackerScreenState();
@@ -56,6 +58,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       GlobalKey<_EditableTargetOverlayState>();
   int _bpm = 60;
   int _baseOctave = PitchNotifier.defaultBaseOctave;
+  int _rootSemitone = 0;
   PitchNotifier? _pitchNotifier;
   DateTime? _frozenAt;
   int _viewportBaseMidi = 33;
@@ -93,9 +96,14 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _recording = widget.recording;
     _pitchNotifier = context.read<PitchNotifier>();
     _baseOctave = _pitchNotifier?.baseOctave ?? PitchNotifier.defaultBaseOctave;
+    _rootSemitone = widget.initialCarnaticRootSemitone.clamp(0, 11);
     _pitchNotifier?.addListener(_handleBaseOctaveChange);
-    final result =
-        _targetBlocksFromRecording(_recording, baseOctave: _baseOctave);
+    final result = _targetBlocksFromRecording(
+      _recording,
+      baseOctave: _baseOctave,
+      tuningSystem: _pitchNotifier?.tuningSystem ?? 'western',
+      rootSemitone: _rootSemitone,
+    );
     _targets = result.blocks;
     _totalDurationMs = result.totalDurationMs;
     if (widget.initialBpm != null) {
@@ -128,8 +136,12 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     if (next == _baseOctave) return;
     setState(() {
       _baseOctave = next;
-      final result =
-          _targetBlocksFromRecording(_recording, baseOctave: _baseOctave);
+      final result = _targetBlocksFromRecording(
+        _recording,
+        baseOctave: _baseOctave,
+        tuningSystem: _pitchNotifier?.tuningSystem ?? 'western',
+        rootSemitone: _rootSemitone,
+      );
       _targets = result.blocks;
       _totalDurationMs = result.totalDurationMs;
       _lastTargetElapsedMs = 0.0;
@@ -516,8 +528,12 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     RecordingEntry updated, {
     bool preload = true,
   }) {
-    final result =
-        _targetBlocksFromRecording(updated, baseOctave: _baseOctave);
+    final result = _targetBlocksFromRecording(
+      updated,
+      baseOctave: _baseOctave,
+      tuningSystem: _pitchNotifier?.tuningSystem ?? 'western',
+      rootSemitone: _rootSemitone,
+    );
     if (preload) {
       _stopHarmonics();
     }
@@ -666,8 +682,15 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     final frequency = state.frequency;
     final note = frequency == null
         ? '--'
-        : _noteLabel(frequency, state.tuningSystem);
-    final noteLabels = _noteLabelsForSystem(state.tuningSystem);
+        : _noteLabel(
+            frequency,
+            state.tuningSystem,
+            rootSemitone: _rootSemitone,
+          );
+    final noteLabels = _noteLabelsForSystem(
+      state.tuningSystem,
+      rootSemitone: _rootSemitone,
+    );
     final labelStyle = _labelStyleForSystem(state.tuningSystem);
     _screenWidth = MediaQuery.of(context).size.width;
 
@@ -764,6 +787,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                             rowCount: _viewportRowCount,
                             baseOffset: _viewportOffset,
                             tuningSystem: state.tuningSystem,
+                            rootSemitone: _rootSemitone,
                             guidelineFraction: _guidelineFraction,
                             guidelineOffset: _guidelineOffset,
                           ),
@@ -777,6 +801,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                                     rowCount: _viewportRowCount,
                                     baseOffset: 0.0,
                                     labelWidth: _tunerLabelWidth,
+                                    rootSemitone: _rootSemitone,
                                     guidelineFraction: _guidelineFraction,
                                     guidelineOffset: _guidelineOffset,
                                     scrollController: _editScrollController,
@@ -1404,6 +1429,7 @@ class _TargetNoteTrack extends StatelessWidget {
     required this.rowCount,
     required this.baseOffset,
     required this.tuningSystem,
+    required this.rootSemitone,
     required this.guidelineFraction,
     required this.guidelineOffset,
   });
@@ -1417,6 +1443,7 @@ class _TargetNoteTrack extends StatelessWidget {
   final int rowCount;
   final double baseOffset;
   final String tuningSystem;
+  final int rootSemitone;
   final double guidelineFraction;
   final double guidelineOffset;
 
@@ -1434,6 +1461,7 @@ class _TargetNoteTrack extends StatelessWidget {
           rowCount: rowCount,
           baseOffset: baseOffset,
           tuningSystem: tuningSystem,
+          rootSemitone: rootSemitone,
           guidelineFraction: guidelineFraction,
           guidelineOffset: guidelineOffset,
         ),
@@ -1553,6 +1581,7 @@ class _EditableTargetOverlay extends StatefulWidget {
     required this.rowCount,
     required this.baseOffset,
     required this.labelWidth,
+    required this.rootSemitone,
     required this.guidelineFraction,
     required this.guidelineOffset,
     required this.scrollController,
@@ -1571,6 +1600,7 @@ class _EditableTargetOverlay extends StatefulWidget {
   final int rowCount;
   final double baseOffset;
   final double labelWidth;
+  final int rootSemitone;
   final double guidelineFraction;
   final double guidelineOffset;
   final ScrollController scrollController;
@@ -1721,7 +1751,10 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
   }
 
   String _labelForMidi(int midi, String tuningSystem) {
-    final labels = _noteLabelsForSystem(tuningSystem);
+    final labels = _noteLabelsForSystem(
+      tuningSystem,
+      rootSemitone: widget.rootSemitone,
+    );
     final semitone = (midi % 12 + 12) % 12;
     final octave = (midi / 12).floor() - 1;
     return '${labels[semitone]}$octave';
@@ -1935,7 +1968,10 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           ..sort((a, b) => a.x.compareTo(b.x));
 
         final labelStyle = _labelStyleForSystem(tuningSystem);
-        final noteLabels = _noteLabelsForSystem(tuningSystem);
+        final noteLabels = _noteLabelsForSystem(
+          tuningSystem,
+          rootSemitone: widget.rootSemitone,
+        );
         const sharpSemitones = {1, 3, 6, 8, 10};
         final labelRows = <Widget>[];
         final octaveBands = <Widget>[];
@@ -3804,8 +3840,15 @@ class _NoteOptionTile extends StatelessWidget {
 
 enum _ComposeSheetStep { select, preview, duration }
 
-String _noteLabel(double frequency, String tuningSystem) {
-  final labels = _noteLabelsForSystem(tuningSystem);
+String _noteLabel(
+  double frequency,
+  String tuningSystem, {
+  required int rootSemitone,
+}) {
+  final labels = _noteLabelsForSystem(
+    tuningSystem,
+    rootSemitone: rootSemitone,
+  );
   final midi = midiFromFrequency(frequency).round().clamp(0, 127);
   final octave = (midi / 12).floor() - 1;
   final label = labels[midi % 12];
@@ -3837,6 +3880,7 @@ class _TargetNotePainter extends CustomPainter {
     required this.rowCount,
     required this.baseOffset,
     required this.tuningSystem,
+    required this.rootSemitone,
     required this.guidelineFraction,
     required this.guidelineOffset,
   });
@@ -3850,6 +3894,7 @@ class _TargetNotePainter extends CustomPainter {
   final int rowCount;
   final double baseOffset;
   final String tuningSystem;
+  final int rootSemitone;
   final double guidelineFraction;
   final double guidelineOffset;
 
@@ -3944,7 +3989,7 @@ class _TargetNotePainter extends CustomPainter {
 
       final textPainter = TextPainter(
         text: TextSpan(
-          text: _displayLabel(block.label, tuningSystem),
+          text: _displayLabel(block.label, tuningSystem, rootSemitone),
           style: textStyle,
         ),
         textDirection: TextDirection.ltr,
@@ -3984,7 +4029,8 @@ class _TargetNotePainter extends CustomPainter {
         oldDelegate.baseMidi != baseMidi ||
         oldDelegate.rowCount != rowCount ||
         oldDelegate.baseOffset != baseOffset ||
-        oldDelegate.tuningSystem != tuningSystem;
+        oldDelegate.tuningSystem != tuningSystem ||
+        oldDelegate.rootSemitone != rootSemitone;
   }
 }
 
@@ -4001,9 +4047,12 @@ class _TargetBuildResult {
 _TargetBuildResult _targetBlocksFromRecording(
   RecordingEntry entry, {
   required int baseOctave,
+  required String tuningSystem,
+  required int rootSemitone,
 }) {
   final targets = <_TargetBlock>[];
   var offsetMs = 0;
+  final semitoneOffset = tuningSystem == 'carnatic' ? rootSemitone : 0;
   for (final note in entry.notes) {
     final normalized = note.note.trim().toLowerCase();
     final midi = _midiFromNoteLabel(normalized, baseOctave);
@@ -4011,9 +4060,10 @@ _TargetBuildResult _targetBlocksFromRecording(
       offsetMs += note.durationMs;
       continue;
     }
+    final adjustedMidi = (midi + semitoneOffset).clamp(0, 127);
     targets.add(
       _TargetBlock(
-        midi: midi,
+        midi: adjustedMidi,
         label: note.note.toUpperCase(),
         durationMs: note.durationMs,
         startOffsetMs: offsetMs,
@@ -4081,10 +4131,21 @@ const _carnaticNoteLabels = [
   'Ni2',
 ];
 
-List<String> _noteLabelsForSystem(String tuningSystem) {
-  return tuningSystem == 'carnatic'
-      ? _carnaticNoteLabels
-      : _westernNoteLabels;
+List<String> _noteLabelsForSystem(
+  String tuningSystem, {
+  int rootSemitone = 0,
+}) {
+  if (tuningSystem != 'carnatic') {
+    return _westernNoteLabels;
+  }
+  if (rootSemitone == 0) {
+    return _carnaticNoteLabels;
+  }
+  return List<String>.generate(
+    _carnaticNoteLabels.length,
+    (index) =>
+        _carnaticNoteLabels[(index - rootSemitone) % _carnaticNoteLabels.length],
+  );
 }
 
 TextStyle? _labelStyleForSystem(String tuningSystem) {
@@ -4099,7 +4160,11 @@ TextStyle? _labelStyleForSystem(String tuningSystem) {
   );
 }
 
-String _displayLabel(String westernNote, String tuningSystem) {
+String _displayLabel(
+  String westernNote,
+  String tuningSystem,
+  int rootSemitone,
+) {
   if (tuningSystem != 'carnatic') {
     return westernNote.replaceAll(RegExp(r'-?\d+$'), '');
   }
@@ -4123,11 +4188,18 @@ String _displayLabel(String westernNote, String tuningSystem) {
     _ => 0,
   };
   final semitone = (baseIndex + (sharp == '#' ? 1 : 0)) % 12;
-  final label = _carnaticNoteLabels[semitone];
+  final label = _noteLabelsForSystem(
+    tuningSystem,
+    rootSemitone: rootSemitone,
+  )[semitone];
   return label;
 }
 
-String _composeDisplayLabel(String westernNote, String tuningSystem) {
+String _composeDisplayLabel(
+  String westernNote,
+  String tuningSystem, [
+  int rootSemitone = 0,
+]) {
   if (tuningSystem != 'carnatic') {
     return westernNote;
   }
@@ -4152,7 +4224,10 @@ String _composeDisplayLabel(String westernNote, String tuningSystem) {
     _ => 0,
   };
   final semitone = (baseIndex + (sharp == '#' ? 1 : 0)) % 12;
-  final label = _carnaticNoteLabels[semitone];
+  final label = _noteLabelsForSystem(
+    tuningSystem,
+    rootSemitone: rootSemitone,
+  )[semitone];
   return '$label$octave';
 }
 

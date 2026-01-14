@@ -405,9 +405,16 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     if (_inlinePlaying) {
       await _stopInlinePlayback();
     }
+    final groupName = entry.group?.trim().isNotEmpty == true
+        ? entry.group!.trim()
+        : _ungroupedLabel;
+    final settings = _groupSettingsFor(groupName);
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => VocalTrackerScreen(recording: entry),
+        builder: (_) => VocalTrackerScreen(
+          recording: entry,
+          initialCarnaticRootSemitone: settings.rootSemitone,
+        ),
       ),
     );
     await _load();
@@ -451,6 +458,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
             allowSettings: false,
             initialBpm: settings.bpm,
             initialTanpuraEnabled: false,
+            initialCarnaticRootSemitone: settings.rootSemitone,
           ),
         );
       },
@@ -472,16 +480,27 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     }
     final token = ++_inlinePlaybackToken;
     final baseOctave = context.read<PitchNotifier>().baseOctave;
-    await _preloadInlineHarmonics(entry, baseOctave);
-    _buildInlineTargets(entry, baseOctave);
-    setState(() {
-      _playingId = entry.id;
-      _inlinePlaying = true;
-    });
+    final tuningSystem = context.read<PitchNotifier>().tuningSystem;
     final groupName = entry.group?.trim().isNotEmpty == true
         ? entry.group!.trim()
         : _ungroupedLabel;
     final settings = _groupSettingsFor(groupName);
+    await _preloadInlineHarmonics(
+      entry,
+      baseOctave,
+      settings.rootSemitone,
+      tuningSystem,
+    );
+    _buildInlineTargets(
+      entry,
+      baseOctave,
+      settings.rootSemitone,
+      tuningSystem,
+    );
+    setState(() {
+      _playingId = entry.id;
+      _inlinePlaying = true;
+    });
     _inlineScale = 60.0 / settings.bpm.toDouble();
     _inlineLastTargetElapsedMs = 0.0;
     _inlineHarmonicsKey = null;
@@ -511,12 +530,22 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     });
   }
 
-  void _buildInlineTargets(RecordingEntry entry, int baseOctave) {
+  void _buildInlineTargets(
+    RecordingEntry entry,
+    int baseOctave,
+    int rootSemitone,
+    String tuningSystem,
+  ) {
     final targets = <_InlineTargetBlock>[];
     var offsetMs = 0;
+    final semitoneOffset = tuningSystem == 'carnatic' ? rootSemitone : 0;
     for (final note in entry.notes) {
       final normalized = note.note.trim().toLowerCase();
-      final midi = _midiFromNoteLabel(normalized, baseOctave: baseOctave);
+      final midi = _midiFromNoteLabel(
+        normalized,
+        baseOctave: baseOctave,
+        semitoneOffset: semitoneOffset,
+      );
       if (midi == null) {
         offsetMs += note.durationMs;
         continue;
@@ -613,10 +642,17 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   Future<void> _preloadInlineHarmonics(
     RecordingEntry entry,
     int baseOctave,
+    int rootSemitone,
+    String tuningSystem,
   ) async {
     final assets = <String>[];
+    final semitoneOffset = tuningSystem == 'carnatic' ? rootSemitone : 0;
     for (final note in entry.notes) {
-      final midi = _midiFromNoteLabel(note.note, baseOctave: baseOctave);
+      final midi = _midiFromNoteLabel(
+        note.note,
+        baseOctave: baseOctave,
+        semitoneOffset: semitoneOffset,
+      );
       final path = midi == null ? null : _harmonicsAssetForMidi(midi);
       if (path != null) {
         assets.add(path);
@@ -830,7 +866,11 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     );
   }
 
-  int? _midiFromNoteLabel(String note, {required int baseOctave}) {
+  int? _midiFromNoteLabel(
+    String note, {
+    required int baseOctave,
+    int semitoneOffset = 0,
+  }) {
     if (note.isEmpty) return null;
     final match = RegExp(r'^([a-g])(#?)(-?\d+)$').firstMatch(note);
     if (match == null) return null;
@@ -849,9 +889,9 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       _ => 0,
     };
     final semitone = base + (sharp == '#' ? 1 : 0);
-    final midi = (octave + 1) * 12 + semitone;
+    final midi = (octave + 1) * 12 + semitone + semitoneOffset;
     final offset = (baseOctave - PitchNotifier.defaultBaseOctave) * 12;
-    return midi + offset;
+    return (midi + offset).clamp(0, 127);
   }
 
   String? _harmonicsAssetForMidi(int midi) {
@@ -880,7 +920,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   _GroupSettings _groupSettingsFor(String group) {
     return _groupSettings.putIfAbsent(
       group,
-      () => const _GroupSettings(bpm: 60),
+      () => const _GroupSettings(bpm: 60, rootSemitone: 0),
     );
   }
 
@@ -1034,6 +1074,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   void _showGroupSettings(String groupName) {
     final current = _groupSettingsFor(groupName);
     var bpm = current.bpm;
+    var rootSemitone = current.rootSemitone;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF23272B),
@@ -1086,6 +1127,40 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
+                  Text(
+                    'Root note (Sa)',
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<int>(
+                    value: rootSemitone,
+                    dropdownColor: const Color(0xFF2A2F35),
+                    decoration: const InputDecoration(
+                      filled: true,
+                      fillColor: Color(0xFF1B1F23),
+                      border: OutlineInputBorder(),
+                      contentPadding:
+                          EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    items: _rootNoteOptions
+                        .map(
+                          (note) => DropdownMenuItem<int>(
+                            value: note.semitone,
+                            child: Text(note.label),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setSheetState(() {
+                        rootSemitone = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
@@ -1101,6 +1176,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                             setState(() {
                               _groupSettings[groupName] = _GroupSettings(
                                 bpm: bpm,
+                                rootSemitone: rootSemitone,
                               );
                             });
                             Navigator.of(context).pop();
@@ -1305,12 +1381,36 @@ int _bpmFromIndex(int index) {
   return _bpmOptions[clamped];
 }
 
+class _RootNoteOption {
+  const _RootNoteOption(this.label, this.semitone);
+
+  final String label;
+  final int semitone;
+}
+
+const _rootNoteOptions = [
+  _RootNoteOption('C', 0),
+  _RootNoteOption('C#', 1),
+  _RootNoteOption('D', 2),
+  _RootNoteOption('D#', 3),
+  _RootNoteOption('E', 4),
+  _RootNoteOption('F', 5),
+  _RootNoteOption('F#', 6),
+  _RootNoteOption('G', 7),
+  _RootNoteOption('G#', 8),
+  _RootNoteOption('A', 9),
+  _RootNoteOption('A#', 10),
+  _RootNoteOption('B', 11),
+];
+
 class _GroupSettings {
   const _GroupSettings({
     required this.bpm,
+    required this.rootSemitone,
   });
 
   final int bpm;
+  final int rootSemitone;
 }
 
 class _MiniEqualizer extends StatefulWidget {
