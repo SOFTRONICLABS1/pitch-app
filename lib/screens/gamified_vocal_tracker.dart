@@ -49,7 +49,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
   double _lastShotMs = 0.0;
   int _minTargetMidi = 60;
   int _maxTargetMidi = 72;
-  final List<int> _bpmOptions = List<int>.generate(29, (i) => 40 + i * 10);
+  final List<int> _bpmOptions = List<int>.generate(31, (i) => 20 + i * 10);
 
   @override
   void initState() {
@@ -371,6 +371,8 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
     final next = _targets.isEmpty || _currentIndex + 1 >= _targets.length
         ? null
         : _targets[_currentIndex + 1];
+    final targetXNorm =
+        current == null ? 0.5 : _targetXNorm(current.midi);
     final loopMs = _scaledLoopMs();
     final progress = _totalDurationMs == 0
         ? 0.0
@@ -448,6 +450,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
                             ? null
                             : _displayLabel(next.label, tuningSystem),
                         aimXNorm: _aimXNorm,
+                        targetXNorm: targetXNorm,
                         bullets: _bullets,
                         elapsedMs: _stopwatch.elapsedMilliseconds.toDouble(),
                         isMatch: isMatch,
@@ -768,6 +771,7 @@ class _AimBoard extends StatelessWidget {
     required this.targetLabel,
     required this.nextLabel,
     required this.aimXNorm,
+    required this.targetXNorm,
     required this.bullets,
     required this.elapsedMs,
     required this.isMatch,
@@ -776,6 +780,7 @@ class _AimBoard extends StatelessWidget {
   final String targetLabel;
   final String? nextLabel;
   final double aimXNorm;
+  final double? targetXNorm;
   final List<_Bullet> bullets;
   final double elapsedMs;
   final bool isMatch;
@@ -787,6 +792,7 @@ class _AimBoard extends StatelessWidget {
         targetLabel: targetLabel,
         nextLabel: nextLabel,
         aimXNorm: aimXNorm,
+        targetXNorm: targetXNorm,
         bullets: bullets,
         elapsedMs: elapsedMs,
         isMatch: isMatch,
@@ -801,6 +807,7 @@ class _AimBoardPainter extends CustomPainter {
     required this.targetLabel,
     required this.nextLabel,
     required this.aimXNorm,
+    required this.targetXNorm,
     required this.bullets,
     required this.elapsedMs,
     required this.isMatch,
@@ -809,13 +816,14 @@ class _AimBoardPainter extends CustomPainter {
   final String targetLabel;
   final String? nextLabel;
   final double aimXNorm;
+  final double? targetXNorm;
   final List<_Bullet> bullets;
   final double elapsedMs;
   final bool isMatch;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final centerX = size.width * 0.5;
+    final centerX = (targetXNorm ?? 0.5) * size.width;
     final targetY = size.height * 0.18;
     final targetRadius = min(size.width, size.height) * 0.12;
     final ringPaint = Paint()
@@ -915,6 +923,7 @@ class _AimBoardPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _AimBoardPainter oldDelegate) {
     return oldDelegate.aimXNorm != aimXNorm ||
+        (oldDelegate.targetXNorm ?? 0.5) != (targetXNorm ?? 0.5) ||
         oldDelegate.elapsedMs != elapsedMs ||
         oldDelegate.isMatch != isMatch ||
         oldDelegate.targetLabel != targetLabel ||
