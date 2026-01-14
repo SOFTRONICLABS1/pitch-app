@@ -55,6 +55,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   final GlobalKey<_EditableTargetOverlayState> _editOverlayKey =
       GlobalKey<_EditableTargetOverlayState>();
   int _bpm = 60;
+  int _baseOctave = PitchNotifier.defaultBaseOctave;
+  PitchNotifier? _pitchNotifier;
   DateTime? _frozenAt;
   int _viewportBaseMidi = 33;
   double _viewportOffset = 0.0;
@@ -89,7 +91,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   void initState() {
     super.initState();
     _recording = widget.recording;
-    final result = _targetBlocksFromRecording(_recording);
+    _pitchNotifier = context.read<PitchNotifier>();
+    _baseOctave = _pitchNotifier?.baseOctave ?? PitchNotifier.defaultBaseOctave;
+    _pitchNotifier?.addListener(_handleBaseOctaveChange);
+    final result =
+        _targetBlocksFromRecording(_recording, baseOctave: _baseOctave);
     _targets = result.blocks;
     _totalDurationMs = result.totalDurationMs;
     if (widget.initialBpm != null) {
@@ -114,6 +120,24 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
         pitchState.replaceHistory(const []);
       }
       pitchState.stop();
+    });
+  }
+
+  void _handleBaseOctaveChange() {
+    final next = _pitchNotifier?.baseOctave ?? PitchNotifier.defaultBaseOctave;
+    if (next == _baseOctave) return;
+    setState(() {
+      _baseOctave = next;
+      final result =
+          _targetBlocksFromRecording(_recording, baseOctave: _baseOctave);
+      _targets = result.blocks;
+      _totalDurationMs = result.totalDurationMs;
+      _lastTargetElapsedMs = 0.0;
+      _currentHarmonicsKey = null;
+      _targetElapsedOffset = _elapsed;
+      if (_targets.isNotEmpty) {
+        _initialBaseMidi = _computeInitialBaseMidi(_targets.first.midi);
+      }
     });
   }
 
@@ -147,6 +171,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   void dispose() {
     _harmonicsStopTimer?.cancel();
     _stopHarmonics();
+    _pitchNotifier?.removeListener(_handleBaseOctaveChange);
     try {
       final pitchState = context.read<PitchNotifier>();
       _stopTanpuraIfNeeded(pitchState);
@@ -491,7 +516,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     RecordingEntry updated, {
     bool preload = true,
   }) {
-    final result = _targetBlocksFromRecording(updated);
+    final result =
+        _targetBlocksFromRecording(updated, baseOctave: _baseOctave);
     if (preload) {
       _stopHarmonics();
     }
@@ -763,11 +789,12 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                                         commit: commit,
                                       );
                                     },
-                                onInsertNotes: _insertTargetsAt,
-                                onNoteChanged: _updateTargetNoteAt,
-                                bpm: _bpm,
-                              ),
-                            ),
+                                    onInsertNotes: _insertTargetsAt,
+                                    onNoteChanged: _updateTargetNoteAt,
+                                    bpm: _bpm,
+                                    baseOctave: _baseOctave,
+                                  ),
+                                ),
                         ],
                       ),
                     ),
@@ -1535,6 +1562,7 @@ class _EditableTargetOverlay extends StatefulWidget {
     required this.onInsertNotes,
     required this.onNoteChanged,
     required this.bpm,
+    required this.baseOctave,
   });
 
   final List<RecordedNote> notes;
@@ -1552,6 +1580,7 @@ class _EditableTargetOverlay extends StatefulWidget {
   final void Function(int insertIndex, List<String> notes) onInsertNotes;
   final void Function(int index, String label) onNoteChanged;
   final int bpm;
+  final int baseOctave;
 
   static const _msToWidth = 0.08;
   static const _minTileWidth = 24.0;
@@ -1686,7 +1715,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     setState(() {
       _pendingInsertIndex = insertIndex + 1;
       _pendingInsertMidi = null;
-      _lastFocusMidi = _midiFromNoteLabel(label);
+      _lastFocusMidi = _midiFromNoteLabel(label, widget.baseOctave);
     });
     _centerOnInsertColumn();
   }
@@ -1752,7 +1781,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           _hasInitialFocus = true;
           final normalized =
               _normalizeNoteForStorage(notes.first.note, tuningSystem);
-          final midi = _midiFromNoteLabel(normalized);
+          final midi = _midiFromNoteLabel(normalized, widget.baseOctave);
           if (midi != null) {
             _scrollToMidi(
               midi,
@@ -1829,6 +1858,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           final blockTop = _rowTopFor(
             midiFromNote: _midiFromNoteLabel(
               _normalizeNoteForStorage(note.note, tuningSystem),
+              widget.baseOctave,
             ),
             topMidi: extendedTopMidi,
             baseOffset: baseOffset,
@@ -2583,9 +2613,9 @@ class _InsertNotesSheet extends StatefulWidget {
 }
 
 class _InsertNotesSheetState extends State<_InsertNotesSheet> {
-  static const _defaultOctave = 3;
   static const _minOctave = 1;
   static const _maxOctave = 8;
+  int _defaultOctave = PitchNotifier.defaultBaseOctave;
 
   final List<String> _selectedNotes = [];
   final ScrollController _noteListController = ScrollController();
@@ -2616,6 +2646,7 @@ class _InsertNotesSheetState extends State<_InsertNotesSheet> {
   @override
   void initState() {
     super.initState();
+    _defaultOctave = context.read<PitchNotifier>().baseOctave;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _scrollToDefaultOctave();
@@ -3039,7 +3070,7 @@ class _ComposeRecordingSheetState extends State<_ComposeRecordingSheet> {
   static const _defaultDurationMs = 1000;
   static const _millisecondsPerSecond = 1000.0;
   static const _previewHeight = 170.0;
-  static const _defaultOctave = 3;
+  int _defaultOctave = PitchNotifier.defaultBaseOctave;
 
   _ComposeSheetStep _step = _ComposeSheetStep.select;
   final List<String> _selectedNotes = [];
@@ -3077,6 +3108,7 @@ class _ComposeRecordingSheetState extends State<_ComposeRecordingSheet> {
   @override
   void initState() {
     super.initState();
+    _defaultOctave = context.read<PitchNotifier>().baseOctave;
     final entry = widget.initialEntry;
     if (entry != null) {
       for (final note in entry.notes) {
@@ -3966,12 +3998,15 @@ class _TargetBuildResult {
   final int totalDurationMs;
 }
 
-_TargetBuildResult _targetBlocksFromRecording(RecordingEntry entry) {
+_TargetBuildResult _targetBlocksFromRecording(
+  RecordingEntry entry, {
+  required int baseOctave,
+}) {
   final targets = <_TargetBlock>[];
   var offsetMs = 0;
   for (final note in entry.notes) {
     final normalized = note.note.trim().toLowerCase();
-    final midi = _midiFromNoteLabel(normalized);
+    final midi = _midiFromNoteLabel(normalized, baseOctave);
     if (midi == null) {
       offsetMs += note.durationMs;
       continue;
@@ -3992,7 +4027,7 @@ _TargetBuildResult _targetBlocksFromRecording(RecordingEntry entry) {
   );
 }
 
-int? _midiFromNoteLabel(String note) {
+int? _midiFromNoteLabel(String note, int baseOctave) {
   if (note.isEmpty) return null;
   final match = RegExp(r'^([a-g])(#?)(-?\d+)$').firstMatch(note);
   if (match == null) return null;
@@ -4011,7 +4046,9 @@ int? _midiFromNoteLabel(String note) {
     _ => 0,
   };
   final semitone = base + (sharp == '#' ? 1 : 0);
-  return (octave + 1) * 12 + semitone;
+  final midi = (octave + 1) * 12 + semitone;
+  final offset = (baseOctave - PitchNotifier.defaultBaseOctave) * 12;
+  return midi + offset;
 }
 
 const _westernNoteLabels = [

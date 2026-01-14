@@ -25,6 +25,8 @@ class PitchNotifier extends ChangeNotifier {
     _tanpuraPlayer.setPlayerMode(PlayerMode.lowLatency);
   }
 
+  static const int defaultBaseOctave = 3;
+
   static const defaultSampleRate = 44100;
   static const _historySpan = Duration(seconds: 12);
 
@@ -45,6 +47,7 @@ class PitchNotifier extends ChangeNotifier {
   bool tanpuraPlaying = false;
   double tanpuraVolume = 0.3;
   bool recording = false;
+  int baseOctave = defaultBaseOctave;
 
   List<PitchPoint> history = [];
 
@@ -115,6 +118,13 @@ class PitchNotifier extends ChangeNotifier {
 
   void setDisplayMode(String value) {
     displayMode = value;
+    notifyListeners();
+  }
+
+  void setBaseOctave(int value) {
+    final next = value.clamp(1, 8);
+    if (next == baseOctave) return;
+    baseOctave = next;
     notifyListeners();
   }
 

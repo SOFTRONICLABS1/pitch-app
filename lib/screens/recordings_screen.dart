@@ -116,14 +116,14 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     return [
       RecordingEntry(
         id: 'default-mayamalavagowla',
-        name: 'Mayamalavagowla (C3–C4)',
+        name: 'Mayamalavagowla',
         createdAt: DateTime(2000, 1, 1),
         notes: notes,
         group: 'Mayamalavagowla',
       ),
       RecordingEntry(
         id: 'default-mayamalavagowla-sarale',
-        name: 'Mayamalavagowla Sarale Varase 001–014 (C3–C4)',
+        name: 'Mayamalavagowla Sarale Varase 001–014',
         createdAt: DateTime(2000, 1, 1),
         notes: _buildSaraleVaraseNotes(beatMs),
         group: 'Mayamalavagowla',
@@ -132,14 +132,14 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         RecordingEntry(
           id: 'default-mayamalavagowla-sarale-${i + 1}',
           name:
-              'Mayamalavagowla Sarale Varase ${(i + 1).toString().padLeft(3, '0')} (C3–C4)',
+              'Mayamalavagowla Sarale Varase ${(i + 1).toString().padLeft(3, '0')}',
           createdAt: DateTime(2000, 1, 1),
           notes: _buildSaraleVaraseNotes(beatMs, index: i),
           group: 'Mayamalavagowla',
         ),
       RecordingEntry(
         id: 'default-shankarabharanam',
-        name: 'Shankarabharanam (C3–C4)',
+        name: 'Shankarabharanam',
         createdAt: DateTime(2000, 1, 1),
         notes: const [
           RecordedNote(note: 'c3', durationMs: beatMs), // Sa
@@ -459,8 +459,9 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       return;
     }
     final token = ++_inlinePlaybackToken;
-    await _preloadInlineHarmonics(entry);
-    _buildInlineTargets(entry);
+    final baseOctave = context.read<PitchNotifier>().baseOctave;
+    await _preloadInlineHarmonics(entry, baseOctave);
+    _buildInlineTargets(entry, baseOctave);
     setState(() {
       _playingId = entry.id;
       _inlinePlaying = true;
@@ -498,12 +499,12 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     });
   }
 
-  void _buildInlineTargets(RecordingEntry entry) {
+  void _buildInlineTargets(RecordingEntry entry, int baseOctave) {
     final targets = <_InlineTargetBlock>[];
     var offsetMs = 0;
     for (final note in entry.notes) {
       final normalized = note.note.trim().toLowerCase();
-      final midi = _midiFromNoteLabel(normalized);
+      final midi = _midiFromNoteLabel(normalized, baseOctave: baseOctave);
       if (midi == null) {
         offsetMs += note.durationMs;
         continue;
@@ -597,10 +598,13 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     });
   }
 
-  Future<void> _preloadInlineHarmonics(RecordingEntry entry) async {
+  Future<void> _preloadInlineHarmonics(
+    RecordingEntry entry,
+    int baseOctave,
+  ) async {
     final assets = <String>[];
     for (final note in entry.notes) {
-      final midi = _midiFromNoteLabel(note.note);
+      final midi = _midiFromNoteLabel(note.note, baseOctave: baseOctave);
       final path = midi == null ? null : _harmonicsAssetForMidi(midi);
       if (path != null) {
         assets.add(path);
@@ -643,6 +647,10 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       appBar: AppBar(
         title: const Text('Ragas'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: _showGlobalSettings,
+          ),
           PopupMenuButton<_RecordingSort>(
             onSelected: (value) {
               setState(() {
@@ -806,7 +814,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     );
   }
 
-  int? _midiFromNoteLabel(String note) {
+  int? _midiFromNoteLabel(String note, {required int baseOctave}) {
     if (note.isEmpty) return null;
     final match = RegExp(r'^([a-g])(#?)(-?\d+)$').firstMatch(note);
     if (match == null) return null;
@@ -825,7 +833,9 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       _ => 0,
     };
     final semitone = base + (sharp == '#' ? 1 : 0);
-    return (octave + 1) * 12 + semitone;
+    final midi = (octave + 1) * 12 + semitone;
+    final offset = (baseOctave - PitchNotifier.defaultBaseOctave) * 12;
+    return midi + offset;
   }
 
   String? _harmonicsAssetForMidi(int midi) {
@@ -1093,6 +1103,92 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     );
   }
 
+  void _showGlobalSettings() {
+    final pitchState = context.read<PitchNotifier>();
+    var baseOctave = pitchState.baseOctave;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF23272B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Global settings',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Base octave',
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<int>(
+                    value: baseOctave,
+                    decoration: const InputDecoration(
+                      filled: true,
+                      fillColor: Color(0xFF2F353A),
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      for (var octave = 1; octave <= 8; octave++)
+                        DropdownMenuItem(
+                          value: octave,
+                          child: Text('Octave $octave'),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setSheetState(() {
+                        baseOctave = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () {
+                            pitchState.setBaseOctave(baseOctave);
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text('Save'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showComposeRecordingSheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -1285,7 +1381,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
   static const _defaultDurationMs = 1000;
   static const _millisecondsPerSecond = 1000.0;
   static const _previewHeight = 170.0;
-  static const _defaultOctave = 3;
+  int _defaultOctave = PitchNotifier.defaultBaseOctave;
 
   _SheetStep _step = _SheetStep.select;
   final List<String> _selectedNotes = [];
@@ -1323,6 +1419,7 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
   @override
   void initState() {
     super.initState();
+    _defaultOctave = context.read<PitchNotifier>().baseOctave;
     final entry = widget.initialEntry;
     if (entry != null) {
       for (final note in entry.notes) {
