@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import '../models/recording.dart';
 import '../services/recording_store.dart';
 import '../state/pitch_notifier.dart';
+import 'gamified_vocal_tracker.dart';
 import 'vocal_tracker.dart';
 
 class RecordingsScreen extends StatefulWidget {
@@ -412,6 +413,17 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     await _load();
   }
 
+  Future<void> _openGamifiedTracker(RecordingEntry entry) async {
+    if (_inlinePlaying) {
+      await _stopInlinePlayback();
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => GamifiedVocalTrackerScreen(recording: entry),
+      ),
+    );
+  }
+
   Future<void> _playRecording(RecordingEntry entry) async {
     if (_inlinePlaying) {
       await _stopInlinePlayback();
@@ -800,6 +812,10 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                 IconButton(
                   icon: const Icon(Icons.open_in_new),
                   onPressed: () => _openTracker(recording),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.sports_esports),
+                  onPressed: () => _openGamifiedTracker(recording),
                 ),
                 if (!isDefault)
                   IconButton(
