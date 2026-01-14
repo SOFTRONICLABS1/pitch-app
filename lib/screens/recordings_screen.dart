@@ -416,14 +416,10 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     if (_inlinePlaying) {
       await _stopInlinePlayback();
     }
-    final pitchState = context.read<PitchNotifier>();
     final groupName = entry.group?.trim().isNotEmpty == true
         ? entry.group!.trim()
         : _ungroupedLabel;
-    final settings = _groupSettingsFor(groupName, pitchState);
-    await pitchState.setTanpuraNote(settings.tanpuraNote);
-    await pitchState.setTanpuraString(settings.tanpuraString);
-    pitchState.setTanpuraVolume(settings.tanpuraVolume);
+    final settings = _groupSettingsFor(groupName);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -442,7 +438,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
             allowEdit: false,
             allowSettings: false,
             initialBpm: settings.bpm,
-            initialTanpuraEnabled: settings.tanpuraEnabled,
+            initialTanpuraEnabled: false,
           ),
         );
       },
@@ -469,17 +465,10 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       _playingId = entry.id;
       _inlinePlaying = true;
     });
-    final pitchState = context.read<PitchNotifier>();
     final groupName = entry.group?.trim().isNotEmpty == true
         ? entry.group!.trim()
         : _ungroupedLabel;
-    final settings = _groupSettingsFor(groupName, pitchState);
-    await pitchState.setTanpuraNote(settings.tanpuraNote);
-    await pitchState.setTanpuraString(settings.tanpuraString);
-    pitchState.setTanpuraVolume(settings.tanpuraVolume);
-    if (settings.tanpuraEnabled && !pitchState.tanpuraPlaying) {
-      await pitchState.toggleTanpura();
-    }
+    final settings = _groupSettingsFor(groupName);
     _inlineScale = 60.0 / settings.bpm.toDouble();
     _inlineLastTargetElapsedMs = 0.0;
     _inlineHarmonicsKey = null;
@@ -502,10 +491,6 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   }
 
   Future<void> _stopInlinePlayback() async {
-    final pitchState = context.read<PitchNotifier>();
-    if (pitchState.tanpuraPlaying) {
-      await pitchState.toggleTanpura();
-    }
     _inlinePlaybackToken++;
     _inlineTicker?.cancel();
     _inlineStopwatch = null;
@@ -723,7 +708,6 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   }
 
   Widget _buildGroupedList() {
-    final pitchState = context.watch<PitchNotifier>();
     final grouped = <String, List<RecordingEntry>>{};
     for (final recording in _recordings) {
       final group = recording.group?.trim().isNotEmpty == true
@@ -752,7 +736,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                 Expanded(child: Text(groupName)),
                 IconButton(
                   icon: const Icon(Icons.tune),
-                  onPressed: () => _showGroupSettings(groupName, pitchState),
+                  onPressed: () => _showGroupSettings(groupName),
                 ),
               ],
             ),
@@ -771,50 +755,51 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   Widget _buildRecordingTile(RecordingEntry recording) {
     final isDefault = _defaultRecordingIds.contains(recording.id);
     final isPlaying = _inlinePlaying && _playingId == recording.id;
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 8,
-      ),
-      title: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(child: Text(recording.name)),
-          const SizedBox(width: 10),
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            constraints: const BoxConstraints(),
-            padding: EdgeInsets.zero,
-            onPressed: () => _editRecording(recording),
-          ),
-        ],
-      ),
+    return InkWell(
       onTap: widget.onSelect == null ? null : () => widget.onSelect?.call(recording),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
-            onPressed: recording.notes.isEmpty
-                ? null
-                : () => _toggleInlinePlayback(recording),
-          ),
-          if (isPlaying)
-            const Padding(
-              padding: EdgeInsets.only(left: 4),
-              child: _MiniEqualizer(),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 10,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              flex: 3,
+              child: Text(recording.name),
             ),
-          const SizedBox(width: 6),
-          IconButton(
-            icon: const Icon(Icons.open_in_new),
-            onPressed: () => _openTracker(recording),
-          ),
-          const SizedBox(width: 6),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: isDefault ? null : () => _confirmDelete(recording),
-          ),
-        ],
+            Expanded(
+              flex: 2,
+              child: Center(
+                child: isPlaying ? const _MiniEqualizer() : const SizedBox(),
+              ),
+            ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
+                  onPressed: recording.notes.isEmpty
+                      ? null
+                      : () => _toggleInlinePlayback(recording),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit_outlined),
+                  onPressed: () => _editRecording(recording),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.open_in_new),
+                  onPressed: () => _openTracker(recording),
+                ),
+                if (!isDefault)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () => _confirmDelete(recording),
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -864,16 +849,10 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     return 'harmonics/${name}${octave}.wav';
   }
 
-  _GroupSettings _groupSettingsFor(String group, PitchNotifier state) {
+  _GroupSettings _groupSettingsFor(String group) {
     return _groupSettings.putIfAbsent(
       group,
-      () => _GroupSettings(
-        bpm: 60,
-        tanpuraEnabled: false,
-        tanpuraNote: _carnaticNoteFor(state.tanpuraNote) ?? 'Sa',
-        tanpuraString: _carnaticStringFor(state.tanpuraString) ?? 'Sa',
-        tanpuraVolume: state.tanpuraVolume,
-      ),
+      () => const _GroupSettings(bpm: 60),
     );
   }
 
@@ -1024,13 +1003,9 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     );
   }
 
-  void _showGroupSettings(String groupName, PitchNotifier state) {
-    final current = _groupSettingsFor(groupName, state);
+  void _showGroupSettings(String groupName) {
+    final current = _groupSettingsFor(groupName);
     var bpm = current.bpm;
-    var tanpuraEnabled = current.tanpuraEnabled;
-    var tanpuraNote = current.tanpuraNote;
-    var tanpuraString = current.tanpuraString;
-    var tanpuraVolume = current.tanpuraVolume;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF23272B),
@@ -1082,97 +1057,6 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                       });
                     },
                   ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Tanpura',
-                          style: Theme.of(context)
-                              .textTheme
-                              .labelLarge
-                              ?.copyWith(color: Colors.white70),
-                        ),
-                      ),
-                      Switch(
-                        value: tanpuraEnabled,
-                        onChanged: (value) {
-                          setSheetState(() {
-                            tanpuraEnabled = value;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                  if (tanpuraEnabled) ...[
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      value: tanpuraString,
-                      decoration: const InputDecoration(
-                        filled: true,
-                        fillColor: Color(0xFF2F353A),
-                        border: OutlineInputBorder(),
-                        labelText: 'First string',
-                      ),
-                      items: [
-                        for (final option in _tanpuraStringOptions)
-                          DropdownMenuItem(
-                            value: option.$2,
-                            child: Text('${option.$1} - ${option.$2}'),
-                          ),
-                      ],
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setSheetState(() {
-                          tanpuraString = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      value: tanpuraNote,
-                      decoration: const InputDecoration(
-                        filled: true,
-                        fillColor: Color(0xFF2F353A),
-                        border: OutlineInputBorder(),
-                        labelText: 'Note',
-                      ),
-                      items: [
-                        for (final option in _tanpuraNoteOptions)
-                          DropdownMenuItem(
-                            value: option.$2,
-                            child: Text('${option.$1} - ${option.$2}'),
-                          ),
-                      ],
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setSheetState(() {
-                          tanpuraNote = value;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 8),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Tanpura volume (${(tanpuraVolume * 100).round()}%)',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelLarge
-                            ?.copyWith(color: Colors.white70),
-                      ),
-                    ),
-                    Slider(
-                      value: tanpuraVolume,
-                      min: 0.0,
-                      max: 1.0,
-                      onChanged: (value) {
-                        setSheetState(() {
-                          tanpuraVolume = value;
-                        });
-                      },
-                    ),
-                  ],
                   const SizedBox(height: 12),
                   Row(
                     children: [
@@ -1189,10 +1073,6 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                             setState(() {
                               _groupSettings[groupName] = _GroupSettings(
                                 bpm: bpm,
-                                tanpuraEnabled: tanpuraEnabled,
-                                tanpuraNote: tanpuraNote,
-                                tanpuraString: tanpuraString,
-                                tanpuraVolume: tanpuraVolume,
                               );
                             });
                             Navigator.of(context).pop();
@@ -1279,28 +1159,14 @@ const _bpmOptions = [
   220,
   230,
   240,
-];
-
-const _tanpuraNoteOptions = [
-  ('C', 'Sa'),
-  ('C#', 'Ri1'),
-  ('D', 'Ri2'),
-  ('D#', 'Ga1'),
-  ('E', 'Ga2'),
-  ('F', 'Ma1'),
-  ('F#', 'Ma2'),
-  ('G', 'Pa'),
-  ('G#', 'Da1'),
-  ('A', 'Da2'),
-  ('A#', 'Ni1'),
-  ('B', 'Ni2'),
-];
-
-const _tanpuraStringOptions = [
-  ('C', 'Sa'),
-  ('G', 'Pa'),
-  ('F', 'Ma'),
-  ('B', 'Ni'),
+  250,
+  260,
+  270,
+  280,
+  290,
+  300,
+  310,
+  320,
 ];
 
 int _bpmIndex(int bpm) {
@@ -1325,64 +1191,12 @@ int _bpmFromIndex(int index) {
   return _bpmOptions[clamped];
 }
 
-String? _carnaticNoteFor(String value) {
-  const mapping = {
-    'C': 'Sa',
-    'C#': 'Ri1',
-    'D': 'Ri2',
-    'D#': 'Ga1',
-    'E': 'Ga2',
-    'F': 'Ma1',
-    'F#': 'Ma2',
-    'G': 'Pa',
-    'G#': 'Da1',
-    'A': 'Da2',
-    'A#': 'Ni1',
-    'B': 'Ni2',
-    'Sa': 'Sa',
-    'Ri1': 'Ri1',
-    'Ri2': 'Ri2',
-    'Ga1': 'Ga1',
-    'Ga2': 'Ga2',
-    'Ma1': 'Ma1',
-    'Ma2': 'Ma2',
-    'Pa': 'Pa',
-    'Da1': 'Da1',
-    'Da2': 'Da2',
-    'Ni1': 'Ni1',
-    'Ni2': 'Ni2',
-  };
-  return mapping[value];
-}
-
-String? _carnaticStringFor(String value) {
-  const mapping = {
-    'C': 'Sa',
-    'F': 'Ma',
-    'G': 'Pa',
-    'B': 'Ni',
-    'Sa': 'Sa',
-    'Ma': 'Ma',
-    'Pa': 'Pa',
-    'Ni': 'Ni',
-  };
-  return mapping[value];
-}
-
 class _GroupSettings {
   const _GroupSettings({
     required this.bpm,
-    required this.tanpuraEnabled,
-    required this.tanpuraNote,
-    required this.tanpuraString,
-    required this.tanpuraVolume,
   });
 
   final int bpm;
-  final bool tanpuraEnabled;
-  final String tanpuraNote;
-  final String tanpuraString;
-  final double tanpuraVolume;
 }
 
 class _MiniEqualizer extends StatefulWidget {
