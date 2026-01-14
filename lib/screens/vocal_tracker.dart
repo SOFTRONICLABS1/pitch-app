@@ -19,9 +19,22 @@ import '../widgets/pitch_controls.dart';
 import '../widgets/tuner_display.dart';
 
 class VocalTrackerScreen extends StatefulWidget {
-  const VocalTrackerScreen({super.key, required this.recording});
+  const VocalTrackerScreen({
+    super.key,
+    required this.recording,
+    this.readOnly = false,
+    this.allowEdit = true,
+    this.allowSettings = true,
+    this.initialBpm,
+    this.initialTanpuraEnabled = false,
+  });
 
   final RecordingEntry recording;
+  final bool readOnly;
+  final bool allowEdit;
+  final bool allowSettings;
+  final int? initialBpm;
+  final bool initialTanpuraEnabled;
 
   @override
   State<VocalTrackerScreen> createState() => _VocalTrackerScreenState();
@@ -79,6 +92,10 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     final result = _targetBlocksFromRecording(_recording);
     _targets = result.blocks;
     _totalDurationMs = result.totalDurationMs;
+    if (widget.initialBpm != null) {
+      _bpm = widget.initialBpm!;
+    }
+    _tanpuraEnabled = widget.initialTanpuraEnabled;
     if (_targets.isNotEmpty) {
       _initialBaseMidi = _computeInitialBaseMidi(_targets.first.midi);
     }
@@ -244,7 +261,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   }
 
   Future<void> _openEditRecording() async {
-    if (_editMode) return;
+    if (_editMode || !widget.allowEdit) return;
     if (_running) {
       await _handleStop(context.read<PitchNotifier>());
     }
@@ -662,10 +679,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                 icon: const Icon(Icons.delete_sweep_outlined),
                 onPressed: _clearAllEditNotes,
               ),
-            IconButton(
-              icon: const Icon(Icons.tune),
-              onPressed: _showBpmSettings,
-            ),
+            if (widget.allowSettings)
+              IconButton(
+                icon: const Icon(Icons.tune),
+                onPressed: _showBpmSettings,
+              ),
           ],
         ),
         body: SafeArea(
@@ -765,8 +783,23 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                         onTanpuraToggle: () => _toggleTanpura(state),
                         onConfirmEdit: () => _saveEditMode(),
                         onCancelEdit: () => _cancelEditMode(),
+                        showEdit: widget.allowEdit,
                       ),
-                    if (!_editMode)
+                    if (!_editMode && !widget.allowEdit)
+                      _PlayPauseBar(
+                        listening: state.listening,
+                        errorMessage: state.errorMessage,
+                        onStart: () => _handleStart(state),
+                        onStop: () => _handleStop(state),
+                        onEdit: _openEditRecording,
+                        editMode: false,
+                        tanpuraEnabled: _tanpuraEnabled,
+                        onTanpuraToggle: () => _toggleTanpura(state),
+                        onConfirmEdit: () => _saveEditMode(),
+                        onCancelEdit: () => _cancelEditMode(),
+                        showEdit: false,
+                      ),
+                    if (!_editMode && widget.allowEdit)
                       ControlBar(
                         listening: state.listening,
                         recording: state.recording,
@@ -1387,6 +1420,7 @@ class _PlayPauseBar extends StatelessWidget {
     required this.onTanpuraToggle,
     required this.onConfirmEdit,
     required this.onCancelEdit,
+    this.showEdit = true,
   });
 
   final bool listening;
@@ -1399,6 +1433,7 @@ class _PlayPauseBar extends StatelessWidget {
   final VoidCallback onTanpuraToggle;
   final VoidCallback onConfirmEdit;
   final VoidCallback onCancelEdit;
+  final bool showEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -1456,12 +1491,14 @@ class _PlayPauseBar extends StatelessWidget {
                   ),
                 Align(
                   alignment: Alignment.centerRight,
-                  child: IconButton(
-                    icon: Icon(
-                      editMode ? Icons.check : Icons.edit_outlined,
-                    ),
-                    onPressed: editMode ? onConfirmEdit : onEdit,
-                  ),
+                  child: showEdit
+                      ? IconButton(
+                          icon: Icon(
+                            editMode ? Icons.check : Icons.edit_outlined,
+                          ),
+                          onPressed: editMode ? onConfirmEdit : onEdit,
+                        )
+                      : const SizedBox.shrink(),
                 ),
               ],
             ),

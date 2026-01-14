@@ -1,5 +1,9 @@
+import 'dart:async';
 import 'dart:ui';
 
+import 'dart:math';
+
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -42,21 +46,50 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   };
   static const _ungroupedLabel = 'Ungrouped';
   _RecordingSort _sortOrder = _RecordingSort.createdDesc;
+  final Map<String, _GroupSettings> _groupSettings = {};
+  final AudioPlayer _inlinePlayer = AudioPlayer();
+  Timer? _inlineTicker;
+  Stopwatch? _inlineStopwatch;
+  List<_InlineTargetBlock> _inlineTargets = [];
+  int _inlineTotalDurationMs = 0;
+  double _inlineLastTargetElapsedMs = 0.0;
+  int? _inlineHarmonicsKey;
+  double _inlineScale = 1.0;
+  String? _playingId;
+  int _inlinePlaybackToken = 0;
+  bool _inlinePlaying = false;
 
   @override
   void initState() {
     super.initState();
+    _inlinePlayer.setReleaseMode(ReleaseMode.stop);
+    _inlinePlayer.setPlayerMode(PlayerMode.lowLatency);
     _load();
+  }
+
+  @override
+  void dispose() {
+    _inlinePlaybackToken++;
+    _inlineTicker?.cancel();
+    _inlinePlayer.stop();
+    _inlinePlayer.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
     final list = await RecordingStore.instance.load();
+    final savedById = <String, RecordingEntry>{
+      for (final entry in list) entry.id: entry,
+    };
+    final defaults = _buildDefaultRecordings();
+    final merged = [
+      for (final entry in defaults) savedById[entry.id] ?? entry,
+      for (final entry in list)
+        if (!_defaultRecordingIds.contains(entry.id)) entry,
+    ];
     if (!mounted) return;
     setState(() {
-      _recordings = [
-        ..._buildDefaultRecordings(),
-        ...list,
-      ];
+      _recordings = merged;
       _loading = false;
     });
   }
@@ -136,33 +169,33 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         'S n d p | m g | r s ||',
       ],
       [
-        's r - s r - | s r | g m ||',
+        's r s r | s r | g m ||',
         's r g m | p d | n S ||',
-        'S n - S n - | S n | d p ||',
+        'S n S n | S n | d p ||',
         'S n d p | m g | r s ||',
       ],
       [
-        's r g - s | r g - | s r ||',
+        's r g s | r g | s r ||',
         's r g m | p d | n S ||',
-        'S n d - s | n d - | s n ||',
+        'S n d S | n d | S n ||',
         'S n d p | m g | r s ||',
       ],
       [
-        's r g m - | s r | g m - ||',
-        's r g m | p d | n s ||',
-        'S n d p - | S n | d p - ||',
+        's r g m | s r | g m ||',
+        's r g m | p d | n S ||',
+        'S n d p | S n | d p ||',
         'S n d p | m g | r s ||',
       ],
       [
-        's r g m | p , - | s r ||',
+        's r g m | p - | s r ||',
         's r g m | p d | n S ||',
-        'S n d p | m , - | S n ||',
+        'S n d p | m - | S n ||',
         'S n d p | m g | r s ||',
       ],
       [
-        's r g m | p d - | s r ||',
+        's r g m | p d | s r ||',
         's r g m | p d | n S ||',
-        'S n d p | m g - | S n ||',
+        'S n d p | m g | S n ||',
         'S n d p | m g | r s ||',
       ],
       [
@@ -184,33 +217,33 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         'S n d p | m g | r s ||',
       ],
       [
-        's r g m | p , | g m ||',
-        'p , , , | p , | , , ||',
+        's r g m | p - | g m ||',
+        'p - - - | p - | - - ||',
         'g m p d | n d | p m ||',
-        'g m p - g | m g | r s ||',
+        'g m p g | m g | r s ||',
       ],
       [
-        'S , n d | n , | d p ||',
-        'd , p m | p , | p , ||',
+        'S - n d | n - | d p ||',
+        'd - p m | p - | p - ||',
         'g m p d | n d | p m ||',
-        'g m p - g | m g | r s ||',
+        'g m p g | m g | r s ||',
       ],
       [
         'S S n d | n n | d p ||',
         'd d p m | p , | p , ||',
         'g m p d | n d | p m ||',
-        'g m p - g | m g | r s ||',
+        'g m p g | m g | r s ||',
       ],
       [
-        's r g r | g , - | g m ||',
-        'p m p , - | d p | d , ||',
+        's r g r | g - | g m ||',
+        'p m p - | d p | d - ||',
         'm p d p | d n | d p ||',
         'm p d p | m g | r s ||',
       ],
       [
-        's r g m | p , | p , ||',
-        'd d p , | m m | p , ||',
-        'd n S , | S n | d p ||',
+        's r g m | p - | p - ||',
+        'd d p - | m m | p - ||',
+        'd n S - | S n | d p ||',
         'S n d p | m g | r s ||',
       ],
     ];
@@ -376,6 +409,220 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     await _load();
   }
 
+  Future<void> _playRecording(RecordingEntry entry) async {
+    final pitchState = context.read<PitchNotifier>();
+    final groupName = entry.group?.trim().isNotEmpty == true
+        ? entry.group!.trim()
+        : _ungroupedLabel;
+    final settings = _groupSettingsFor(groupName, pitchState);
+    await pitchState.setTanpuraNote(settings.tanpuraNote);
+    await pitchState.setTanpuraString(settings.tanpuraString);
+    pitchState.setTanpuraVolume(settings.tanpuraVolume);
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final height = MediaQuery.of(context).size.height * 0.9;
+        return Container(
+          height: height,
+          decoration: const BoxDecoration(
+            color: Color(0xFF1E2226),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: VocalTrackerScreen(
+            recording: entry,
+            readOnly: true,
+            allowEdit: false,
+            allowSettings: false,
+            initialBpm: settings.bpm,
+            initialTanpuraEnabled: settings.tanpuraEnabled,
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _toggleInlinePlayback(RecordingEntry entry) async {
+    if (_inlinePlaying && _playingId == entry.id) {
+      await _stopInlinePlayback();
+      return;
+    }
+    await _startInlinePlayback(entry);
+  }
+
+  Future<void> _startInlinePlayback(RecordingEntry entry) async {
+    await _stopInlinePlayback();
+    if (entry.notes.isEmpty) {
+      return;
+    }
+    final token = ++_inlinePlaybackToken;
+    await _preloadInlineHarmonics(entry);
+    _buildInlineTargets(entry);
+    setState(() {
+      _playingId = entry.id;
+      _inlinePlaying = true;
+    });
+    final pitchState = context.read<PitchNotifier>();
+    final groupName = entry.group?.trim().isNotEmpty == true
+        ? entry.group!.trim()
+        : _ungroupedLabel;
+    final settings = _groupSettingsFor(groupName, pitchState);
+    await pitchState.setTanpuraNote(settings.tanpuraNote);
+    await pitchState.setTanpuraString(settings.tanpuraString);
+    pitchState.setTanpuraVolume(settings.tanpuraVolume);
+    if (settings.tanpuraEnabled && !pitchState.tanpuraPlaying) {
+      await pitchState.toggleTanpura();
+    }
+    _inlineScale = 60.0 / settings.bpm.toDouble();
+    _inlineLastTargetElapsedMs = 0.0;
+    _inlineHarmonicsKey = null;
+    _inlineStopwatch = Stopwatch()..start();
+    _inlineTicker?.cancel();
+    _inlineTicker = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      if (!_inlinePlaying || _inlinePlaybackToken != token) {
+        timer.cancel();
+        return;
+      }
+      final elapsedMs = _inlineStopwatch?.elapsedMilliseconds ?? 0;
+      final totalMs = (_inlineTotalDurationMs * _inlineScale).round();
+      if (elapsedMs >= totalMs) {
+        unawaited(_stopInlinePlayback());
+        timer.cancel();
+        return;
+      }
+      _updateInlineHarmonics(elapsedMs.toDouble());
+    });
+  }
+
+  Future<void> _stopInlinePlayback() async {
+    final pitchState = context.read<PitchNotifier>();
+    if (pitchState.tanpuraPlaying) {
+      await pitchState.toggleTanpura();
+    }
+    _inlinePlaybackToken++;
+    _inlineTicker?.cancel();
+    _inlineStopwatch = null;
+    _inlineHarmonicsKey = null;
+    _inlineLastTargetElapsedMs = 0.0;
+    await _inlinePlayer.stop();
+    if (!mounted) return;
+    setState(() {
+      _inlinePlaying = false;
+      _playingId = null;
+    });
+  }
+
+  void _buildInlineTargets(RecordingEntry entry) {
+    final targets = <_InlineTargetBlock>[];
+    var offsetMs = 0;
+    for (final note in entry.notes) {
+      final normalized = note.note.trim().toLowerCase();
+      final midi = _midiFromNoteLabel(normalized);
+      if (midi == null) {
+        offsetMs += note.durationMs;
+        continue;
+      }
+      targets.add(
+        _InlineTargetBlock(
+          midi: midi,
+          durationMs: note.durationMs,
+          startOffsetMs: offsetMs,
+        ),
+      );
+      offsetMs += note.durationMs;
+    }
+    _inlineTargets = targets;
+    _inlineTotalDurationMs = max(0, offsetMs);
+  }
+
+  void _updateInlineHarmonics(double elapsedMs) {
+    if (_inlineTargets.isEmpty || _inlineTotalDurationMs <= 0) {
+      return;
+    }
+    var previousElapsedMs = _inlineLastTargetElapsedMs;
+    if (previousElapsedMs > elapsedMs) {
+      previousElapsedMs = elapsedMs;
+    }
+    if (elapsedMs <= previousElapsedMs) {
+      return;
+    }
+    final scale = _inlineScale;
+    int? index;
+    double? durationMs;
+    double? bestStart;
+    double? bestEnd;
+    const gapMs = 60.0;
+    for (var i = 0; i < _inlineTargets.length; i++) {
+      final start = _inlineTargets[i].startOffsetMs * scale;
+      final duration = _inlineTargets[i].durationMs * scale;
+      final end = start + duration;
+      final effectiveEnd = end - min(gapMs, duration * 0.5);
+      final overlaps =
+          effectiveEnd >= previousElapsedMs && start <= elapsedMs;
+      if (!overlaps) {
+        continue;
+      }
+      if (start <= elapsedMs && (bestStart == null || start >= bestStart)) {
+        bestStart = start;
+        bestEnd = end;
+        index = i;
+        durationMs = duration;
+      }
+    }
+
+    _inlineLastTargetElapsedMs = elapsedMs;
+    if (index == null || durationMs == null) {
+      return;
+    }
+    final effectiveDuration = max(0.0, durationMs - gapMs);
+    final key = index;
+    if (_inlineHarmonicsKey == key) {
+      final end = bestEnd ?? 0.0;
+      if (end <= previousElapsedMs) {
+        _inlineHarmonicsKey = null;
+      } else {
+        return;
+      }
+    }
+    _inlineHarmonicsKey = key;
+    _playInlineHarmonic(_inlineTargets[index], effectiveDuration);
+  }
+
+  void _playInlineHarmonic(_InlineTargetBlock block, double durationMs) {
+    final path = _harmonicsAssetForMidi(block.midi);
+    if (path == null) {
+      return;
+    }
+    unawaited(_inlinePlayer.stop());
+    unawaited(_inlinePlayer.play(AssetSource(path), volume: 1.0));
+    final duration = durationMs.clamp(50, 600000).toDouble();
+    Timer(Duration(milliseconds: duration.round()), () {
+      if (_inlinePlaying) {
+        _inlinePlayer.stop();
+      }
+    });
+  }
+
+  Future<void> _preloadInlineHarmonics(RecordingEntry entry) async {
+    final assets = <String>[];
+    for (final note in entry.notes) {
+      final midi = _midiFromNoteLabel(note.note);
+      final path = midi == null ? null : _harmonicsAssetForMidi(midi);
+      if (path != null) {
+        assets.add(path);
+      }
+    }
+    final unique = assets.toSet().toList();
+    for (final path in unique) {
+      try {
+        await rootBundle.load(path);
+      } catch (_) {
+        // Ignore missing assets; playback will also skip.
+      }
+    }
+  }
+
   Future<void> _openNewTracker() async {
     final meta = await _showCreateRecordingDialog();
     if (meta == null || meta.name.trim().isEmpty) {
@@ -470,6 +717,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   }
 
   Widget _buildGroupedList() {
+    final pitchState = context.watch<PitchNotifier>();
     final grouped = <String, List<RecordingEntry>>{};
     for (final recording in _recordings) {
       final group = recording.group?.trim().isNotEmpty == true
@@ -493,7 +741,15 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         return Card(
           child: ExpansionTile(
             initiallyExpanded: index == 0,
-            title: Text(groupName),
+            title: Row(
+              children: [
+                Expanded(child: Text(groupName)),
+                IconButton(
+                  icon: const Icon(Icons.tune),
+                  onPressed: () => _showGroupSettings(groupName, pitchState),
+                ),
+              ],
+            ),
             children: [
               for (var i = 0; i < items.length; i++) ...[
                 _buildRecordingTile(items[i]),
@@ -508,6 +764,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
 
   Widget _buildRecordingTile(RecordingEntry recording) {
     final isDefault = _defaultRecordingIds.contains(recording.id);
+    final isPlaying = _inlinePlaying && _playingId == recording.id;
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(
         horizontal: 16,
@@ -531,8 +788,20 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            icon: const Icon(Icons.play_arrow),
-            onPressed: recording.notes.isEmpty ? null : () => _openTracker(recording),
+            icon: Icon(isPlaying ? Icons.pause : Icons.play_arrow),
+            onPressed: recording.notes.isEmpty
+                ? null
+                : () => _toggleInlinePlayback(recording),
+          ),
+          if (isPlaying)
+            const Padding(
+              padding: EdgeInsets.only(left: 4),
+              child: _MiniEqualizer(),
+            ),
+          const SizedBox(width: 6),
+          IconButton(
+            icon: const Icon(Icons.open_in_new),
+            onPressed: () => _openTracker(recording),
           ),
           const SizedBox(width: 6),
           IconButton(
@@ -540,6 +809,64 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
             onPressed: isDefault ? null : () => _confirmDelete(recording),
           ),
         ],
+      ),
+    );
+  }
+
+  int? _midiFromNoteLabel(String note) {
+    if (note.isEmpty) return null;
+    final match = RegExp(r'^([a-g])(#?)(-?\d+)$').firstMatch(note);
+    if (match == null) return null;
+    final name = match.group(1);
+    final sharp = match.group(2);
+    final octave = int.tryParse(match.group(3) ?? '');
+    if (name == null || octave == null) return null;
+    final base = switch (name) {
+      'c' => 0,
+      'd' => 2,
+      'e' => 4,
+      'f' => 5,
+      'g' => 7,
+      'a' => 9,
+      'b' => 11,
+      _ => 0,
+    };
+    final semitone = base + (sharp == '#' ? 1 : 0);
+    return (octave + 1) * 12 + semitone;
+  }
+
+  String? _harmonicsAssetForMidi(int midi) {
+    const names = [
+      'c',
+      'csharp',
+      'd',
+      'dsharp',
+      'e',
+      'f',
+      'fsharp',
+      'g',
+      'gsharp',
+      'a',
+      'asharp',
+      'b',
+    ];
+    final octave = (midi / 12).floor() - 1;
+    if (octave < 0 || octave > 8) {
+      return null;
+    }
+    final name = names[midi % 12];
+    return 'harmonics/${name}${octave}.wav';
+  }
+
+  _GroupSettings _groupSettingsFor(String group, PitchNotifier state) {
+    return _groupSettings.putIfAbsent(
+      group,
+      () => _GroupSettings(
+        bpm: 60,
+        tanpuraEnabled: false,
+        tanpuraNote: _carnaticNoteFor(state.tanpuraNote) ?? 'Sa',
+        tanpuraString: _carnaticStringFor(state.tanpuraString) ?? 'Sa',
+        tanpuraVolume: state.tanpuraVolume,
       ),
     );
   }
@@ -691,6 +1018,193 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     );
   }
 
+  void _showGroupSettings(String groupName, PitchNotifier state) {
+    final current = _groupSettingsFor(groupName, state);
+    var bpm = current.bpm;
+    var tanpuraEnabled = current.tanpuraEnabled;
+    var tanpuraNote = current.tanpuraNote;
+    var tanpuraString = current.tanpuraString;
+    var tanpuraVolume = current.tanpuraVolume;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: const Color(0xFF23272B),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$groupName settings',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'BPM',
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$bpm',
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Slider(
+                    value: _bpmIndex(bpm).toDouble(),
+                    min: 0,
+                    max: (_bpmOptions.length - 1).toDouble(),
+                    divisions: _bpmOptions.length - 1,
+                    onChanged: (value) {
+                      final next = _bpmFromIndex(value.round());
+                      setSheetState(() {
+                        bpm = next;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Tanpura',
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelLarge
+                              ?.copyWith(color: Colors.white70),
+                        ),
+                      ),
+                      Switch(
+                        value: tanpuraEnabled,
+                        onChanged: (value) {
+                          setSheetState(() {
+                            tanpuraEnabled = value;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                  if (tanpuraEnabled) ...[
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: tanpuraString,
+                      decoration: const InputDecoration(
+                        filled: true,
+                        fillColor: Color(0xFF2F353A),
+                        border: OutlineInputBorder(),
+                        labelText: 'First string',
+                      ),
+                      items: [
+                        for (final option in _tanpuraStringOptions)
+                          DropdownMenuItem(
+                            value: option.$2,
+                            child: Text('${option.$1} - ${option.$2}'),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setSheetState(() {
+                          tanpuraString = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: tanpuraNote,
+                      decoration: const InputDecoration(
+                        filled: true,
+                        fillColor: Color(0xFF2F353A),
+                        border: OutlineInputBorder(),
+                        labelText: 'Note',
+                      ),
+                      items: [
+                        for (final option in _tanpuraNoteOptions)
+                          DropdownMenuItem(
+                            value: option.$2,
+                            child: Text('${option.$1} - ${option.$2}'),
+                          ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setSheetState(() {
+                          tanpuraNote = value;
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Tanpura volume (${(tanpuraVolume * 100).round()}%)',
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelLarge
+                            ?.copyWith(color: Colors.white70),
+                      ),
+                    ),
+                    Slider(
+                      value: tanpuraVolume,
+                      min: 0.0,
+                      max: 1.0,
+                      onChanged: (value) {
+                        setSheetState(() {
+                          tanpuraVolume = value;
+                        });
+                      },
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Cancel'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () {
+                            setState(() {
+                              _groupSettings[groupName] = _GroupSettings(
+                                bpm: bpm,
+                                tanpuraEnabled: tanpuraEnabled,
+                                tanpuraNote: tanpuraNote,
+                                tanpuraString: tanpuraString,
+                                tanpuraVolume: tanpuraVolume,
+                              );
+                            });
+                            Navigator.of(context).pop();
+                          },
+                          child: const Text('Save'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _showComposeRecordingSheet() {
     showModalBottomSheet<void>(
       context: context,
@@ -716,11 +1230,220 @@ class _RecordingMeta {
   final String? group;
 }
 
+class _InlineTargetBlock {
+  const _InlineTargetBlock({
+    required this.midi,
+    required this.durationMs,
+    required this.startOffsetMs,
+  });
+
+  final int midi;
+  final int durationMs;
+  final int startOffsetMs;
+}
+
 enum _RecordingSort {
   nameAsc,
   nameDesc,
   createdAsc,
   createdDesc,
+}
+
+const _bpmOptions = [
+  20,
+  30,
+  40,
+  50,
+  60,
+  70,
+  80,
+  90,
+  100,
+  110,
+  120,
+  130,
+  140,
+  150,
+  160,
+  170,
+  180,
+  190,
+  200,
+  210,
+  220,
+  230,
+  240,
+];
+
+const _tanpuraNoteOptions = [
+  ('C', 'Sa'),
+  ('C#', 'Ri1'),
+  ('D', 'Ri2'),
+  ('D#', 'Ga1'),
+  ('E', 'Ga2'),
+  ('F', 'Ma1'),
+  ('F#', 'Ma2'),
+  ('G', 'Pa'),
+  ('G#', 'Da1'),
+  ('A', 'Da2'),
+  ('A#', 'Ni1'),
+  ('B', 'Ni2'),
+];
+
+const _tanpuraStringOptions = [
+  ('C', 'Sa'),
+  ('G', 'Pa'),
+  ('F', 'Ma'),
+  ('B', 'Ni'),
+];
+
+int _bpmIndex(int bpm) {
+  final index = _bpmOptions.indexOf(bpm);
+  if (index != -1) {
+    return index;
+  }
+  var closestIndex = 0;
+  var closestDelta = (bpm - _bpmOptions[0]).abs();
+  for (var i = 1; i < _bpmOptions.length; i++) {
+    final delta = (bpm - _bpmOptions[i]).abs();
+    if (delta < closestDelta) {
+      closestDelta = delta;
+      closestIndex = i;
+    }
+  }
+  return closestIndex;
+}
+
+int _bpmFromIndex(int index) {
+  final clamped = index.clamp(0, _bpmOptions.length - 1);
+  return _bpmOptions[clamped];
+}
+
+String? _carnaticNoteFor(String value) {
+  const mapping = {
+    'C': 'Sa',
+    'C#': 'Ri1',
+    'D': 'Ri2',
+    'D#': 'Ga1',
+    'E': 'Ga2',
+    'F': 'Ma1',
+    'F#': 'Ma2',
+    'G': 'Pa',
+    'G#': 'Da1',
+    'A': 'Da2',
+    'A#': 'Ni1',
+    'B': 'Ni2',
+    'Sa': 'Sa',
+    'Ri1': 'Ri1',
+    'Ri2': 'Ri2',
+    'Ga1': 'Ga1',
+    'Ga2': 'Ga2',
+    'Ma1': 'Ma1',
+    'Ma2': 'Ma2',
+    'Pa': 'Pa',
+    'Da1': 'Da1',
+    'Da2': 'Da2',
+    'Ni1': 'Ni1',
+    'Ni2': 'Ni2',
+  };
+  return mapping[value];
+}
+
+String? _carnaticStringFor(String value) {
+  const mapping = {
+    'C': 'Sa',
+    'F': 'Ma',
+    'G': 'Pa',
+    'B': 'Ni',
+    'Sa': 'Sa',
+    'Ma': 'Ma',
+    'Pa': 'Pa',
+    'Ni': 'Ni',
+  };
+  return mapping[value];
+}
+
+class _GroupSettings {
+  const _GroupSettings({
+    required this.bpm,
+    required this.tanpuraEnabled,
+    required this.tanpuraNote,
+    required this.tanpuraString,
+    required this.tanpuraVolume,
+  });
+
+  final int bpm;
+  final bool tanpuraEnabled;
+  final String tanpuraNote;
+  final String tanpuraString;
+  final double tanpuraVolume;
+}
+
+class _MiniEqualizer extends StatefulWidget {
+  const _MiniEqualizer();
+
+  @override
+  State<_MiniEqualizer> createState() => _MiniEqualizerState();
+}
+
+class _MiniEqualizerState extends State<_MiniEqualizer>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  double _barHeight(double t, double phase) {
+    final value = (sin((t + phase) * pi * 2) + 1) / 2;
+    return 6 + (value * 10);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 20,
+      height: 16,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          final t = _controller.value;
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _Bar(height: _barHeight(t, 0.0)),
+              _Bar(height: _barHeight(t, 0.2)),
+              _Bar(height: _barHeight(t, 0.4)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _Bar extends StatelessWidget {
+  const _Bar({required this.height});
+
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 4,
+      height: height,
+      decoration: BoxDecoration(
+        color: Colors.greenAccent,
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
+  }
 }
 
 class _AddRecordingSheet extends StatefulWidget {
