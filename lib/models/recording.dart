@@ -23,18 +23,21 @@ class RecordingEntry {
     required this.name,
     required this.createdAt,
     required this.notes,
+    this.group,
   });
 
   final String id;
   final String name;
   final DateTime createdAt;
   final List<RecordedNote> notes;
+  final String? group;
 
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
         'createdAt': createdAt.toIso8601String(),
         'notes': notes.map((note) => note.toJson()).toList(),
+        'group': group,
       };
 
   static RecordingEntry fromJson(Map<String, dynamic> json) {
@@ -47,6 +50,7 @@ class RecordingEntry {
           .whereType<Map<String, dynamic>>()
           .map(RecordedNote.fromJson)
           .toList(),
+      group: json['group'] as String?,
     );
   }
 }

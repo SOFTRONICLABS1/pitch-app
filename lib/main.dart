@@ -306,6 +306,7 @@ Future<void> _handleRecording(
     name: name,
     createdAt: draft.endedAt,
     notes: draft.notes,
+    group: null,
   );
   await RecordingStore.instance.save(entry);
   if (!context.mounted) return;

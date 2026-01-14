@@ -262,12 +262,13 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     if (!_editMode) return;
     final notes = _editNotes;
     if (notes != null && _editDirty) {
-      final updated = RecordingEntry(
-        id: _recording.id,
-        name: _recording.name,
-        createdAt: _recording.createdAt,
-        notes: notes,
-      );
+    final updated = RecordingEntry(
+      id: _recording.id,
+      name: _recording.name,
+      createdAt: _recording.createdAt,
+      notes: notes,
+      group: _recording.group,
+    );
       await RecordingStore.instance.update(updated);
       _applyRecordingUpdate(updated);
     }
@@ -564,6 +565,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       name: name,
       createdAt: draft.endedAt,
       notes: draft.notes,
+      group: null,
     );
     await RecordingStore.instance.save(entry);
     await _handleStop(state);

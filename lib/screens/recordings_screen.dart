@@ -40,6 +40,8 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     'default-mayamalavagowla-sarale-13',
     'default-mayamalavagowla-sarale-14',
   };
+  static const _ungroupedLabel = 'Ungrouped';
+  _RecordingSort _sortOrder = _RecordingSort.createdDesc;
 
   @override
   void initState() {
@@ -84,19 +86,23 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         name: 'Mayamalavagowla (C3–C4)',
         createdAt: DateTime(2000, 1, 1),
         notes: notes,
+        group: 'Mayamalavagowla',
       ),
       RecordingEntry(
         id: 'default-mayamalavagowla-sarale',
-        name: 'Mayamalavagowla Sarale Varase 1–14 (C3–C4)',
+        name: 'Mayamalavagowla Sarale Varase 001–014 (C3–C4)',
         createdAt: DateTime(2000, 1, 1),
         notes: _buildSaraleVaraseNotes(beatMs),
+        group: 'Mayamalavagowla',
       ),
       for (var i = 0; i < _saraleVaraseSequences.length; i++)
         RecordingEntry(
           id: 'default-mayamalavagowla-sarale-${i + 1}',
-          name: 'Mayamalavagowla Sarale Varase ${i + 1} (C3–C4)',
+          name:
+              'Mayamalavagowla Sarale Varase ${(i + 1).toString().padLeft(3, '0')} (C3–C4)',
           createdAt: DateTime(2000, 1, 1),
           notes: _buildSaraleVaraseNotes(beatMs, index: i),
+          group: 'Mayamalavagowla',
         ),
       RecordingEntry(
         id: 'default-shankarabharanam',
@@ -119,6 +125,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
           RecordedNote(note: 'd3', durationMs: beatMs), // Ri2
           RecordedNote(note: 'c3', durationMs: beatMs), // Sa
         ],
+        group: 'Shankarabharanam',
       ),
     ];
   }
@@ -308,14 +315,26 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
 
   void _editRecording(RecordingEntry entry) {
     final controller = TextEditingController(text: entry.name);
+    final groupController = TextEditingController(text: entry.group ?? '');
+    final options = _groupOptions();
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Rename recording'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Recording name'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Recording name'),
+            ),
+            const SizedBox(height: 12),
+            _buildGroupField(
+              controller: groupController,
+              options: options,
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -328,11 +347,13 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
               if (name.isEmpty) {
                 return;
               }
+              final group = groupController.text.trim();
               final updated = RecordingEntry(
                 id: entry.id,
                 name: name,
                 createdAt: entry.createdAt,
                 notes: entry.notes,
+                group: group.isEmpty ? null : group,
               );
               await RecordingStore.instance.update(updated);
               if (!mounted) return;
@@ -356,11 +377,16 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   }
 
   Future<void> _openNewTracker() async {
+    final meta = await _showCreateRecordingDialog();
+    if (meta == null || meta.name.trim().isEmpty) {
+      return;
+    }
     final entry = RecordingEntry(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      name: 'Recording ${_recordings.length + 1}',
+      name: meta.name.trim(),
       createdAt: DateTime.now(),
       notes: const [],
+      group: meta.group?.trim().isEmpty == true ? null : meta.group,
     );
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -377,6 +403,34 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       appBar: AppBar(
         title: const Text('Ragas'),
         actions: [
+          PopupMenuButton<_RecordingSort>(
+            onSelected: (value) {
+              setState(() {
+                _sortOrder = value == _RecordingSort.nameAsc ||
+                        value == _RecordingSort.nameDesc
+                    ? (_sortOrder == _RecordingSort.nameAsc
+                        ? _RecordingSort.nameDesc
+                        : _RecordingSort.nameAsc)
+                    : (_sortOrder == _RecordingSort.createdAsc
+                        ? _RecordingSort.createdDesc
+                        : _RecordingSort.createdAsc);
+              });
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: _RecordingSort.nameAsc,
+                child: Text(
+                  'Name ${_sortOrder == _RecordingSort.nameAsc ? '↑' : '↓'}',
+                ),
+              ),
+              PopupMenuItem(
+                value: _RecordingSort.createdAsc,
+                child: Text(
+                  'Created ${_sortOrder == _RecordingSort.createdAsc ? '↑' : '↓'}',
+                ),
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.add),
             onPressed: _openNewTracker,
@@ -411,59 +465,191 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                     ),
                   ),
                 )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                  itemCount: _recordings.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final recording = _recordings[index];
-                    final isDefault =
-                        _defaultRecordingIds.contains(recording.id);
-                    return Card(
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        title: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(child: Text(recording.name)),
-                            const SizedBox(width: 10),
-                            IconButton(
-                              icon: const Icon(Icons.edit_outlined),
-                              constraints: const BoxConstraints(),
-                              padding: EdgeInsets.zero,
-                              onPressed: () => _editRecording(recording),
-                            ),
-                          ],
-                        ),
-                        onTap: widget.onSelect == null
-                            ? null
-                            : () => widget.onSelect?.call(recording),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.play_arrow),
-                              onPressed: recording.notes.isEmpty
-                                  ? null
-                                  : () => _openTracker(recording),
-                            ),
-                            const SizedBox(width: 6),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline),
-                              onPressed: isDefault
-                                  ? null
-                                  : () => _confirmDelete(recording),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+              : _buildGroupedList(),
     );
+  }
+
+  Widget _buildGroupedList() {
+    final grouped = <String, List<RecordingEntry>>{};
+    for (final recording in _recordings) {
+      final group = recording.group?.trim().isNotEmpty == true
+          ? recording.group!.trim()
+          : _ungroupedLabel;
+      grouped.putIfAbsent(group, () => []).add(recording);
+    }
+    final groups = grouped.keys.toList()
+      ..sort((a, b) {
+        if (a == _ungroupedLabel) return 1;
+        if (b == _ungroupedLabel) return -1;
+        return a.toLowerCase().compareTo(b.toLowerCase());
+      });
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+      itemCount: groups.length,
+      itemBuilder: (context, index) {
+        final groupName = groups[index];
+        final items = _sortedRecordings(grouped[groupName] ?? const []);
+        return Card(
+          child: ExpansionTile(
+            initiallyExpanded: index == 0,
+            title: Text(groupName),
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                _buildRecordingTile(items[i]),
+                if (i != items.length - 1) const Divider(height: 1),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRecordingTile(RecordingEntry recording) {
+    final isDefault = _defaultRecordingIds.contains(recording.id);
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: 8,
+      ),
+      title: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(child: Text(recording.name)),
+          const SizedBox(width: 10),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            constraints: const BoxConstraints(),
+            padding: EdgeInsets.zero,
+            onPressed: () => _editRecording(recording),
+          ),
+        ],
+      ),
+      onTap: widget.onSelect == null ? null : () => widget.onSelect?.call(recording),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.play_arrow),
+            onPressed: recording.notes.isEmpty ? null : () => _openTracker(recording),
+          ),
+          const SizedBox(width: 6),
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: isDefault ? null : () => _confirmDelete(recording),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<String> _groupOptions() {
+    final options = _recordings
+        .map((recording) => recording.group?.trim())
+        .whereType<String>()
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return options;
+  }
+
+  Widget _buildGroupField({
+    required TextEditingController controller,
+    required List<String> options,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: controller,
+            decoration: const InputDecoration(labelText: 'Group'),
+          ),
+        ),
+        if (options.isNotEmpty)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.arrow_drop_down),
+            onSelected: (value) {
+              controller.text = value;
+            },
+            itemBuilder: (context) => [
+              for (final option in options)
+                PopupMenuItem(
+                  value: option,
+                  child: Text(option),
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+
+  Future<_RecordingMeta?> _showCreateRecordingDialog() async {
+    final controller = TextEditingController(
+      text: 'Recording ${_recordings.length + 1}',
+    );
+    final groupController = TextEditingController();
+    final options = _groupOptions();
+    return showDialog<_RecordingMeta>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('New recording'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Recording name'),
+            ),
+            const SizedBox(height: 12),
+            _buildGroupField(
+              controller: groupController,
+              options: options,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(
+              _RecordingMeta(
+                name: controller.text,
+                group: groupController.text,
+              ),
+            ),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<RecordingEntry> _sortedRecordings(List<RecordingEntry> items) {
+    final sorted = List<RecordingEntry>.from(items);
+    switch (_sortOrder) {
+      case _RecordingSort.nameAsc:
+        sorted.sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        );
+        break;
+      case _RecordingSort.nameDesc:
+        sorted.sort(
+          (a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()),
+        );
+        break;
+      case _RecordingSort.createdAsc:
+        sorted.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+        break;
+      case _RecordingSort.createdDesc:
+        sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+    }
+    return sorted;
   }
 
   Future<void> _showAddRecordingOptions() async {
@@ -521,6 +707,20 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       ),
     );
   }
+}
+
+class _RecordingMeta {
+  const _RecordingMeta({required this.name, required this.group});
+
+  final String name;
+  final String? group;
+}
+
+enum _RecordingSort {
+  nameAsc,
+  nameDesc,
+  createdAsc,
+  createdDesc,
 }
 
 class _AddRecordingSheet extends StatefulWidget {
@@ -787,12 +987,13 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       }
       final existingEntry = widget.initialEntry;
       if (existingEntry != null) {
-        final updated = RecordingEntry(
-          id: existingEntry.id,
-          name: existingEntry.name,
-          createdAt: existingEntry.createdAt,
-          notes: notes,
-        );
+      final updated = RecordingEntry(
+        id: existingEntry.id,
+        name: existingEntry.name,
+        createdAt: existingEntry.createdAt,
+        notes: notes,
+        group: existingEntry.group,
+      );
         await RecordingStore.instance.update(updated);
       } else {
         final existing = await RecordingStore.instance.load();
@@ -825,12 +1026,13 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
         if (name == null || name.isEmpty) {
           return;
         }
-        final entry = RecordingEntry(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          name: name,
-          createdAt: DateTime.now(),
-          notes: notes,
-        );
+      final entry = RecordingEntry(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        name: name,
+        createdAt: DateTime.now(),
+        notes: notes,
+        group: null,
+      );
         await RecordingStore.instance.save(entry);
       }
       widget.onSaved();
