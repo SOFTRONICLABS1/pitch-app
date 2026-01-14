@@ -35,6 +35,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
   double _accuracy = 0.0;
   int _score = 0;
   int _streak = 0;
+  int _bpm = 60;
   double _lastUiUpdateMs = 0.0;
   double _lastTargetElapsedMs = 0.0;
   double _lastHarmonicsElapsedMs = 0.0;
@@ -48,6 +49,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
   double _lastShotMs = 0.0;
   int _minTargetMidi = 60;
   int _maxTargetMidi = 72;
+  final List<int> _bpmOptions = List<int>.generate(29, (i) => 40 + i * 10);
 
   @override
   void initState() {
@@ -125,6 +127,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
     _stopwatch
       ..reset()
       ..start();
+    _kickoffHarmonics();
     _tickTimer?.cancel();
     _tickTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
       final elapsedMs = _stopwatch.elapsedMilliseconds.toDouble();
@@ -168,13 +171,18 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
     setState(() {});
   }
 
+  void _kickoffHarmonics() {
+    _lastHarmonicsElapsedMs = -1.0;
+    _updateHarmonics(0.0);
+  }
+
   void _updateScore(double elapsedMs) {
     if (!_running || _targets.isEmpty || _totalDurationMs <= 0) {
       return;
     }
-    final loopMs = max(1, _totalDurationMs).toDouble();
+    final loopMs = _scaledLoopMs();
     final loopTime = elapsedMs % loopMs;
-    final target = _findTarget(loopTime);
+    final target = _findTarget(loopTime, _loopScale());
     if (target == null) return;
     _currentIndex = target.index;
 
@@ -198,25 +206,23 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
     if (!_running || _targets.isEmpty || _totalDurationMs <= 0) {
       return;
     }
-    final loopMs = max(1, _totalDurationMs).toDouble();
+    final loopMs = _scaledLoopMs();
     final loopTime = elapsedMs % loopMs;
-    final target = _findTarget(loopTime);
+    final target = _findTarget(loopTime, _loopScale());
     if (target == null) return;
     final state = _pitchNotifier;
     final frequency = state?.frequency;
     final clarity = state?.clarity ?? 0.0;
     final hasPitch =
         frequency != null && clarity >= (state?.clarityThreshold ?? 0.0);
-    final cents = hasPitch
-        ? _centsFromTarget(frequency!, target.block.midi)
-        : 0.0;
-    const maxCents = 100.0;
-    final targetX = _targetXNorm(target.block.midi);
-    final offset = (cents / maxCents) * 0.25;
-    final desiredAim = (targetX + offset).clamp(0.1, 0.9);
-    _aimXNorm = _aimXNorm + (desiredAim - _aimXNorm) * 0.12;
+    if (hasPitch) {
+      final midi = midiFromFrequency(frequency!);
+      final targetX = _targetXNorm(midi.round());
+      _aimXNorm = _aimXNorm + (targetX - _aimXNorm) * 0.18;
+    }
     if (hasPitch && elapsedMs - _lastShotMs >= 260) {
       _lastShotMs = elapsedMs;
+      final cents = _centsFromTarget(frequency!, target.block.midi);
       final color =
           cents.abs() <= 25 ? Colors.greenAccent : Colors.orangeAccent;
       _bullets.add(
@@ -244,9 +250,10 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
     if (elapsedMs <= previousElapsedMs) {
       return;
     }
-    final loopMs = max(1, _totalDurationMs).toDouble();
+    final loopMs = _scaledLoopMs();
     final minCycle = (previousElapsedMs / loopMs).floor();
     final maxCycle = (elapsedMs / loopMs).floor();
+    final scale = _loopScale();
     int? index;
     int? cycleIndex;
     double? durationMs;
@@ -256,8 +263,8 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
     for (var k = minCycle; k <= maxCycle; k++) {
       final cycleOffset = k * loopMs;
       for (var i = 0; i < _targets.length; i++) {
-        final start = _targets[i].startOffsetMs + cycleOffset;
-        final duration = _targets[i].durationMs.toDouble();
+        final start = (_targets[i].startOffsetMs * scale) + cycleOffset;
+        final duration = _targets[i].durationMs * scale;
         final end = start + duration;
         final effectiveEnd = end - min(gapMs, duration * 0.5);
         final overlaps =
@@ -321,11 +328,11 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
     return (midi - targetMidi).abs() <= 0.5;
   }
 
-  _IndexedTarget? _findTarget(double loopMs) {
+  _IndexedTarget? _findTarget(double loopMs, double scale) {
     for (var i = 0; i < _targets.length; i++) {
       final block = _targets[i];
-      final start = block.startOffsetMs.toDouble();
-      final end = start + block.durationMs.toDouble();
+      final start = block.startOffsetMs * scale;
+      final end = start + (block.durationMs * scale);
       if (loopMs >= start && loopMs < end) {
         return _IndexedTarget(i, block);
       }
@@ -364,11 +371,10 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
     final next = _targets.isEmpty || _currentIndex + 1 >= _targets.length
         ? null
         : _targets[_currentIndex + 1];
+    final loopMs = _scaledLoopMs();
     final progress = _totalDurationMs == 0
         ? 0.0
-        : ((_stopwatch.elapsedMilliseconds %
-                    max(1, _totalDurationMs)) /
-                max(1, _totalDurationMs))
+        : ((_stopwatch.elapsedMilliseconds % loopMs) / loopMs)
             .clamp(0.0, 1.0);
     final liveInfo = _livePitchInfo(pitchState, tuningSystem);
     final isMatch =
@@ -380,6 +386,13 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.recording.name),
+        actions: [
+          IconButton(
+            onPressed: _openSettingsSheet,
+            icon: const Icon(Icons.settings),
+            tooltip: 'Game settings',
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -543,6 +556,136 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
         ),
       ),
     );
+  }
+
+  double _loopScale() => 60.0 / _bpm;
+
+  double _scaledLoopMs() {
+    return max(1, _totalDurationMs).toDouble() * _loopScale();
+  }
+
+  void _openSettingsSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF2C3136),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        final pitchState = context.read<PitchNotifier>();
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final tuningSystem = pitchState.tuningSystem;
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Game Settings',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(color: Colors.white),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'BPM',
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Slider(
+                          value: _bpm.toDouble(),
+                          min: _bpmOptions.first.toDouble(),
+                          max: _bpmOptions.last.toDouble(),
+                          divisions: _bpmOptions.length - 1,
+                          label: '$_bpm',
+                          onChanged: (value) {
+                            final next = _nearestBpm(value);
+                            setModalState(() {
+                              _bpm = next;
+                            });
+                            setState(() {});
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 52,
+                        child: Text(
+                          '$_bpm',
+                          textAlign: TextAlign.right,
+                          style: Theme.of(context)
+                              .textTheme
+                              .labelLarge
+                              ?.copyWith(color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Notation',
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      ChoiceChip(
+                        label: const Text('Western'),
+                        selected: tuningSystem == 'western',
+                        onSelected: (selected) {
+                          if (!selected) return;
+                          pitchState.setTuningSystem('western');
+                          _rebuildTargets();
+                          setModalState(() {});
+                          setState(() {});
+                        },
+                      ),
+                      const SizedBox(width: 12),
+                      ChoiceChip(
+                        label: const Text('Carnatic'),
+                        selected: tuningSystem == 'carnatic',
+                        onSelected: (selected) {
+                          if (!selected) return;
+                          pitchState.setTuningSystem('carnatic');
+                          _rebuildTargets();
+                          setModalState(() {});
+                          setState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  int _nearestBpm(double value) {
+    var closest = _bpmOptions.first;
+    var closestDelta = (value - closest).abs();
+    for (final bpm in _bpmOptions) {
+      final delta = (value - bpm).abs();
+      if (delta < closestDelta) {
+        closest = bpm;
+        closestDelta = delta;
+      }
+    }
+    return closest;
   }
 }
 
