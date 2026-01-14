@@ -25,6 +25,20 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     'default-mayamalavagowla',
     'default-shankarabharanam',
     'default-mayamalavagowla-sarale',
+    'default-mayamalavagowla-sarale-1',
+    'default-mayamalavagowla-sarale-2',
+    'default-mayamalavagowla-sarale-3',
+    'default-mayamalavagowla-sarale-4',
+    'default-mayamalavagowla-sarale-5',
+    'default-mayamalavagowla-sarale-6',
+    'default-mayamalavagowla-sarale-7',
+    'default-mayamalavagowla-sarale-8',
+    'default-mayamalavagowla-sarale-9',
+    'default-mayamalavagowla-sarale-10',
+    'default-mayamalavagowla-sarale-11',
+    'default-mayamalavagowla-sarale-12',
+    'default-mayamalavagowla-sarale-13',
+    'default-mayamalavagowla-sarale-14',
   };
 
   @override
@@ -77,6 +91,13 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         createdAt: DateTime(2000, 1, 1),
         notes: _buildSaraleVaraseNotes(beatMs),
       ),
+      for (var i = 0; i < _saraleVaraseSequences.length; i++)
+        RecordingEntry(
+          id: 'default-mayamalavagowla-sarale-${i + 1}',
+          name: 'Mayamalavagowla Sarale Varase ${i + 1} (C3–C4)',
+          createdAt: DateTime(2000, 1, 1),
+          notes: _buildSaraleVaraseNotes(beatMs, index: i),
+        ),
       RecordingEntry(
         id: 'default-shankarabharanam',
         name: 'Shankarabharanam (C3–C4)',
@@ -102,8 +123,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     ];
   }
 
-  List<RecordedNote> _buildSaraleVaraseNotes(int beatMs) {
-    const sequences = [
+  static const _saraleVaraseSequences = [
       [
         's r g m | p d | n S ||',
         'S n d p | m g | r s ||',
@@ -188,6 +208,15 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       ],
     ];
 
+  List<RecordedNote> _buildSaraleVaraseNotes(
+    int beatMs, {
+    int? index,
+  }) {
+    final sequences = index == null
+        ? _saraleVaraseSequences
+        : [
+            _saraleVaraseSequences[index],
+          ];
     final notes = <RecordedNote>[];
     for (final group in sequences) {
       for (final line in group) {
