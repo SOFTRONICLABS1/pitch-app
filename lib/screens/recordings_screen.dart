@@ -401,6 +401,9 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   }
 
   Future<void> _openTracker(RecordingEntry entry) async {
+    if (_inlinePlaying) {
+      await _stopInlinePlayback();
+    }
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => VocalTrackerScreen(recording: entry),
@@ -410,6 +413,9 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   }
 
   Future<void> _playRecording(RecordingEntry entry) async {
+    if (_inlinePlaying) {
+      await _stopInlinePlayback();
+    }
     final pitchState = context.read<PitchNotifier>();
     final groupName = entry.group?.trim().isNotEmpty == true
         ? entry.group!.trim()
