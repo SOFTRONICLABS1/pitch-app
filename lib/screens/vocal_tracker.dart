@@ -60,7 +60,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   DateTime? _frozenAt;
   int _viewportBaseMidi = 33;
   double _viewportOffset = 0.0;
-  static const _viewportRowCount = 30;
+  static const _viewportRowCount = 48;
   bool _harmonicsEnabled = false;
   bool _editMode = false;
   List<RecordedNote>? _editNotes;
