@@ -480,12 +480,6 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         return;
       }
       final elapsedMs = _inlineStopwatch?.elapsedMilliseconds ?? 0;
-      final totalMs = (_inlineTotalDurationMs * _inlineScale).round();
-      if (elapsedMs >= totalMs) {
-        unawaited(_stopInlinePlayback());
-        timer.cancel();
-        return;
-      }
       _updateInlineHarmonics(elapsedMs.toDouble());
     });
   }
@@ -539,35 +533,43 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       return;
     }
     final scale = _inlineScale;
+    final loopMs = max(1, _inlineTotalDurationMs).toDouble() * scale;
+    final minCycle = (previousElapsedMs / loopMs).floor();
+    final maxCycle = (elapsedMs / loopMs).floor();
     int? index;
+    int? cycleIndex;
     double? durationMs;
     double? bestStart;
     double? bestEnd;
     const gapMs = 60.0;
-    for (var i = 0; i < _inlineTargets.length; i++) {
-      final start = _inlineTargets[i].startOffsetMs * scale;
-      final duration = _inlineTargets[i].durationMs * scale;
-      final end = start + duration;
-      final effectiveEnd = end - min(gapMs, duration * 0.5);
-      final overlaps =
-          effectiveEnd >= previousElapsedMs && start <= elapsedMs;
-      if (!overlaps) {
-        continue;
-      }
-      if (start <= elapsedMs && (bestStart == null || start >= bestStart)) {
-        bestStart = start;
-        bestEnd = end;
-        index = i;
-        durationMs = duration;
+    for (var k = minCycle; k <= maxCycle; k++) {
+      final cycleOffset = k * loopMs;
+      for (var i = 0; i < _inlineTargets.length; i++) {
+        final start = _inlineTargets[i].startOffsetMs * scale + cycleOffset;
+        final duration = _inlineTargets[i].durationMs * scale;
+        final end = start + duration;
+        final effectiveEnd = end - min(gapMs, duration * 0.5);
+        final overlaps =
+            effectiveEnd >= previousElapsedMs && start <= elapsedMs;
+        if (!overlaps) {
+          continue;
+        }
+        if (start <= elapsedMs && (bestStart == null || start >= bestStart)) {
+          bestStart = start;
+          bestEnd = end;
+          index = i;
+          cycleIndex = k;
+          durationMs = duration;
+        }
       }
     }
 
     _inlineLastTargetElapsedMs = elapsedMs;
-    if (index == null || durationMs == null) {
+    if (index == null || durationMs == null || cycleIndex == null) {
       return;
     }
     final effectiveDuration = max(0.0, durationMs - gapMs);
-    final key = index;
+    final key = cycleIndex * 10000 + index;
     if (_inlineHarmonicsKey == key) {
       final end = bestEnd ?? 0.0;
       if (end <= previousElapsedMs) {
