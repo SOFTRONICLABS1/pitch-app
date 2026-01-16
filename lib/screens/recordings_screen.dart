@@ -350,7 +350,9 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   void _editRecording(RecordingEntry entry) {
     final controller = TextEditingController(text: entry.name);
     final groupController = TextEditingController(text: entry.group ?? '');
-    final options = _groupOptions();
+    final subgroupController = TextEditingController(text: entry.subgroup ?? '');
+    final groupOptions = _groupOptions();
+    final subgroupOptions = _subgroupOptions();
     showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -364,9 +366,16 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
               decoration: const InputDecoration(labelText: 'Recording name'),
             ),
             const SizedBox(height: 12),
-            _buildGroupField(
+            _buildTagField(
+              label: 'Group',
               controller: groupController,
-              options: options,
+              options: groupOptions,
+            ),
+            const SizedBox(height: 12),
+            _buildTagField(
+              label: 'Sub group',
+              controller: subgroupController,
+              options: subgroupOptions,
             ),
           ],
         ),
@@ -382,12 +391,14 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                 return;
               }
               final group = groupController.text.trim();
+              final subgroup = subgroupController.text.trim();
               final updated = RecordingEntry(
                 id: entry.id,
                 name: name,
                 createdAt: entry.createdAt,
                 notes: entry.notes,
                 group: group.isEmpty ? null : group,
+                subgroup: subgroup.isEmpty ? null : subgroup,
               );
               await RecordingStore.instance.update(updated);
               if (!mounted) return;
@@ -679,6 +690,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       createdAt: DateTime.now(),
       notes: const [],
       group: meta.group?.trim().isEmpty == true ? null : meta.group,
+      subgroup: meta.subgroup?.trim().isEmpty == true ? null : meta.subgroup,
     );
     final groupName = entry.group?.trim().isNotEmpty == true
         ? entry.group!.trim()
@@ -773,12 +785,16 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   }
 
   Widget _buildGroupedList() {
-    final grouped = <String, List<RecordingEntry>>{};
+    final grouped = <String, Map<String, List<RecordingEntry>>>{};
     for (final recording in _recordings) {
       final group = recording.group?.trim().isNotEmpty == true
           ? recording.group!.trim()
           : _ungroupedLabel;
-      grouped.putIfAbsent(group, () => []).add(recording);
+      final subgroup = recording.subgroup?.trim().isNotEmpty == true
+          ? recording.subgroup!.trim()
+          : _ungroupedLabel;
+      grouped.putIfAbsent(group, () => {}).putIfAbsent(subgroup, () => []);
+      grouped[group]![subgroup]!.add(recording);
     }
     final groups = grouped.keys.toList()
       ..sort((a, b) {
@@ -792,7 +808,30 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       itemCount: groups.length,
       itemBuilder: (context, index) {
         final groupName = groups[index];
-        final items = _sortedRecordings(grouped[groupName] ?? const []);
+        final subgroups = grouped[groupName] ?? const {};
+        final subgroupNames = subgroups.keys.toList()
+          ..sort((a, b) {
+            if (a == _ungroupedLabel) return 1;
+            if (b == _ungroupedLabel) return -1;
+            return a.toLowerCase().compareTo(b.toLowerCase());
+          });
+        final subgroupTiles = <Widget>[];
+        for (final subgroupName in subgroupNames) {
+          final items = _sortedRecordings(
+            subgroups[subgroupName] ?? const [],
+          );
+          subgroupTiles.add(
+            ExpansionTile(
+              title: Text(subgroupName),
+              children: [
+                for (var i = 0; i < items.length; i++) ...[
+                  _buildRecordingTile(items[i]),
+                  if (i != items.length - 1) const Divider(height: 1),
+                ],
+              ],
+            ),
+          );
+        }
         return Card(
           child: ExpansionTile(
             initiallyExpanded: index == 0,
@@ -805,12 +844,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                 ),
               ],
             ),
-            children: [
-              for (var i = 0; i < items.length; i++) ...[
-                _buildRecordingTile(items[i]),
-                if (i != items.length - 1) const Divider(height: 1),
-              ],
-            ],
+            children: subgroupTiles,
           ),
         );
       },
@@ -942,7 +976,19 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     return options;
   }
 
-  Widget _buildGroupField({
+  List<String> _subgroupOptions() {
+    final options = _recordings
+        .map((recording) => recording.subgroup?.trim())
+        .whereType<String>()
+        .where((value) => value.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    return options;
+  }
+
+  Widget _buildTagField({
+    required String label,
     required TextEditingController controller,
     required List<String> options,
   }) {
@@ -951,7 +997,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         Expanded(
           child: TextField(
             controller: controller,
-            decoration: const InputDecoration(labelText: 'Group'),
+            decoration: InputDecoration(labelText: label),
           ),
         ),
         if (options.isNotEmpty)
@@ -977,7 +1023,9 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       text: 'Recording ${_recordings.length + 1}',
     );
     final groupController = TextEditingController();
-    final options = _groupOptions();
+    final subgroupController = TextEditingController();
+    final groupOptions = _groupOptions();
+    final subgroupOptions = _subgroupOptions();
     return showDialog<_RecordingMeta>(
       context: context,
       builder: (context) => AlertDialog(
@@ -991,9 +1039,16 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
               decoration: const InputDecoration(labelText: 'Recording name'),
             ),
             const SizedBox(height: 12),
-            _buildGroupField(
+            _buildTagField(
+              label: 'Group',
               controller: groupController,
-              options: options,
+              options: groupOptions,
+            ),
+            const SizedBox(height: 12),
+            _buildTagField(
+              label: 'Sub group',
+              controller: subgroupController,
+              options: subgroupOptions,
             ),
           ],
         ),
@@ -1007,6 +1062,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
               _RecordingMeta(
                 name: controller.text,
                 group: groupController.text,
+                subgroup: subgroupController.text,
               ),
             ),
             child: const Text('Create'),
@@ -1307,10 +1363,15 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
 }
 
 class _RecordingMeta {
-  const _RecordingMeta({required this.name, required this.group});
+  const _RecordingMeta({
+    required this.name,
+    required this.group,
+    required this.subgroup,
+  });
 
   final String name;
   final String? group;
+  final String? subgroup;
 }
 
 class _InlineTargetBlock {
@@ -1752,13 +1813,14 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
       }
       final existingEntry = widget.initialEntry;
       if (existingEntry != null) {
-      final updated = RecordingEntry(
-        id: existingEntry.id,
-        name: existingEntry.name,
-        createdAt: existingEntry.createdAt,
-        notes: notes,
-        group: existingEntry.group,
-      );
+        final updated = RecordingEntry(
+          id: existingEntry.id,
+          name: existingEntry.name,
+          createdAt: existingEntry.createdAt,
+          notes: notes,
+          group: existingEntry.group,
+          subgroup: existingEntry.subgroup,
+        );
         await RecordingStore.instance.update(updated);
       } else {
         final existing = await RecordingStore.instance.load();
@@ -1791,13 +1853,14 @@ class _AddRecordingSheetState extends State<_AddRecordingSheet> {
         if (name == null || name.isEmpty) {
           return;
         }
-      final entry = RecordingEntry(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: name,
-        createdAt: DateTime.now(),
-        notes: notes,
-        group: null,
-      );
+        final entry = RecordingEntry(
+          id: DateTime.now().millisecondsSinceEpoch.toString(),
+          name: name,
+          createdAt: DateTime.now(),
+          notes: notes,
+          group: null,
+          subgroup: null,
+        );
         await RecordingStore.instance.save(entry);
       }
       widget.onSaved();
@@ -2482,6 +2545,8 @@ class _EditRecordingSheetState extends State<_EditRecordingSheet> {
         name: widget.entry.name,
         createdAt: widget.entry.createdAt,
         notes: notes,
+        group: widget.entry.group,
+        subgroup: widget.entry.subgroup,
       );
       await RecordingStore.instance.update(updated);
       widget.onSaved();

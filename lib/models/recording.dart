@@ -24,6 +24,7 @@ class RecordingEntry {
     required this.createdAt,
     required this.notes,
     this.group,
+    this.subgroup,
   });
 
   final String id;
@@ -31,6 +32,7 @@ class RecordingEntry {
   final DateTime createdAt;
   final List<RecordedNote> notes;
   final String? group;
+  final String? subgroup;
 
   Map<String, dynamic> toJson() => {
         'id': id,
@@ -38,6 +40,7 @@ class RecordingEntry {
         'createdAt': createdAt.toIso8601String(),
         'notes': notes.map((note) => note.toJson()).toList(),
         'group': group,
+        'subgroup': subgroup,
       };
 
   static RecordingEntry fromJson(Map<String, dynamic> json) {
@@ -51,6 +54,7 @@ class RecordingEntry {
           .map(RecordedNote.fromJson)
           .toList(),
       group: json['group'] as String?,
+      subgroup: json['subgroup'] as String?,
     );
   }
 }
