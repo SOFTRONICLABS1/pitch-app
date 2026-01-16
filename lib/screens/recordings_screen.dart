@@ -44,6 +44,15 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     'default-mayamalavagowla-sarale-12',
     'default-mayamalavagowla-sarale-13',
     'default-mayamalavagowla-sarale-14',
+    'default-mayamalavagowla-janta',
+    'default-mayamalavagowla-janta-1',
+    'default-mayamalavagowla-janta-2',
+    'default-mayamalavagowla-janta-3',
+    'default-mayamalavagowla-janta-4',
+    'default-mayamalavagowla-janta-5',
+    'default-mayamalavagowla-janta-6',
+    'default-mayamalavagowla-janta-7',
+    'default-mayamalavagowla-janta-8',
   };
   static const _ungroupedLabel = 'Ungrouped';
   _RecordingSort _sortOrder = _RecordingSort.createdDesc;
@@ -124,10 +133,11 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       ),
       RecordingEntry(
         id: 'default-mayamalavagowla-sarale',
-        name: 'Mayamalavagowla Sarale Varase 001–014',
+        name: 'Mayamalavagowla Sarale Varase 001-014',
         createdAt: DateTime(2000, 1, 1),
         notes: _buildSaraleVaraseNotes(beatMs),
         group: 'Mayamalavagowla',
+        subgroup: 'Sarale Varisai',
       ),
       for (var i = 0; i < _saraleVaraseSequences.length; i++)
         RecordingEntry(
@@ -137,6 +147,25 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
           createdAt: DateTime(2000, 1, 1),
           notes: _buildSaraleVaraseNotes(beatMs, index: i),
           group: 'Mayamalavagowla',
+          subgroup: 'Sarale Varisai',
+        ),
+      RecordingEntry(
+        id: 'default-mayamalavagowla-janta',
+        name: 'Mayamalavagowla Janta Varisai 001-008',
+        createdAt: DateTime(2000, 1, 1),
+        notes: _buildJantaVarisaiNotes(beatMs),
+        group: 'Mayamalavagowla',
+        subgroup: 'Janta Varisai',
+      ),
+      for (var i = 0; i < _jantaVarisaiSequences.length; i++)
+        RecordingEntry(
+          id: 'default-mayamalavagowla-janta-${i + 1}',
+          name:
+              'Mayamalavagowla Janta Varisai ${(i + 1).toString().padLeft(3, '0')}',
+          createdAt: DateTime(2000, 1, 1),
+          notes: _buildJantaVarisaiNotes(beatMs, index: i),
+          group: 'Mayamalavagowla',
+          subgroup: 'Janta Varisai',
         ),
       RecordingEntry(
         id: 'default-shankarabharanam',
@@ -249,6 +278,92 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       ],
     ];
 
+  static const _jantaVarisaiSequences = [
+    [
+      's s r r | g g | m m || p p d d | n n | S S ||',
+      'S S n n | d d | p p || m m g g | r r | s s ||',
+    ],
+    [
+      's s r r | g g | m m || r r g g | m m | p p ||',
+      'g g m m | p p | d d || m m p p | d d | n n ||',
+      'p p d d | n n | S S || S S n n | d d | p p ||',
+      'n n d d | p p | m m || d d p p | m m | g g ||',
+      'p p m m | g g | r r || m m g g | r r | s s ||',
+    ],
+    [
+      's s r s | s r | s r || s s r r | g g | m m ||',
+      'r r g r | r g | r g || r r g g | m m | p p ||',
+      'g g m g | g m | g m || g g m m | p p | d d ||',
+      'm m p m | m p | m p || m m p p | d d | n n ||',
+      'p p d p | p d | p d || p p d d | n n | S S ||',
+      'S S n S | S n | S n || S S n n | d d | p p ||',
+      'n n d n | n d | n d || n n d d | p p | m m ||',
+      'd d p d | d p | d p || d d p p | m m | g g ||',
+      'p p m p | p m | p m || p p m m | g g | r r ||',
+      'm m g m | m g | m g || m m g g | r r | s s ||',
+    ],
+    [
+      's s r r | g s | r g || s s r r | g g | m m ||',
+      'r r g g | m r | g m || r r g g | m m | p p ||',
+      'g g m m | p g | m p || g g m m | p p | d d ||',
+      'm m p p | d m | p d || m m p p | d d | n n ||',
+      'p p d d | n p | d n || p p d d | n n | S S ||',
+      'S S n n | d S | n d || S S n n | d d | p p ||',
+      'n n d d | p n | d p || n n d d | p p | m m ||',
+      'd d p p | m d | p m || d d p p | m m | g g ||',
+      'p p m m | g p | m g || p p m m | g g | r r ||',
+      'm m g g | r m | g r || m m g g | r r | s s ||',
+    ],
+    [
+      's s , r | r , | g g || s s r r | g g | m m ||',
+      'r r , g | g , | m m || r r g g | m m | p p ||',
+      'g g , m | m , | p p || g g m m | p p | d d ||',
+      'm m , p | p , | d d || m m p p | d d | n n ||',
+      'p p , d | d , | n n || p p d d | n n | S S ||',
+      'S S , n | n , | d d || S S n n | d d | p p ||',
+      'n n , d | d , | p p || n n d d | p p | m m ||',
+      'd d , p | p , | m m || d d p p | m m | g g ||',
+      'p p , m | m , | g g || p p m m | g g | r r ||',
+      'm m , g | g , | r r || m m g g | r r | s s ||',
+    ],
+    [
+      's , s r | , r | g g || s s r r | g g | m m ||',
+      'r , r g | , g | m m || r r g g | m m | p p ||',
+      'g , g m | , m | p p || g g m m | p p | d d ||',
+      'm , m p | , p | d d || m m p p | d d | n n ||',
+      'p , p d | , d | n n || p p d d | n n | S S ||',
+      'S , S n | , n | d d || S S n n | d d | p p ||',
+      'n , n d | , d | p p || n n d d | p p | m m ||',
+      'd , d p | , p | m m || d d p p | m m | g g ||',
+      'p , p m | , m | g g || p p m m | g g | r r ||',
+      'm , m g | , g | r r || m m g g | r r | s s ||',
+    ],
+    [
+      's s s r | r r | g g || s s r r | g g | m m ||',
+      'r r r g | g g | m m || r r g g | m m | p p ||',
+      'g g g m | m m | p p || g g m m | p p | d d ||',
+      'm m m p | p p | d d || m m p p | d d | n n ||',
+      'p p p d | d d | n n || p p d d | n n | S S ||',
+      'S S S n | n n | d d || S S n n | d d | p p ||',
+      'n n n d | d d | p p || n n d d | p p | m m ||',
+      'd d d p | p p | m m || d d p p | m m | g g ||',
+      'p p p m | m m | g g || p p m m | g g | r r ||',
+      'm m m g | g g | r r || m m g g | r r | s s ||',
+    ],
+    [
+      's s m m | g g | r r || s s r r | g g | m m ||',
+      'r r p p | m m | g g || r r g g | m m | p p ||',
+      'g g d d | p p | m m || g g m m | p p | d d ||',
+      'm m n n | d d | p p || m m p p | d d | n n ||',
+      'p p S S | n n | d d || p p d d | n n | S S ||',
+      'S S p p | d d | n n || S S n n | d d | p p ||',
+      'n n m m | p p | d d || n n d d | p p | m m ||',
+      'd d g g | m m | p p || d d p p | m m | g g ||',
+      'p p r r | g g | m m || p p m m | g g | r r ||',
+      'm m s s | r r | g g || m m g g | r r | s s ||',
+    ],
+  ];
+
   List<RecordedNote> _buildSaraleVaraseNotes(
     int beatMs, {
     int? index,
@@ -257,6 +372,24 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         ? _saraleVaraseSequences
         : [
             _saraleVaraseSequences[index],
+          ];
+    final notes = <RecordedNote>[];
+    for (final group in sequences) {
+      for (final line in group) {
+        _appendSaraleLine(notes, line, beatMs);
+      }
+    }
+    return notes;
+  }
+
+  List<RecordedNote> _buildJantaVarisaiNotes(
+    int beatMs, {
+    int? index,
+  }) {
+    final sequences = index == null
+        ? _jantaVarisaiSequences
+        : [
+            _jantaVarisaiSequences[index],
           ];
     final notes = <RecordedNote>[];
     for (final group in sequences) {
@@ -808,7 +941,8 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       itemCount: groups.length,
       itemBuilder: (context, index) {
         final groupName = groups[index];
-        final subgroups = grouped[groupName] ?? const {};
+        final subgroups =
+            grouped[groupName] ?? const <String, List<RecordingEntry>>{};
         final subgroupNames = subgroups.keys.toList()
           ..sort((a, b) {
             if (a == _ungroupedLabel) return 1;
@@ -818,7 +952,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         final subgroupTiles = <Widget>[];
         for (final subgroupName in subgroupNames) {
           final items = _sortedRecordings(
-            subgroups[subgroupName] ?? const [],
+            subgroups[subgroupName] ?? const <RecordingEntry>[],
           );
           subgroupTiles.add(
             ExpansionTile(
