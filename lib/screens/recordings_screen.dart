@@ -666,7 +666,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     _inlineStopwatch = null;
     _inlineHarmonicsKey = null;
     _inlineLastTargetElapsedMs = 0.0;
-    await _inlinePlayer.stop();
+    _fadeOutAndStopInlinePlayer();
     if (!mounted) return;
     setState(() {
       _inlinePlaying = false;
@@ -774,12 +774,23 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       return;
     }
     unawaited(_inlinePlayer.stop());
-    unawaited(_inlinePlayer.play(AssetSource(path), volume: 1.0));
+    unawaited(_inlinePlayer.setVolume(0.0));
+    unawaited(_inlinePlayer.play(AssetSource(path), volume: 0.0));
+    Timer(const Duration(milliseconds: 30), () {
+      _inlinePlayer.setVolume(1.0);
+    });
     final duration = durationMs.clamp(50, 600000).toDouble();
     Timer(Duration(milliseconds: duration.round()), () {
       if (_inlinePlaying) {
-        _inlinePlayer.stop();
+        _fadeOutAndStopInlinePlayer();
       }
+    });
+  }
+
+  void _fadeOutAndStopInlinePlayer() {
+    _inlinePlayer.setVolume(0.0);
+    Timer(const Duration(milliseconds: 30), () {
+      _inlinePlayer.stop();
     });
   }
 

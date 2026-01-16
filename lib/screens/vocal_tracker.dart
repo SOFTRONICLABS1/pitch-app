@@ -1231,7 +1231,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     }
     _harmonicsStopTimer?.cancel();
     _harmonicsPlayer.stop();
-    _harmonicsPlayer.play(AssetSource(path), volume: 1.0);
+    _harmonicsPlayer.setVolume(0.0);
+    _harmonicsPlayer.play(AssetSource(path), volume: 0.0);
+    Timer(const Duration(milliseconds: 30), () {
+      _harmonicsPlayer.setVolume(1.0);
+    });
     final duration = durationMs.clamp(50, 600000).toDouble();
     _harmonicsMidi = block.midi;
     _harmonicsWindowStart = DateTime.now();
@@ -1239,9 +1243,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
         _harmonicsWindowStart!.add(Duration(milliseconds: duration.round()));
     _harmonicsStopTimer = Timer(
       Duration(milliseconds: duration.round()),
-      () {
-        _harmonicsPlayer.stop();
-      },
+      _fadeOutAndStopHarmonics,
     );
   }
 
@@ -1253,7 +1255,14 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _harmonicsWindowStart = null;
     _harmonicsWindowEnd = null;
     _filteredHistoryCache = null;
-    _harmonicsPlayer.stop();
+    _fadeOutAndStopHarmonics();
+  }
+
+  void _fadeOutAndStopHarmonics() {
+    _harmonicsPlayer.setVolume(0.0);
+    Timer(const Duration(milliseconds: 30), () {
+      _harmonicsPlayer.stop();
+    });
   }
 
   List<PitchPoint> _filteredHistory(List<PitchPoint> history) {
