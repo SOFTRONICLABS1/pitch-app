@@ -196,9 +196,21 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         )
         .map(_normalizeSwaravalisEntry)
         .toList();
+    final saraleNames = <String>{};
+    final deduped = <RecordingEntry>[];
+    for (final entry in merged) {
+      if (entry.group == _swaravalisGroup &&
+          entry.subgroup == 'Sarale Varase') {
+        if (saraleNames.add(entry.name)) {
+          deduped.add(entry);
+        }
+        continue;
+      }
+      deduped.add(entry);
+    }
     if (!mounted) return;
     setState(() {
-      _recordings = merged;
+      _recordings = deduped;
       _loading = false;
     });
   }
