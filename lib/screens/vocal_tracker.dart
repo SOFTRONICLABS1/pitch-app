@@ -939,6 +939,43 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                     ),
                   ),
                   const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.remove),
+                        onPressed: current > _bpmOptions.first
+                            ? () {
+                                final nextIndex = _bpmIndex(current) - 1;
+                                final next = _bpmFromIndex(nextIndex);
+                                setSheetState(() {
+                                  current = next;
+                                });
+                                setState(() {
+                                  _bpm = next;
+                                  _currentHarmonicsKey = null;
+                                });
+                              }
+                            : null,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add),
+                        onPressed: current < _bpmOptions.last
+                            ? () {
+                                final nextIndex = _bpmIndex(current) + 1;
+                                final next = _bpmFromIndex(nextIndex);
+                                setSheetState(() {
+                                  current = next;
+                                });
+                                setState(() {
+                                  _bpm = next;
+                                  _currentHarmonicsKey = null;
+                                });
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
                   Slider(
                     value: _bpmIndex(current).toDouble(),
                     min: 0,

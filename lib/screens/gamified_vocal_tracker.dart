@@ -662,6 +662,41 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
                       ),
                     ],
                   ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.remove),
+                        onPressed: _bpm > _bpmOptions.first
+                            ? () {
+                                final nextIndex =
+                                    _bpmOptions.indexOf(_bpm) - 1;
+                                final next = _bpmOptions[
+                                    nextIndex.clamp(0, _bpmOptions.length - 1)];
+                                setModalState(() {
+                                  _bpm = next;
+                                });
+                                setState(() {});
+                              }
+                            : null,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add),
+                        onPressed: _bpm < _bpmOptions.last
+                            ? () {
+                                final nextIndex =
+                                    _bpmOptions.indexOf(_bpm) + 1;
+                                final next = _bpmOptions[
+                                    nextIndex.clamp(0, _bpmOptions.length - 1)];
+                                setModalState(() {
+                                  _bpm = next;
+                                });
+                                setState(() {});
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'Notation',

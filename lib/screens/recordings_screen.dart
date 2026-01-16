@@ -1322,6 +1322,33 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.remove),
+                        onPressed: bpm > _bpmOptions.first
+                            ? () {
+                                final nextIndex = _bpmIndex(bpm) - 1;
+                                setSheetState(() {
+                                  bpm = _bpmFromIndex(nextIndex);
+                                });
+                              }
+                            : null,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add),
+                        onPressed: bpm < _bpmOptions.last
+                            ? () {
+                                final nextIndex = _bpmIndex(bpm) + 1;
+                                setSheetState(() {
+                                  bpm = _bpmFromIndex(nextIndex);
+                                });
+                              }
+                            : null,
+                      ),
+                    ],
+                  ),
                   Slider(
                     value: _bpmIndex(bpm).toDouble(),
                     min: 0,
