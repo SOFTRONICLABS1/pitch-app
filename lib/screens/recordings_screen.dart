@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../data/melakarta_ragas.dart';
 import '../data/varisai_sequences.dart';
 import '../models/recording.dart';
 import '../services/recording_store.dart';
@@ -27,66 +28,90 @@ class RecordingsScreen extends StatefulWidget {
 class _RecordingsScreenState extends State<RecordingsScreen> {
   List<RecordingEntry> _recordings = [];
   bool _loading = true;
-  static const _defaultRecordingIds = {
-    'default-mayamalavagowla',
-    'default-shankarabharanam',
-    'default-mayamalavagowla-sarale',
-    'default-mayamalavagowla-sarale-1',
-    'default-mayamalavagowla-sarale-2',
-    'default-mayamalavagowla-sarale-3',
-    'default-mayamalavagowla-sarale-4',
-    'default-mayamalavagowla-sarale-5',
-    'default-mayamalavagowla-sarale-6',
-    'default-mayamalavagowla-sarale-7',
-    'default-mayamalavagowla-sarale-8',
-    'default-mayamalavagowla-sarale-9',
-    'default-mayamalavagowla-sarale-10',
-    'default-mayamalavagowla-sarale-11',
-    'default-mayamalavagowla-sarale-12',
-    'default-mayamalavagowla-sarale-13',
-    'default-mayamalavagowla-sarale-14',
-    'default-mayamalavagowla-janta',
-    'default-mayamalavagowla-janta-1',
-    'default-mayamalavagowla-janta-2',
-    'default-mayamalavagowla-janta-3',
-    'default-mayamalavagowla-janta-4',
-    'default-mayamalavagowla-janta-5',
-    'default-mayamalavagowla-janta-6',
-    'default-mayamalavagowla-janta-7',
-    'default-mayamalavagowla-janta-8',
-    'default-mayamalavagowla-janta-9',
-    'default-mayamalavagowla-janta-10',
-    'default-mayamalavagowla-janta-11',
-    'default-mayamalavagowla-janta-12',
-    'default-mayamalavagowla-daatu',
-    'default-mayamalavagowla-daatu-1',
-    'default-mayamalavagowla-daatu-2',
-    'default-mayamalavagowla-daatu-3',
-    'default-mayamalavagowla-melstaayi',
-    'default-mayamalavagowla-melstaayi-1',
-    'default-mayamalavagowla-melstaayi-2',
-    'default-mayamalavagowla-melstaayi-3',
-    'default-mayamalavagowla-melstaayi-4',
-    'default-mayamalavagowla-melstaayi-5',
-    'default-mayamalavagowla-mandra',
-    'default-mayamalavagowla-mandra-1',
-    'default-mayamalavagowla-mandra-2',
-    'default-mayamalavagowla-mandra-3',
-    'default-mayamalavagowla-mandra-4',
-    'default-mayamalavagowla-mandra-5',
-    'default-mayamalavagowla-alankaaram',
-    'default-mayamalavagowla-alankaaram-1',
-    'default-mayamalavagowla-alankaaram-2',
-    'default-mayamalavagowla-alankaaram-3',
-    'default-mayamalavagowla-alankaaram-4',
-    'default-mayamalavagowla-alankaaram-5',
-    'default-mayamalavagowla-alankaaram-6',
-    'default-mayamalavagowla-alankaaram-7',
-    'default-mayamalavagowla-alankaaram-8',
-    'default-mayamalavagowla-alankaaram-9',
-  };
+  static final _defaultRecordingIds = {
+    'default-swaravalis-sarale-1',
+    'default-swaravalis-sarale-2',
+    'default-swaravalis-sarale-3',
+    'default-swaravalis-sarale-4',
+    'default-swaravalis-sarale-5',
+    'default-swaravalis-sarale-6',
+    'default-swaravalis-sarale-7',
+    'default-swaravalis-sarale-8',
+    'default-swaravalis-sarale-9',
+    'default-swaravalis-sarale-10',
+    'default-swaravalis-sarale-11',
+    'default-swaravalis-sarale-12',
+    'default-swaravalis-sarale-13',
+    'default-swaravalis-sarale-14',
+    'default-swaravalis-janta-1',
+    'default-swaravalis-janta-2',
+    'default-swaravalis-janta-3',
+    'default-swaravalis-janta-4',
+    'default-swaravalis-janta-5',
+    'default-swaravalis-janta-6',
+    'default-swaravalis-janta-7',
+    'default-swaravalis-janta-8',
+    'default-swaravalis-janta-9',
+    'default-swaravalis-janta-10',
+    'default-swaravalis-janta-11',
+    'default-swaravalis-janta-12',
+    'default-swaravalis-daatu-1',
+    'default-swaravalis-daatu-2',
+    'default-swaravalis-daatu-3',
+    'default-swaravalis-melstaayi-1',
+    'default-swaravalis-melstaayi-2',
+    'default-swaravalis-melstaayi-3',
+    'default-swaravalis-melstaayi-4',
+    'default-swaravalis-melstaayi-5',
+    'default-swaravalis-mandra-1',
+    'default-swaravalis-mandra-2',
+    'default-swaravalis-mandra-3',
+    'default-swaravalis-mandra-4',
+    'default-swaravalis-mandra-5',
+    'default-swaravalis-alankaaram-1',
+    'default-swaravalis-alankaaram-2',
+    'default-swaravalis-alankaaram-3',
+    'default-swaravalis-alankaaram-4',
+    'default-swaravalis-alankaaram-5',
+    'default-swaravalis-alankaaram-6',
+    'default-swaravalis-alankaaram-7',
+    'default-swaravalis-alankaaram-8',
+    'default-swaravalis-alankaaram-9',
+  }..addAll(
+      List.generate(72, (index) => 'default-melakarta-${index + 1}'),
+    );
   static const _ungroupedLabel = 'Ungrouped';
-  _RecordingSort _sortOrder = _RecordingSort.createdDesc;
+  static const _swaravalisGroup = 'Swaravalis';
+  static const _swaravalisSubgroupOrder = [
+    'Sarale Varase',
+    'Janti Varase',
+    'Daatu Varase',
+    'Thara Staayi Varase',
+    'Mandra Staayi Varisai',
+    'Alankaara',
+  ];
+  static const _swaravalisLegacySubgroups = [
+    'Sarale Varisai',
+    'Janta Varisai',
+    'Daatu Varisai',
+    'Melstaayi Varisai',
+    'Mandra Staayi Varisai',
+    'Alankaaram',
+  ];
+  static const _swaravalisSubgroupRename = {
+    'Sarale Varisai': 'Sarale Varase',
+    'Sarale Varasai': 'Sarale Varase',
+    'Sarali Varase': 'Sarale Varase',
+    'Sarali Varasai': 'Sarale Varase',
+    'Janta Varisai': 'Janti Varase',
+    'Daatu Varisai': 'Daatu Varase',
+    'Melstaayi Varisai': 'Thara Staayi Varase',
+    'Mandra Staayi Varisai': 'Mandra Staayi Varisai',
+    'Mandra Staaayi Varisai': 'Mandra Staayi Varisai',
+    'Mandra Staayi Varasai': 'Mandra Staayi Varisai',
+    'Alankaaram': 'Alankaara',
+  };
+  _RecordingSort _sortOrder = _RecordingSort.nameAsc;
   final Map<String, _GroupSettings> _groupSettings = {};
   final AudioPlayer _inlinePlayer = AudioPlayer();
   Timer? _inlineTicker;
@@ -99,6 +124,39 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   String? _playingId;
   int _inlinePlaybackToken = 0;
   bool _inlinePlaying = false;
+  static const _melakartaBaseOctave = 3;
+  static const _melakartaNoteNames = [
+    'c',
+    'c#',
+    'd',
+    'd#',
+    'e',
+    'f',
+    'f#',
+    'g',
+    'g#',
+    'a',
+    'a#',
+    'b',
+  ];
+  static const _melakartaSemitones = {
+    'S': 0,
+    'R1': 1,
+    'R2': 2,
+    'R3': 3,
+    'G1': 2,
+    'G2': 3,
+    'G3': 4,
+    'M1': 5,
+    'M2': 6,
+    'P': 7,
+    'D1': 8,
+    'D2': 9,
+    'D3': 10,
+    'N1': 9,
+    'N2': 10,
+    'N3': 11,
+  };
 
   @override
   void initState() {
@@ -119,15 +177,25 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
 
   Future<void> _load() async {
     final list = await RecordingStore.instance.load();
+    final normalizedList = list.map(_normalizeLegacyId).toList();
     final savedById = <String, RecordingEntry>{
-      for (final entry in list) entry.id: entry,
+      for (final entry in normalizedList) entry.id: entry,
     };
     final defaults = _buildDefaultRecordings();
     final merged = [
       for (final entry in defaults) savedById[entry.id] ?? entry,
-      for (final entry in list)
+      for (final entry in normalizedList)
         if (!_defaultRecordingIds.contains(entry.id)) entry,
-    ];
+    ]
+        .where(
+          (entry) =>
+              entry.id != 'default-mayamalavagowla' &&
+              entry.id != 'default-swaravalis-sarale' &&
+              entry.id != 'default-mayamalavagowla-sarale' &&
+              entry.id != 'default-saralavalis-sarale',
+        )
+        .map(_normalizeSwaravalisEntry)
+        .toList();
     if (!mounted) return;
     setState(() {
       _recordings = merged;
@@ -155,145 +223,132 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       RecordedNote(note: 'c3', durationMs: beatMs), // Sa
     ];
     return [
-      RecordingEntry(
-        id: 'default-mayamalavagowla',
-        name: 'Mayamalavagowla',
-        createdAt: DateTime(2000, 1, 1),
-        notes: notes,
-        group: 'Mayamalavagowla',
-      ),
-      RecordingEntry(
-        id: 'default-mayamalavagowla-sarale',
-        name: 'Mayamalavagowla Sarale Varase 001-014',
-        createdAt: DateTime(2000, 1, 1),
-        notes: _buildSaraleVaraseNotes(beatMs),
-        group: 'Mayamalavagowla',
-        subgroup: 'Sarale Varisai',
-      ),
       for (var i = 0; i < saraleVaraseSequences.length; i++)
         RecordingEntry(
-          id: 'default-mayamalavagowla-sarale-${i + 1}',
+          id: 'default-swaravalis-sarale-${i + 1}',
           name:
-              'Mayamalavagowla Sarale Varase ${(i + 1).toString().padLeft(3, '0')}',
+              'Swaravalis Sarale Varase ${(i + 1).toString().padLeft(3, '0')}',
           createdAt: DateTime(2000, 1, 1),
           notes: _buildSaraleVaraseNotes(beatMs, index: i),
-          group: 'Mayamalavagowla',
-          subgroup: 'Sarale Varisai',
+          group: _swaravalisGroup,
+          subgroup: 'Sarale Varase',
         ),
-      RecordingEntry(
-        id: 'default-mayamalavagowla-janta',
-        name: 'Mayamalavagowla Janta Varisai 001-012',
-        createdAt: DateTime(2000, 1, 1),
-        notes: _buildJantaVarisaiNotes(beatMs),
-        group: 'Mayamalavagowla',
-        subgroup: 'Janta Varisai',
-      ),
       for (var i = 0; i < jantaVarisaiSequences.length; i++)
         RecordingEntry(
-          id: 'default-mayamalavagowla-janta-${i + 1}',
+          id: 'default-swaravalis-janta-${i + 1}',
           name:
-              'Mayamalavagowla Janta Varisai ${(i + 1).toString().padLeft(3, '0')}',
+              'Swaravalis Janti Varase ${(i + 1).toString().padLeft(3, '0')}',
           createdAt: DateTime(2000, 1, 1),
           notes: _buildJantaVarisaiNotes(beatMs, index: i),
-          group: 'Mayamalavagowla',
-          subgroup: 'Janta Varisai',
+          group: _swaravalisGroup,
+          subgroup: 'Janti Varase',
         ),
-      RecordingEntry(
-        id: 'default-mayamalavagowla-daatu',
-        name: 'Mayamalavagowla Daatu Varisai 001-003',
-        createdAt: DateTime(2000, 1, 1),
-        notes: _buildDaatuVarisaiNotes(beatMs),
-        group: 'Mayamalavagowla',
-        subgroup: 'Daatu Varisai',
-      ),
       for (var i = 0; i < daatuVarisaiSequences.length; i++)
         RecordingEntry(
-          id: 'default-mayamalavagowla-daatu-${i + 1}',
+          id: 'default-swaravalis-daatu-${i + 1}',
           name:
-              'Mayamalavagowla Daatu Varisai ${(i + 1).toString().padLeft(3, '0')}',
+              'Swaravalis Daatu Varase ${(i + 1).toString().padLeft(3, '0')}',
           createdAt: DateTime(2000, 1, 1),
           notes: _buildDaatuVarisaiNotes(beatMs, index: i),
-          group: 'Mayamalavagowla',
-          subgroup: 'Daatu Varisai',
+          group: _swaravalisGroup,
+          subgroup: 'Daatu Varase',
         ),
-      RecordingEntry(
-        id: 'default-mayamalavagowla-melstaayi',
-        name: 'Mayamalavagowla Melstaayi Varisai 001-005',
-        createdAt: DateTime(2000, 1, 1),
-        notes: _buildMelstaayiVarisaiNotes(beatMs),
-        group: 'Mayamalavagowla',
-        subgroup: 'Melstaayi Varisai',
-      ),
       for (var i = 0; i < melstaayiVarisaiSequences.length; i++)
         RecordingEntry(
-          id: 'default-mayamalavagowla-melstaayi-${i + 1}',
+          id: 'default-swaravalis-melstaayi-${i + 1}',
           name:
-              'Mayamalavagowla Melstaayi Varisai ${(i + 1).toString().padLeft(3, '0')}',
+              'Swaravalis Thara Staayi Varase ${(i + 1).toString().padLeft(3, '0')}',
           createdAt: DateTime(2000, 1, 1),
           notes: _buildMelstaayiVarisaiNotes(beatMs, index: i),
-          group: 'Mayamalavagowla',
-          subgroup: 'Melstaayi Varisai',
+          group: _swaravalisGroup,
+          subgroup: 'Thara Staayi Varase',
         ),
-      RecordingEntry(
-        id: 'default-mayamalavagowla-mandra',
-        name: 'Mayamalavagowla Mandra Staayi Varisai 001-005',
-        createdAt: DateTime(2000, 1, 1),
-        notes: _buildMandraStaayiVarisaiNotes(beatMs),
-        group: 'Mayamalavagowla',
-        subgroup: 'Mandra Staayi Varisai',
-      ),
       for (var i = 0; i < mandraStaayiVarisaiSequences.length; i++)
         RecordingEntry(
-          id: 'default-mayamalavagowla-mandra-${i + 1}',
+          id: 'default-swaravalis-mandra-${i + 1}',
           name:
-              'Mayamalavagowla Mandra Staayi Varisai ${(i + 1).toString().padLeft(3, '0')}',
+              'Swaravalis Mandra Staayi Varisai ${(i + 1).toString().padLeft(3, '0')}',
           createdAt: DateTime(2000, 1, 1),
           notes: _buildMandraStaayiVarisaiNotes(beatMs, index: i),
-          group: 'Mayamalavagowla',
+          group: _swaravalisGroup,
           subgroup: 'Mandra Staayi Varisai',
         ),
-      RecordingEntry(
-        id: 'default-mayamalavagowla-alankaaram',
-        name: 'Mayamalavagowla Alankaaram 001-009',
-        createdAt: DateTime(2000, 1, 1),
-        notes: _buildAlankaaramNotes(beatMs),
-        group: 'Mayamalavagowla',
-        subgroup: 'Alankaaram',
-      ),
       for (var i = 0; i < alankaaramSequences.length; i++)
         RecordingEntry(
-          id: 'default-mayamalavagowla-alankaaram-${i + 1}',
+          id: 'default-swaravalis-alankaaram-${i + 1}',
           name:
-              'Mayamalavagowla Alankaaram ${(i + 1).toString().padLeft(3, '0')}',
+              'Swaravalis Alankaara ${(i + 1).toString().padLeft(3, '0')}',
           createdAt: DateTime(2000, 1, 1),
           notes: _buildAlankaaramNotes(beatMs, index: i),
-          group: 'Mayamalavagowla',
-          subgroup: 'Alankaaram',
+          group: _swaravalisGroup,
+          subgroup: 'Alankaara',
         ),
-      RecordingEntry(
-        id: 'default-shankarabharanam',
-        name: 'Shankarabharanam',
-        createdAt: DateTime(2000, 1, 1),
-        notes: const [
-          RecordedNote(note: 'c3', durationMs: beatMs), // Sa
-          RecordedNote(note: 'd3', durationMs: beatMs), // Ri2
-          RecordedNote(note: 'e3', durationMs: beatMs), // Ga2
-          RecordedNote(note: 'f3', durationMs: beatMs), // Ma1
-          RecordedNote(note: 'g3', durationMs: beatMs), // Pa
-          RecordedNote(note: 'a3', durationMs: beatMs), // Da2
-          RecordedNote(note: 'b3', durationMs: beatMs), // Ni2
-          RecordedNote(note: 'c4', durationMs: beatMs), // Sa
-          RecordedNote(note: 'b3', durationMs: beatMs), // Ni2
-          RecordedNote(note: 'a3', durationMs: beatMs), // Da2
-          RecordedNote(note: 'g3', durationMs: beatMs), // Pa
-          RecordedNote(note: 'f3', durationMs: beatMs), // Ma1
-          RecordedNote(note: 'e3', durationMs: beatMs), // Ga2
-          RecordedNote(note: 'd3', durationMs: beatMs), // Ri2
-          RecordedNote(note: 'c3', durationMs: beatMs), // Sa
-        ],
-        group: 'Shankarabharanam',
-      ),
+      for (final raga in melakartaRagas)
+        RecordingEntry(
+          id: 'default-melakarta-${raga.number}',
+          name:
+              '${raga.number.toString().padLeft(3, '0')} ${raga.name}'.trim(),
+          createdAt:
+              DateTime(2000, 1, 1).add(Duration(seconds: raga.number)),
+          notes: _buildMelakartaNotes(raga, beatMs),
+          group: 'Melakarta Ragas',
+        ),
     ];
+  }
+
+  RecordingEntry _normalizeLegacyId(RecordingEntry entry) {
+    final id = entry.id;
+    String? nextId;
+    final match = RegExp(
+      r'^default-(?:mayamalavagowla|saralavalis)-(sarale|janta|daatu|melstaayi|mandra|alankaaram)(?:-(\\d+))?$',
+    ).firstMatch(id);
+    if (match != null) {
+      final suffix = match.group(1);
+      final index = match.group(2);
+      if (index != null) {
+        nextId = 'default-swaravalis-$suffix-$index';
+      }
+    }
+    if (nextId == null || nextId == id) {
+      return entry;
+    }
+    return RecordingEntry(
+      id: nextId,
+      name: entry.name,
+      createdAt: entry.createdAt,
+      notes: entry.notes,
+      group: entry.group,
+      subgroup: entry.subgroup,
+    );
+  }
+
+  RecordingEntry _normalizeSwaravalisEntry(RecordingEntry entry) {
+    if (entry.group?.trim() != 'Mayamalavagowla' &&
+        entry.group?.trim() != 'Saralavalis' &&
+        entry.group?.trim() != _swaravalisGroup) {
+      return entry;
+    }
+    final nextGroup = _swaravalisGroup;
+    final nextSubgroup = _swaravalisSubgroupRename[entry.subgroup] ??
+        (entry.subgroup?.trim().isEmpty == true ? null : entry.subgroup);
+    final nextName = entry.name.startsWith('Mayamalavagowla ')
+        ? entry.name.replaceFirst('Mayamalavagowla ', 'Swaravalis ')
+        : (entry.name.startsWith('Saralavalis ')
+            ? entry.name.replaceFirst('Saralavalis ', 'Swaravalis ')
+            : entry.name);
+    if (entry.group == nextGroup &&
+        entry.subgroup == nextSubgroup &&
+        entry.name == nextName) {
+      return entry;
+    }
+    return RecordingEntry(
+      id: entry.id,
+      name: nextName,
+      createdAt: entry.createdAt,
+      notes: entry.notes,
+      group: nextGroup,
+      subgroup: nextSubgroup,
+    );
   }
 
   List<RecordedNote> _buildSaraleVaraseNotes(
@@ -400,6 +455,52 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       for (final line in group) {
         _appendSaraleLine(notes, line, beatMs);
       }
+    }
+    return notes;
+  }
+
+  List<RecordedNote> _buildMelakartaNotes(
+    MelakartaRaga raga,
+    int beatMs,
+  ) {
+    final asc = _melakartaNotesFromTokens(
+      raga.arohanam.split(' '),
+      ascending: true,
+      startOctave: _melakartaBaseOctave,
+    );
+    final desc = _melakartaNotesFromTokens(
+      raga.avarohanam.split(' '),
+      ascending: false,
+      startOctave: _melakartaBaseOctave + 1,
+    );
+    return [
+      for (final note in asc) RecordedNote(note: note, durationMs: beatMs),
+      for (final note in desc) RecordedNote(note: note, durationMs: beatMs),
+    ];
+  }
+
+  List<String> _melakartaNotesFromTokens(
+    List<String> tokens, {
+    required bool ascending,
+    required int startOctave,
+  }) {
+    final notes = <String>[];
+    var octave = startOctave;
+    int? prevSemitone;
+    for (final raw in tokens) {
+      final token = raw.trim();
+      if (token.isEmpty) continue;
+      final semitone = _melakartaSemitones[token];
+      if (semitone == null) continue;
+      if (prevSemitone != null) {
+        if (ascending && semitone < prevSemitone) {
+          octave += 1;
+        } else if (!ascending && semitone > prevSemitone) {
+          octave -= 1;
+        }
+      }
+      prevSemitone = semitone;
+      notes.add('${_melakartaNoteNames[semitone]}$octave');
     }
     return notes;
   }
@@ -946,6 +1047,8 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     }
     final groups = grouped.keys.toList()
       ..sort((a, b) {
+        if (a == _swaravalisGroup) return -1;
+        if (b == _swaravalisGroup) return 1;
         if (a == _ungroupedLabel) return 1;
         if (b == _ungroupedLabel) return -1;
         return a.toLowerCase().compareTo(b.toLowerCase());
@@ -962,6 +1065,15 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
           ..sort((a, b) {
             if (a == _ungroupedLabel) return 1;
             if (b == _ungroupedLabel) return -1;
+            if (groupName == _swaravalisGroup) {
+              final aIndex = _swaravalisSubgroupOrder.indexOf(a);
+              final bIndex = _swaravalisSubgroupOrder.indexOf(b);
+              if (aIndex != -1 && bIndex != -1) {
+                return aIndex.compareTo(bIndex);
+              }
+              if (aIndex != -1) return -1;
+              if (bIndex != -1) return 1;
+            }
             return a.toLowerCase().compareTo(b.toLowerCase());
           });
         final subgroupTiles = <Widget>[];
@@ -1002,6 +1114,8 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
 
   Widget _buildRecordingTile(RecordingEntry recording) {
     final isDefault = _defaultRecordingIds.contains(recording.id);
+    final isSwaravalis = recording.group?.trim() == _swaravalisGroup;
+    final canDelete = !isDefault && !isSwaravalis;
     final isPlaying = _inlinePlaying && _playingId == recording.id;
     return InkWell(
       onTap: widget.onSelect == null ? null : () => widget.onSelect?.call(recording),
@@ -1043,7 +1157,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                   icon: const Icon(Icons.sports_esports),
                   onPressed: () => _openGamifiedTracker(recording),
                 ),
-                if (!isDefault)
+                if (canDelete)
                   IconButton(
                     icon: const Icon(Icons.delete_outline),
                     onPressed: () => _confirmDelete(recording),
