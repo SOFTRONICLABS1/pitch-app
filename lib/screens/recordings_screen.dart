@@ -57,6 +57,32 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     'default-mayamalavagowla-janta-10',
     'default-mayamalavagowla-janta-11',
     'default-mayamalavagowla-janta-12',
+    'default-mayamalavagowla-daatu',
+    'default-mayamalavagowla-daatu-1',
+    'default-mayamalavagowla-daatu-2',
+    'default-mayamalavagowla-daatu-3',
+    'default-mayamalavagowla-melstaayi',
+    'default-mayamalavagowla-melstaayi-1',
+    'default-mayamalavagowla-melstaayi-2',
+    'default-mayamalavagowla-melstaayi-3',
+    'default-mayamalavagowla-melstaayi-4',
+    'default-mayamalavagowla-melstaayi-5',
+    'default-mayamalavagowla-mandra',
+    'default-mayamalavagowla-mandra-1',
+    'default-mayamalavagowla-mandra-2',
+    'default-mayamalavagowla-mandra-3',
+    'default-mayamalavagowla-mandra-4',
+    'default-mayamalavagowla-mandra-5',
+    'default-mayamalavagowla-alankaaram',
+    'default-mayamalavagowla-alankaaram-1',
+    'default-mayamalavagowla-alankaaram-2',
+    'default-mayamalavagowla-alankaaram-3',
+    'default-mayamalavagowla-alankaaram-4',
+    'default-mayamalavagowla-alankaaram-5',
+    'default-mayamalavagowla-alankaaram-6',
+    'default-mayamalavagowla-alankaaram-7',
+    'default-mayamalavagowla-alankaaram-8',
+    'default-mayamalavagowla-alankaaram-9',
   };
   static const _ungroupedLabel = 'Ungrouped';
   _RecordingSort _sortOrder = _RecordingSort.createdDesc;
@@ -170,6 +196,78 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
           notes: _buildJantaVarisaiNotes(beatMs, index: i),
           group: 'Mayamalavagowla',
           subgroup: 'Janta Varisai',
+        ),
+      RecordingEntry(
+        id: 'default-mayamalavagowla-daatu',
+        name: 'Mayamalavagowla Daatu Varisai 001-003',
+        createdAt: DateTime(2000, 1, 1),
+        notes: _buildDaatuVarisaiNotes(beatMs),
+        group: 'Mayamalavagowla',
+        subgroup: 'Daatu Varisai',
+      ),
+      for (var i = 0; i < _daatuVarisaiSequences.length; i++)
+        RecordingEntry(
+          id: 'default-mayamalavagowla-daatu-${i + 1}',
+          name:
+              'Mayamalavagowla Daatu Varisai ${(i + 1).toString().padLeft(3, '0')}',
+          createdAt: DateTime(2000, 1, 1),
+          notes: _buildDaatuVarisaiNotes(beatMs, index: i),
+          group: 'Mayamalavagowla',
+          subgroup: 'Daatu Varisai',
+        ),
+      RecordingEntry(
+        id: 'default-mayamalavagowla-melstaayi',
+        name: 'Mayamalavagowla Melstaayi Varisai 001-005',
+        createdAt: DateTime(2000, 1, 1),
+        notes: _buildMelstaayiVarisaiNotes(beatMs),
+        group: 'Mayamalavagowla',
+        subgroup: 'Melstaayi Varisai',
+      ),
+      for (var i = 0; i < _melstaayiVarisaiSequences.length; i++)
+        RecordingEntry(
+          id: 'default-mayamalavagowla-melstaayi-${i + 1}',
+          name:
+              'Mayamalavagowla Melstaayi Varisai ${(i + 1).toString().padLeft(3, '0')}',
+          createdAt: DateTime(2000, 1, 1),
+          notes: _buildMelstaayiVarisaiNotes(beatMs, index: i),
+          group: 'Mayamalavagowla',
+          subgroup: 'Melstaayi Varisai',
+        ),
+      RecordingEntry(
+        id: 'default-mayamalavagowla-mandra',
+        name: 'Mayamalavagowla Mandra Staayi Varisai 001-005',
+        createdAt: DateTime(2000, 1, 1),
+        notes: _buildMandraStaayiVarisaiNotes(beatMs),
+        group: 'Mayamalavagowla',
+        subgroup: 'Mandra Staayi Varisai',
+      ),
+      for (var i = 0; i < _mandraStaayiVarisaiSequences.length; i++)
+        RecordingEntry(
+          id: 'default-mayamalavagowla-mandra-${i + 1}',
+          name:
+              'Mayamalavagowla Mandra Staayi Varisai ${(i + 1).toString().padLeft(3, '0')}',
+          createdAt: DateTime(2000, 1, 1),
+          notes: _buildMandraStaayiVarisaiNotes(beatMs, index: i),
+          group: 'Mayamalavagowla',
+          subgroup: 'Mandra Staayi Varisai',
+        ),
+      RecordingEntry(
+        id: 'default-mayamalavagowla-alankaaram',
+        name: 'Mayamalavagowla Alankaaram 001-009',
+        createdAt: DateTime(2000, 1, 1),
+        notes: _buildAlankaaramNotes(beatMs),
+        group: 'Mayamalavagowla',
+        subgroup: 'Alankaaram',
+      ),
+      for (var i = 0; i < _alankaaramSequences.length; i++)
+        RecordingEntry(
+          id: 'default-mayamalavagowla-alankaaram-${i + 1}',
+          name:
+              'Mayamalavagowla Alankaaram ${(i + 1).toString().padLeft(3, '0')}',
+          createdAt: DateTime(2000, 1, 1),
+          notes: _buildAlankaaramNotes(beatMs, index: i),
+          group: 'Mayamalavagowla',
+          subgroup: 'Alankaaram',
         ),
       RecordingEntry(
         id: 'default-shankarabharanam',
@@ -521,6 +619,282 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     ],
   ];
 
+  static const _daatuVarisaiSequences = [
+    [
+      's s m m | r r | g g ||',
+      's s r r | g g | m m ||',
+      'r r p p | g g | m m ||',
+      'r r g g | m m | p p ||',
+      'g g d d | m m | p p ||',
+      'g g m m | p p | d d ||',
+      'm m n n | p p | d d ||',
+      'm m p p | d d | n n ||',
+      'p p S S | d d | n n ||',
+      'p p d d | n n | S S ||',
+      'S S p p | n n | d d ||',
+      'S S n n | d d | p p ||',
+      'n n m m | d d | p p ||',
+      'n n d d | p p | m m ||',
+      'd d g g | p p | m m ||',
+      'd d p p | m m | g g ||',
+      'p p r r | m m | g g ||',
+      'p p m m | g g | r r ||',
+      'm m s s | g g | r r ||',
+      'm m g g | r r | s s ||',
+    ],
+    [
+      's m g m | r g | s r ||',
+      's g r g | s r | g m ||',
+      'r p m p | g m | r g ||',
+      'r m g m | r g | m p ||',
+      'g d p d | m p | g m ||',
+      'g p m p | g m | p d ||',
+      'm n d n | p d | m p ||',
+      'm d p d | m p | d n ||',
+      'p S n S | d n | p d ||',
+      'p n d n | p d | n S ||',
+      'S p d p | n d | S n ||',
+      'S d n d | S n | d p ||',
+      'n m p m | d p | n d ||',
+      'n p d p | n d | p m ||',
+      'd g m g | p m | d p ||',
+      'd m p m | d p | m g ||',
+      'p r g r | m g | p m ||',
+      'p g m g | p m | g r ||',
+      'm s r s | g r | m g ||',
+      'm r g r | m g | r s ||',
+    ],
+    [
+      's r s g | r g | r m ||',
+      's m g r | s r | g m ||',
+      'r g r m | g m | g p ||',
+      'r p m g | r g | m p ||',
+      'g m g p | m p | m d ||',
+      'g d p m | g m | p d ||',
+      'm p m d | p d | p n ||',
+      'm n d p | m p | d n ||',
+      'p d p n | d n | d S ||',
+      'p S n d | p d | n S ||',
+      'S n S d | n d | n p ||',
+      'S p d n | S n | d p ||',
+      'n d n p | d p | d m ||',
+      'n m p d | n d | p m ||',
+      'd p d m | p m | p g ||',
+      'd g m p | d p | m g ||',
+      'p m p g | m g | m r ||',
+      'p r g m | p m | g r ||',
+      'm g m r | g r | g s ||',
+      'm s r g | m g | r s ||',
+    ],
+  ];
+
+  static const _melstaayiVarisaiSequences = [
+    [
+      's r g m | p d | n S ||',
+      'S , , , | S , | , , ||',
+      'd n S R | S n | d p ||',
+      'S n d p | m g | r s ||',
+    ],
+    [
+      's r g m | p d | n S ||',
+      'S , , , | S , | , , ||',
+      'd n S R | S S | R S ||',
+      'S R - S n | d p | m p ||',
+      'd n S R | S n | d p ||',
+      'S n d p | m g | r s ||',
+    ],
+    [
+      's r g m | p d | n S ||',
+      'S , , , | S , | , , ||',
+      'd n S R | G R | S R ||',
+      'S R - S n | d p | m p ||',
+      'd n S R | S S | R S ||',
+      'S R - S n | d p | m p ||',
+      'd n S R | S n | d p ||',
+      'S n d p | m g | r s ||',
+    ],
+    [
+      's r g m | p d | n S ||',
+      'S , , , | S , | , , ||',
+      'd n S R | G M | G R ||',
+      'S R - S n | d p | m p ||',
+      'd n S R | G R | S R ||',
+      'S R - S n | d p | m p ||',
+      'd n S R | S S | R S ||',
+      'S R - S n | d p | m p ||',
+      'd n S R | S n | d p ||',
+      'S n d p | m g | r s ||',
+    ],
+    [
+      's r g m | p d | n S ||',
+      'S , , , | S , | , , ||',
+      'd n S R | G M | P M ||',
+      'G R - S n | d p | m p ||',
+      'd n S R | G M | G R ||',
+      'S R - S n | d p | m p ||',
+      'd n S R | G R | S R ||',
+      'S R - S n | d p | m p ||',
+      'd n S R | S S | R S ||',
+      'S R - S n | d p | m p ||',
+      'd n S R | S n | d p ||',
+      'S n d p | m g | r s ||',
+    ],
+  ];
+
+  static const _mandraStaayiVarisaiSequences = [
+    [
+      'S n d p | m g | r s ||',
+      's , , , | s , | , , ||',
+      'g r s n. | s r | g m ||',
+      's r g m | p d | n S ||',
+    ],
+    [
+      'S n d p | m g | r s ||',
+      's , , , | s , | , , ||',
+      'g r s n. | s s | n. s ||',
+      's n. s r | g m | p m ||',
+      'g r s n. | s r | g m ||',
+      's r g m | p d | n S ||',
+    ],
+    [
+      'S n d p | m g | r s ||',
+      's , , , | s , | , , ||',
+      'g r s n. | d n. | s n. ||',
+      's n. s r | g m | p m ||',
+      'g r s n. | s s | n. s ||',
+      's n. s r | g m | p m ||',
+      'g r s n. | s r | g m ||',
+      's r g m | p d | n S ||',
+    ],
+    [
+      'S n d p | m g | r s ||',
+      's , , , | s , | , , ||',
+      'g r s n. | d p. | d n. ||',
+      's n. s r | g m | p m ||',
+      'g r s n. | d n. | s n. ||',
+      's n. s r | g m | p m ||',
+      'g r s n. | s s | n. s ||',
+      's n. s r | g m | p m ||',
+      'g r s n. | s r | g m ||',
+      's r g m | p d | n S ||',
+    ],
+    [
+      'S n d p | m g | r s ||',
+      's , , , | s , | , , ||',
+      'g r s n. | d p. | m. p. ||',
+      'd n. s r | g m | p m ||',
+      'g r s n. | d p. | d n. ||',
+      's n. s r | g m | p m ||',
+      'g r s n. | d n. | s n. ||',
+      's n. s r | g m | p m ||',
+      'g r s n. | s s | n. s ||',
+      's n. s r | g m | p m ||',
+      'g r s n. | s r | g m ||',
+      's r g m | p d | n S ||',
+    ],
+  ];
+
+  static const _alankaaramSequences = [
+    [
+      's r g m | g r | s r g r | s r g m ||',
+      'r g m p | m g | r g m g | r g m p ||',
+      'g m p d | p m | g m p m | g m p d ||',
+      'm p d n | d p | m p d p | m p d n ||',
+      'p d n S | n d | p d n d | p d n S ||',
+      'S n d p | d n | S n d n | S n d p ||',
+      'n d p m | p d | n d p d | n d p m ||',
+      'd p m g | m p | d p m p | d p m g ||',
+      'p m g r | g m | p m g m | p m g r ||',
+      'm g r s | r g | m g r g | m g r s ||',
+    ],
+    [
+      's r g r | s r | s r g m ||',
+      'r g m g | r g | r g m p ||',
+      'g m p m | g m | g m p d ||',
+      'm p d p | m p | m p d n ||',
+      'p d n d | p d | p d n S ||',
+      'S n d n | S n | S n d p ||',
+      'n d p d | n d | n d p m ||',
+      'd p m p | d p | d p m g ||',
+      'p m g m | p m | p m g r ||',
+      'm g r g | m g | m g r s ||',
+    ],
+    [
+      's r | s r g m ||',
+      'r g | r g m p ||',
+      'g m | g m p d ||',
+      'm p | m p d n ||',
+      'p d | p d n S ||',
+      'S n | S n d p ||',
+      'n d | n d p m ||',
+      'd p | d p m g ||',
+      'p m | p m g r ||',
+      'm g | m g r s ||',
+    ],
+    [
+      's r g s r s r | g | m , ||',
+      'r g m r g r g | m | p , ||',
+      'g m p g m g m | p | d , ||',
+      'm p d m p m p | d | n , ||',
+      'p d n p d p d | n | S , ||',
+      'S n d S n S n | d | p , ||',
+      'n d p n d n d | p | m , ||',
+      'd p m d p d p | m | g , ||',
+      'p m g p m p m | g | r , ||',
+      'm g r m g m g | r | s , ||',
+    ],
+    [
+      's r g | s r | g m ||',
+      'r g m | r g | m p ||',
+      'g m p | g m | p d ||',
+      'm p d | m p | d n ||',
+      'p d n | p d | n S ||',
+      'S n d | S n | d p ||',
+      'n d p | n d | p m ||',
+      'd p m | d p | m g ||',
+      'p m g | p m | g r ||',
+      'm g r | m g | r s ||',
+    ],
+    [
+      's r , g , | s , r g , | m , | m , ||',
+      'r g , m , | r , g m , | p , | p , ||',
+      'g m , p , | g , m p , | d , | d , ||',
+      'm p , d , | m , p d , | n , | n , ||',
+      'p d , n , | p , d n , | S , | S , ||',
+      'S n , d , | S , n d , | p , | p , ||',
+      'n d , p , | n , d p , | m , | m , ||',
+      'd p , m , | d , p m , | g , | g , ||',
+      'p m , g , | p , m g , | r , | r , ||',
+      'm g , r , | m , g r , | s , | s , ||',
+    ],
+    [
+      's r g m ||',
+      'r g m p ||',
+      'g m p d ||',
+      'm p d n ||',
+      'p d n S ||',
+      'S n d p ||',
+      'n d p m ||',
+      'd p m g ||',
+      'p m g r ||',
+      'm g r s ||',
+    ],
+    [
+      's , r , g , m p d ||',
+      'r , g , m , p d n ||',
+      'g , m , p , d n S ||',
+      'S , n , d , p m g ||',
+      'n , d , p , m g r ||',
+      'd , p , m , g r s ||',
+    ],
+    [
+      's r , g m , p d n ||',
+      'r g , m p , d n S ||',
+      'S n , d p , m g r ||',
+      'n d , p m , g r s ||',
+    ],
+  ];
+
   List<RecordedNote> _buildSaraleVaraseNotes(
     int beatMs, {
     int? index,
@@ -547,6 +921,78 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         ? _jantaVarisaiSequences
         : [
             _jantaVarisaiSequences[index],
+          ];
+    final notes = <RecordedNote>[];
+    for (final group in sequences) {
+      for (final line in group) {
+        _appendSaraleLine(notes, line, beatMs);
+      }
+    }
+    return notes;
+  }
+
+  List<RecordedNote> _buildDaatuVarisaiNotes(
+    int beatMs, {
+    int? index,
+  }) {
+    final sequences = index == null
+        ? _daatuVarisaiSequences
+        : [
+            _daatuVarisaiSequences[index],
+          ];
+    final notes = <RecordedNote>[];
+    for (final group in sequences) {
+      for (final line in group) {
+        _appendSaraleLine(notes, line, beatMs);
+      }
+    }
+    return notes;
+  }
+
+  List<RecordedNote> _buildMelstaayiVarisaiNotes(
+    int beatMs, {
+    int? index,
+  }) {
+    final sequences = index == null
+        ? _melstaayiVarisaiSequences
+        : [
+            _melstaayiVarisaiSequences[index],
+          ];
+    final notes = <RecordedNote>[];
+    for (final group in sequences) {
+      for (final line in group) {
+        _appendSaraleLine(notes, line, beatMs);
+      }
+    }
+    return notes;
+  }
+
+  List<RecordedNote> _buildMandraStaayiVarisaiNotes(
+    int beatMs, {
+    int? index,
+  }) {
+    final sequences = index == null
+        ? _mandraStaayiVarisaiSequences
+        : [
+            _mandraStaayiVarisaiSequences[index],
+          ];
+    final notes = <RecordedNote>[];
+    for (final group in sequences) {
+      for (final line in group) {
+        _appendSaraleLine(notes, line, beatMs);
+      }
+    }
+    return notes;
+  }
+
+  List<RecordedNote> _buildAlankaaramNotes(
+    int beatMs, {
+    int? index,
+  }) {
+    final sequences = index == null
+        ? _alankaaramSequences
+        : [
+            _alankaaramSequences[index],
           ];
     final notes = <RecordedNote>[];
     for (final group in sequences) {
