@@ -1237,7 +1237,11 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   _GroupSettings _groupSettingsFor(String group) {
     return _groupSettings.putIfAbsent(
       group,
-      () => const _GroupSettings(bpm: 60, rootSemitone: 0),
+      () => const _GroupSettings(
+        bpm: 60,
+        rootSemitone: 0,
+        ragaName: 'Mayamalavagowla',
+      ),
     );
   }
 
@@ -1414,6 +1418,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     final current = _groupSettingsFor(groupName);
     var bpm = current.bpm;
     var rootSemitone = current.rootSemitone;
+    var ragaName = current.ragaName;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF23272B),
@@ -1493,38 +1498,96 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    'Root note (Sa)',
-                    style: Theme.of(context)
-                        .textTheme
-                        .labelLarge
-                        ?.copyWith(color: Colors.white70),
-                  ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<int>(
-                    value: rootSemitone,
-                    dropdownColor: const Color(0xFF2A2F35),
-                    decoration: const InputDecoration(
-                      filled: true,
-                      fillColor: Color(0xFF1B1F23),
-                      border: OutlineInputBorder(),
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                    items: _rootNoteOptions
-                        .map(
-                          (note) => DropdownMenuItem<int>(
-                            value: note.semitone,
-                            child: Text(note.label),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: (value) {
-                      if (value == null) return;
-                      setSheetState(() {
-                        rootSemitone = value;
-                      });
-                    },
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Raga',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelLarge
+                                  ?.copyWith(color: Colors.white70),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<String>(
+                              value: ragaName,
+                              dropdownColor: const Color(0xFF2A2F35),
+                              decoration: const InputDecoration(
+                                filled: true,
+                                fillColor: Color(0xFF1B1F23),
+                                border: OutlineInputBorder(),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                              ),
+                              items: _ragaOptions
+                                  .map(
+                                    (name) => DropdownMenuItem<String>(
+                                      value: name,
+                                      child: Text(name),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (value) {
+                                if (value == null) return;
+                                setSheetState(() {
+                                  ragaName = value;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Root note (Sa)',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .labelLarge
+                                  ?.copyWith(color: Colors.white70),
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<int>(
+                              value: rootSemitone,
+                              dropdownColor: const Color(0xFF2A2F35),
+                              decoration: const InputDecoration(
+                                filled: true,
+                                fillColor: Color(0xFF1B1F23),
+                                border: OutlineInputBorder(),
+                                contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 10,
+                                ),
+                              ),
+                              items: _rootNoteOptions
+                                  .map(
+                                    (note) => DropdownMenuItem<int>(
+                                      value: note.semitone,
+                                      child: Text(note.label),
+                                    ),
+                                  )
+                                  .toList(),
+                              onChanged: (value) {
+                                if (value == null) return;
+                                setSheetState(() {
+                                  rootSemitone = value;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   Row(
@@ -1543,6 +1606,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                               _groupSettings[groupName] = _GroupSettings(
                                 bpm: bpm,
                                 rootSemitone: rootSemitone,
+                                ragaName: ragaName,
                               );
                             });
                             Navigator.of(context).pop();
@@ -1759,6 +1823,12 @@ class _RootNoteOption {
   final int semitone;
 }
 
+final List<String> _ragaOptions = [
+  'Mayamalavagowla',
+  for (final raga in melakartaRagas)
+    if (raga.name != 'Mayamalavagowla') raga.name,
+];
+
 const _rootNoteOptions = [
   _RootNoteOption('C', 0),
   _RootNoteOption('C#', 1),
@@ -1778,10 +1848,12 @@ class _GroupSettings {
   const _GroupSettings({
     required this.bpm,
     required this.rootSemitone,
+    required this.ragaName,
   });
 
   final int bpm;
   final int rootSemitone;
+  final String ragaName;
 }
 
 class _MiniEqualizer extends StatefulWidget {
