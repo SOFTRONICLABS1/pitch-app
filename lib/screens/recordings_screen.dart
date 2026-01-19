@@ -192,7 +192,8 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
               entry.id != 'default-mayamalavagowla' &&
               entry.id != 'default-swaravalis-sarale' &&
               entry.id != 'default-mayamalavagowla-sarale' &&
-              entry.id != 'default-saralavalis-sarale',
+              entry.id != 'default-saralavalis-sarale' &&
+              entry.group != 'Melakarta Ragas',
         )
         .map(_normalizeSwaravalisEntry)
         .toList();
