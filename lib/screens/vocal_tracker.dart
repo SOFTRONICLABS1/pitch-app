@@ -1736,6 +1736,7 @@ class _EditableTargetOverlay extends StatefulWidget {
   static const _msToWidth = 0.08;
   static const _minTileWidth = 24.0;
   static const _defaultInsertDurationMs = 1000;
+  static const _rowHeightFactor = 1.5;
   static const _blockHeightFactor = 1.0;
   static const _labelHeightFactor = 1.0;
 
@@ -1926,7 +1927,10 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         _plotWidth = plotWidth;
         final width = max(plotWidth, (totalMs + pendingExtraMs) * scale)
             .toDouble();
-        final rowHeight = rowCount > 0 ? viewportHeight / rowCount : 0.0;
+        final baseRowHeight =
+            rowCount > 0 ? viewportHeight / rowCount : 0.0;
+        final rowHeight =
+            baseRowHeight * _EditableTargetOverlay._rowHeightFactor;
         final blockHeight = rowHeight * _EditableTargetOverlay._blockHeightFactor;
         final labelHeight = rowHeight * _EditableTargetOverlay._labelHeightFactor;
         final topMidi = baseMidi + rowCount - 1;
@@ -2167,7 +2171,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           final baseStyle = labelStyle ??
               TextStyle(
                 color: rowTextColor,
-                fontSize: 11,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
               );
           final resolvedStyle = baseStyle.copyWith(color: rowTextColor);
