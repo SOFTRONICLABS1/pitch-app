@@ -157,6 +157,24 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     'N2': 10,
     'N3': 11,
   };
+  static const _defaultSwaraForSemitone = {
+    0: 'S',
+    1: 'R',
+    4: 'G',
+    5: 'M',
+    7: 'P',
+    8: 'D',
+    11: 'N',
+  };
+  static const _defaultRagaSemitones = {
+    'S': 0,
+    'R': 1,
+    'G': 4,
+    'M': 5,
+    'P': 7,
+    'D': 8,
+    'N': 11,
+  };
 
   @override
   void initState() {
@@ -518,6 +536,93 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     return notes;
   }
 
+  RecordingEntry _mapRecordingForRaga(
+    RecordingEntry entry,
+    String ragaName,
+  ) {
+    final mapping = _ragaSemitoneMap(ragaName);
+    if (mapping == null) {
+      return entry;
+    }
+    final mappedNotes = entry.notes.map((note) {
+      final mapped = _mapNoteForRaga(note.note, mapping);
+      if (mapped == null) {
+        return note;
+      }
+      return RecordedNote(note: mapped, durationMs: note.durationMs);
+    }).toList();
+    return RecordingEntry(
+      id: entry.id,
+      name: entry.name,
+      createdAt: entry.createdAt,
+      notes: mappedNotes,
+      group: entry.group,
+      subgroup: entry.subgroup,
+    );
+  }
+
+  Map<String, int>? _ragaSemitoneMap(String ragaName) {
+    if (ragaName.trim().isEmpty) {
+      return _defaultRagaSemitones;
+    }
+    final raga = melakartaRagas
+        .cast<MelakartaRaga?>()
+        .firstWhere(
+          (item) => item?.name.toLowerCase() == ragaName.toLowerCase(),
+          orElse: () => null,
+        );
+    if (raga == null) {
+      return _defaultRagaSemitones;
+    }
+    final map = <String, int>{};
+    final tokens = raga.arohanam.split(' ');
+    for (final token in tokens) {
+      if (token.isEmpty) continue;
+      final letter = token[0].toUpperCase();
+      if (!'SRGMPDN'.contains(letter)) {
+        continue;
+      }
+      final semitone = _melakartaSemitones[token];
+      if (semitone != null) {
+        map[letter] = semitone;
+      }
+    }
+    for (final entry in _defaultRagaSemitones.entries) {
+      map.putIfAbsent(entry.key, () => entry.value);
+    }
+    return map;
+  }
+
+  String? _mapNoteForRaga(String note, Map<String, int> mapping) {
+    final match = RegExp(r'^([a-g])(#?)(-?\d+)$').firstMatch(note.trim());
+    if (match == null) {
+      return null;
+    }
+    final name = match.group(1);
+    final sharp = match.group(2);
+    final octave = int.tryParse(match.group(3) ?? '');
+    if (name == null || octave == null) {
+      return null;
+    }
+    final baseIndex = switch (name.toUpperCase()) {
+      'C' => 0,
+      'D' => 2,
+      'E' => 4,
+      'F' => 5,
+      'G' => 7,
+      'A' => 9,
+      'B' => 11,
+      _ => 0,
+    };
+    final semitone = (baseIndex + (sharp == '#' ? 1 : 0)) % 12;
+    final swara = _defaultSwaraForSemitone[semitone];
+    if (swara == null) {
+      return null;
+    }
+    final target = mapping[swara] ?? semitone;
+    return '${_melakartaNoteNames[target]}$octave';
+  }
+
   void _appendSaraleLine(
     List<RecordedNote> notes,
     String line,
@@ -671,11 +776,13 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         ? entry.group!.trim()
         : _ungroupedLabel;
     final settings = _groupSettingsFor(groupName);
+    final mappedEntry = _mapRecordingForRaga(entry, settings.ragaName);
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => VocalTrackerScreen(
-          recording: entry,
+          recording: mappedEntry,
           initialCarnaticRootSemitone: settings.rootSemitone,
+          initialRagaName: settings.ragaName,
         ),
       ),
     );
@@ -714,13 +821,14 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: VocalTrackerScreen(
-            recording: entry,
+            recording: _mapRecordingForRaga(entry, settings.ragaName),
             readOnly: true,
             allowEdit: false,
             allowSettings: false,
             initialBpm: settings.bpm,
             initialTanpuraEnabled: false,
             initialCarnaticRootSemitone: settings.rootSemitone,
+            initialRagaName: settings.ragaName,
           ),
         );
       },
@@ -747,14 +855,15 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         ? entry.group!.trim()
         : _ungroupedLabel;
     final settings = _groupSettingsFor(groupName);
+    final mappedEntry = _mapRecordingForRaga(entry, settings.ragaName);
     await _preloadInlineHarmonics(
-      entry,
+      mappedEntry,
       baseOctave,
       settings.rootSemitone,
       tuningSystem,
     );
     _buildInlineTargets(
-      entry,
+      mappedEntry,
       baseOctave,
       settings.rootSemitone,
       tuningSystem,
@@ -963,6 +1072,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         builder: (_) => VocalTrackerScreen(
           recording: entry,
           initialCarnaticRootSemitone: settings.rootSemitone,
+          initialRagaName: settings.ragaName,
         ),
       ),
     );

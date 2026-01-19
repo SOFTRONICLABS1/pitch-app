@@ -59,6 +59,11 @@ class TunerDisplay extends StatefulWidget {
     this.guidelineOffset = -15.0,
     this.rowCount = _defaultRowCount,
     this.rootSemitone = 0,
+    this.minRowIndex,
+    this.maxRowIndex,
+    this.rowIndexForMidi,
+    this.midiForRowIndex,
+    this.labelForRowIndex,
   });
 
   final List<PitchPoint> history;
@@ -76,6 +81,11 @@ class TunerDisplay extends StatefulWidget {
   final double guidelineOffset;
   final int rowCount;
   final int rootSemitone;
+  final int? minRowIndex;
+  final int? maxRowIndex;
+  final int Function(int midi)? rowIndexForMidi;
+  final int Function(int rowIndex)? midiForRowIndex;
+  final String Function(int rowIndex)? labelForRowIndex;
 
   @override
   State<TunerDisplay> createState() => _TunerDisplayState();
@@ -113,7 +123,31 @@ class _TunerDisplayState extends State<TunerDisplay>
     widget.rowCount,
     widget.noteLabels,
     widget.labelTextStyle,
+    widget.labelForRowIndex,
+    widget.midiForRowIndex,
   );
+
+  bool get _useCustomRows {
+    return widget.rowIndexForMidi != null && widget.midiForRowIndex != null;
+  }
+
+  int get _minRowIndex => widget.minRowIndex ?? _minMidi;
+
+  int get _maxRowIndex => widget.maxRowIndex ?? _maxMidi;
+
+  int _rowIndexForMidi(int midi) {
+    if (_useCustomRows) {
+      return widget.rowIndexForMidi!(midi);
+    }
+    return midi;
+  }
+
+  int _midiForRowIndex(int rowIndex) {
+    if (_useCustomRows) {
+      return widget.midiForRowIndex!(rowIndex);
+    }
+    return rowIndex;
+  }
 
   @override
   void initState() {
@@ -141,6 +175,8 @@ class _TunerDisplayState extends State<TunerDisplay>
         widget.rowCount,
         widget.noteLabels,
         widget.labelTextStyle,
+        widget.labelForRowIndex,
+        widget.midiForRowIndex,
       );
     }
     if (!_appliedInitialBase &&
@@ -214,6 +250,7 @@ class _TunerDisplayState extends State<TunerDisplay>
       nowOverride: widget.nowOverride,
       rows: _rows,
       baseOffset: _baseOffset,
+      rowIndexForMidi: widget.rowIndexForMidi,
     );
     final buffer = await ui.ImmutableBuffer.fromUint8List(pixels);
     final descriptor = ui.ImageDescriptor.raw(
@@ -270,6 +307,8 @@ class _TunerDisplayState extends State<TunerDisplay>
                 guidelineOffset: widget.guidelineOffset,
                 showLabels: widget.showLabels,
                 rootSemitone: widget.rootSemitone,
+                labelForRowIndex: widget.labelForRowIndex,
+                midiForRowIndex: widget.midiForRowIndex,
               ),
               isComplex: true,
               willChange: true,
@@ -287,19 +326,22 @@ class _TunerDisplayState extends State<TunerDisplay>
     }
     final latest = widget.history.last;
     final midi = _midiFromFrequency(latest.frequency);
+    final midiRow = _rowIndexForMidi(midi.round());
     final topMidi = _baseMidiFloor + widget.rowCount - 1;
     final upperTrigger = topMidi - _edgeThreshold;
     final lowerTrigger = _baseMidiFloor + _edgeThreshold;
     var nextBase = _targetBaseMidi;
     final lastMidi = _lastMidi;
     if (_scrollStart == null && lastMidi != null) {
-      if (midi >= upperTrigger && lastMidi < upperTrigger) {
+      final lastRow = _rowIndexForMidi(lastMidi.round());
+      if (midiRow >= upperTrigger && lastRow < upperTrigger) {
         nextBase = _targetBaseMidi + _scrollStep;
-      } else if (midi <= lowerTrigger && lastMidi > lowerTrigger) {
+      } else if (midiRow <= lowerTrigger && lastRow > lowerTrigger) {
         nextBase = _targetBaseMidi - _scrollStep;
       }
     }
-    nextBase = nextBase.clamp(_minMidi, _maxMidi - widget.rowCount + 1);
+    nextBase =
+        nextBase.clamp(_minRowIndex, _maxRowIndex - widget.rowCount + 1);
     if (nextBase != _targetBaseMidi) {
       _targetBaseMidi = nextBase;
       _scrollFrom = _baseMidi;
@@ -329,6 +371,8 @@ class _TunerDisplayState extends State<TunerDisplay>
           widget.rowCount,
           widget.noteLabels,
           widget.labelTextStyle,
+          widget.labelForRowIndex,
+          widget.midiForRowIndex,
         );
       });
       widget.onBaseMidiChanged?.call(_baseMidiFloor);
@@ -350,8 +394,9 @@ class _TunerDisplayState extends State<TunerDisplay>
   }
 
   void scrollToMidi(int midi, {double alignment = 0.7}) {
+    final targetRow = _rowIndexForMidi(midi);
     final baseMidi =
-        midi + ((alignment - 1) * widget.rowCount + 0.5);
+        targetRow + ((alignment - 1) * widget.rowCount + 0.5);
     _setBaseMidi(baseMidi);
   }
 
@@ -360,9 +405,9 @@ class _TunerDisplayState extends State<TunerDisplay>
     bool rebuild = true,
     bool notify = true,
   }) {
-    final maxBase = (_maxMidi - widget.rowCount + 1).toDouble();
+    final maxBase = (_maxRowIndex - widget.rowCount + 1).toDouble();
     final nextBase =
-        baseMidi.clamp(_minMidi.toDouble(), maxBase);
+        baseMidi.clamp(_minRowIndex.toDouble(), maxBase);
     if (nextBase == _baseMidi) {
       return;
     }
@@ -378,6 +423,8 @@ class _TunerDisplayState extends State<TunerDisplay>
           widget.rowCount,
           widget.noteLabels,
           widget.labelTextStyle,
+          widget.labelForRowIndex,
+          widget.midiForRowIndex,
         );
       });
     } else {
@@ -386,6 +433,8 @@ class _TunerDisplayState extends State<TunerDisplay>
         widget.rowCount,
         widget.noteLabels,
         widget.labelTextStyle,
+        widget.labelForRowIndex,
+        widget.midiForRowIndex,
       );
     }
     if (notify) {
@@ -401,6 +450,7 @@ class _NoteRow {
   const _NoteRow({
     required this.label,
     required this.midi,
+    required this.rowIndex,
     required this.minHz,
     required this.maxHz,
     required this.isSharp,
@@ -409,6 +459,7 @@ class _NoteRow {
 
   final String label;
   final int midi;
+  final int rowIndex;
   final double minHz;
   final double maxHz;
   final bool isSharp;
@@ -430,6 +481,8 @@ class _TunerPainter extends CustomPainter {
     required this.guidelineOffset,
     required this.showLabels,
     required this.rootSemitone,
+    this.labelForRowIndex,
+    this.midiForRowIndex,
   });
 
   final List<PitchPoint> history;
@@ -445,6 +498,8 @@ class _TunerPainter extends CustomPainter {
   final double guidelineOffset;
   final bool showLabels;
   final int rootSemitone;
+  final String Function(int rowIndex)? labelForRowIndex;
+  final int Function(int rowIndex)? midiForRowIndex;
 
   static const labelWidth = 58.0;
   static const timeSpan = Duration(milliseconds: 6400);
@@ -541,7 +596,14 @@ class _TunerPainter extends CustomPainter {
       for (var i = -1; i <= rows.length; i++) {
         final top = (i * rowHeight) + rowShift;
         final rect = Rect.fromLTWH(0, top, labelWidth, rowHeight);
-        final row = _rowForIndex(i, rows, noteLabels, labelTextStyle);
+        final row = _rowForIndex(
+          i,
+          rows,
+          noteLabels,
+          labelTextStyle,
+          labelForRowIndex,
+          midiForRowIndex,
+        );
         final isSharp = _isSharpSemitone(row.midi);
         final labelBg = Paint()
           ..color = isSharp ? Colors.black : const Color(0xFFCBD1D6);
@@ -713,8 +775,30 @@ int _computeDynamicGapMs(List<PitchPoint> history, int startMs, DateTime now) {
   return threshold < _maxPlotGapMs ? _maxPlotGapMs : threshold;
 }
 
-(int, double) _rowPositionForMidi(double midi, List<_NoteRow> rows) {
+(int, double) _rowPositionForMidi(
+  double midi,
+  List<_NoteRow> rows, {
+  int Function(int midi)? rowIndexForMidi,
+}) {
   final midiInt = midi.round();
+  if (rowIndexForMidi != null && rows.isNotEmpty) {
+    final topRowIndex = rows.first.rowIndex;
+    final bottomRowIndex = rows.last.rowIndex;
+    final targetRowIndex = rowIndexForMidi(midiInt);
+    if (targetRowIndex >= topRowIndex + 1) {
+      return (0, 1.0);
+    }
+    if (targetRowIndex <= bottomRowIndex - 1) {
+      return (rows.length - 1, 0.0);
+    }
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].rowIndex == targetRowIndex) {
+        final centerMidi = rows[i].midi.toDouble();
+        final ratio = (midi - centerMidi + 0.5).clamp(0.0, 1.0);
+        return (i, ratio);
+      }
+    }
+  }
   final topMidi = rows.first.midi.toDouble();
   final bottomMidi = rows.last.midi.toDouble();
   if (midiInt >= topMidi + 1) {
@@ -744,24 +828,37 @@ _NoteRow _rowForIndex(
   List<_NoteRow> rows,
   List<String> noteLabels,
   TextStyle? labelTextStyle,
+  String Function(int rowIndex)? labelForRowIndex,
+  int Function(int rowIndex)? midiForRowIndex,
 ) {
   if (index >= 0 && index < rows.length) {
     return rows[index];
   }
-  final baseMidi = rows.isNotEmpty ? rows.last.midi : 33;
-  final midi = baseMidi + (rows.length - 1 - index);
-  return _noteRowForMidi(midi, noteLabels, labelTextStyle);
+  final baseRow = rows.isNotEmpty ? rows.last.rowIndex : 33;
+  final rowIndex = baseRow + (rows.length - 1 - index);
+  final midi =
+      midiForRowIndex != null ? midiForRowIndex(rowIndex) : rowIndex;
+  final label =
+      labelForRowIndex != null ? labelForRowIndex(rowIndex) : null;
+  return _noteRowForMidi(
+    rowIndex,
+    midi,
+    noteLabels,
+    labelTextStyle,
+    label,
+  );
 }
 
 _NoteRow _noteRowForMidi(
+  int rowIndex,
   int midi,
   List<String> noteLabels,
   TextStyle? labelTextStyle,
+  String? labelOverride,
 ) {
   const sharpSemitones = {1, 3, 6, 8, 10};
   final semitone = midi % 12;
-  final octave = (midi / 12).floor() - 1;
-  final label = '${noteLabels[semitone]}$octave';
+  final label = labelOverride ?? noteLabels[semitone];
   final minHz = _midiToHz(midi);
   final maxHz = _midiToHz(midi + 1);
   final isSharp = sharpSemitones.contains(semitone);
@@ -784,6 +881,7 @@ _NoteRow _noteRowForMidi(
   return _NoteRow(
     label: label,
     midi: midi,
+    rowIndex: rowIndex,
     minHz: minHz,
     maxHz: maxHz,
     isSharp: isSharp,
@@ -796,40 +894,22 @@ List<_NoteRow> _buildRows(
   int count,
   List<String> noteLabels,
   TextStyle? labelTextStyle,
+  String Function(int rowIndex)? labelForRowIndex,
+  int Function(int rowIndex)? midiForRowIndex,
 ) {
-  const sharpSemitones = {1, 3, 6, 8, 10};
   final rows = <_NoteRow>[];
-  for (var midi = baseMidi; midi < baseMidi + count; midi++) {
-    final semitone = midi % 12;
-    final octave = (midi / 12).floor() - 1;
-    final label = noteLabels[semitone];
-    final minHz = _midiToHz(midi);
-    final maxHz = _midiToHz(midi + 1);
-    final isSharp = sharpSemitones.contains(semitone);
-    final baseStyle = labelTextStyle ??
-        TextStyle(
-          color: isSharp ? Colors.white : Colors.black87,
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-        );
-    final resolvedStyle = baseStyle.copyWith(
-      color: isSharp ? Colors.white : Colors.black87,
-    );
-    final painter = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: resolvedStyle,
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
+  for (var rowIndex = baseMidi; rowIndex < baseMidi + count; rowIndex++) {
+    final midi =
+        midiForRowIndex != null ? midiForRowIndex(rowIndex) : rowIndex;
+    final label =
+        labelForRowIndex != null ? labelForRowIndex(rowIndex) : null;
     rows.add(
-      _NoteRow(
-        label: label,
-        midi: midi,
-        minHz: minHz,
-        maxHz: maxHz,
-        isSharp: isSharp,
-        labelPainter: painter,
+      _noteRowForMidi(
+        rowIndex,
+        midi,
+        noteLabels,
+        labelTextStyle,
+        label,
       ),
     );
   }
@@ -843,6 +923,7 @@ Uint8List _buildDataPixels(
   DateTime? nowOverride,
   required List<_NoteRow> rows,
   required double baseOffset,
+  int Function(int midi)? rowIndexForMidi,
 }) {
   final pixels = Uint8List(sampleCount * 4);
   if (history.isEmpty) {
@@ -937,7 +1018,8 @@ Uint8List _buildDataPixels(
       previousRowIndex = null;
       continue;
     }
-    final (rowIndex, ratio) = _rowPositionForMidi(midi, rows);
+    final (rowIndex, ratio) =
+        _rowPositionForMidi(midi, rows, rowIndexForMidi: rowIndexForMidi);
     final yNorm = ((rowIndex + (1 - ratio) + baseOffset) / rows.length)
         .clamp(0.0, 1.0)
         .toDouble();

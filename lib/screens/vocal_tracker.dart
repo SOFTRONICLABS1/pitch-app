@@ -8,6 +8,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../data/melakarta_ragas.dart';
 import '../dsp/pitch_detection.dart';
 import '../models/recording.dart';
 import '../services/recording_store.dart';
@@ -28,6 +29,7 @@ class VocalTrackerScreen extends StatefulWidget {
     this.initialBpm,
     this.initialTanpuraEnabled = false,
     this.initialCarnaticRootSemitone = 0,
+    this.initialRagaName,
   });
 
   final RecordingEntry recording;
@@ -37,6 +39,7 @@ class VocalTrackerScreen extends StatefulWidget {
   final int? initialBpm;
   final bool initialTanpuraEnabled;
   final int initialCarnaticRootSemitone;
+  final String? initialRagaName;
 
   @override
   State<VocalTrackerScreen> createState() => _VocalTrackerScreenState();
@@ -59,6 +62,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   int _bpm = 60;
   int _baseOctave = PitchNotifier.defaultBaseOctave;
   int _rootSemitone = 0;
+  String _ragaName = 'Mayamalavagowla';
   PitchNotifier? _pitchNotifier;
   DateTime? _frozenAt;
   int _viewportBaseMidi = 33;
@@ -93,6 +97,12 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   int? _filteredHistoryEndMs;
   int? _filteredHistoryMidi;
 
+  int _rowCountForSystem(String tuningSystem) {
+    return _useExpandedRows(tuningSystem, _ragaName)
+        ? (_viewportRowCount ~/ 12) * 16
+        : _viewportRowCount;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -100,6 +110,10 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _pitchNotifier = context.read<PitchNotifier>();
     _baseOctave = _pitchNotifier?.baseOctave ?? PitchNotifier.defaultBaseOctave;
     _rootSemitone = widget.initialCarnaticRootSemitone.clamp(0, 11);
+    if (widget.initialRagaName != null &&
+        widget.initialRagaName!.trim().isNotEmpty) {
+      _ragaName = widget.initialRagaName!.trim();
+    }
     _pitchNotifier?.addListener(_handleBaseOctaveChange);
     final result = _targetBlocksFromRecording(
       _recording,
@@ -709,8 +723,15 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     }
     final midi = _targets[index].midi;
     final bottom = _viewportBaseMidi;
-    final top = _viewportBaseMidi + _viewportRowCount - 1;
-    if (midi < bottom || midi > top) {
+    final rowCount =
+        _rowCountForSystem(_pitchNotifier?.tuningSystem ?? 'western');
+    final top = _viewportBaseMidi + rowCount - 1;
+    final tuningSystem = _pitchNotifier?.tuningSystem ?? 'western';
+    final useExpanded = _useExpandedRows(tuningSystem, _ragaName);
+    final targetRow = useExpanded
+        ? _expandedRowIndexForMidi(midi, tuningSystem, _ragaName)
+        : midi;
+    if (targetRow < bottom || targetRow > top) {
       _tunerController.scrollToMidi(midi, alignment: 0.7);
     }
   }
@@ -738,10 +759,22 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     const alignment = 0.9;
     const minMidi = 21.0;
     const maxMidi = 108.0;
-    final maxBase = maxMidi - _viewportRowCount + 1;
+    final tuningSystem = _pitchNotifier?.tuningSystem ?? 'western';
+    final rowCount = _rowCountForSystem(tuningSystem);
+    final useExpanded = _useExpandedRows(tuningSystem, _ragaName);
+    final targetRow = useExpanded
+        ? _expandedRowIndexForMidi(targetMidi, tuningSystem, _ragaName)
+        : targetMidi;
+    final minRow = useExpanded
+        ? _expandedRowIndexForMidi(minMidi.toInt(), tuningSystem, _ragaName)
+        : minMidi;
+    final maxRow = useExpanded
+        ? _expandedRowIndexForMidi(maxMidi.toInt(), tuningSystem, _ragaName)
+        : maxMidi;
+    final maxBase = maxRow - rowCount + 1;
     final baseMidi =
-        targetMidi + ((alignment - 1) * _viewportRowCount + 0.5);
-    return baseMidi.clamp(minMidi, maxBase);
+        targetRow + ((alignment - 1) * rowCount + 0.5);
+    return baseMidi.clamp(minRow, maxBase).toDouble();
   }
 
   @override
@@ -754,14 +787,28 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
             frequency,
             state.tuningSystem,
             rootSemitone: _rootSemitone,
+            ragaName: _ragaName,
           );
     final rootSemitoneForView =
         state.tuningSystem == 'carnatic' ? _rootSemitone : 0;
     final noteLabels = _noteLabelsForSystem(
       state.tuningSystem,
       rootSemitone: rootSemitoneForView,
+      ragaName: _ragaName,
     );
     final labelStyle = _labelStyleForSystem(state.tuningSystem);
+    final useExpandedRows =
+        _useExpandedRows(state.tuningSystem, _ragaName);
+    final rowCount = _rowCountForSystem(state.tuningSystem);
+    final minRowIndex = useExpandedRows
+        ? _expandedRowIndexForMidi(21, state.tuningSystem, _ragaName)
+        : null;
+    final maxRowIndex = useExpandedRows
+        ? _expandedRowIndexForMidi(108, state.tuningSystem, _ragaName)
+        : null;
+    String labelForRowIndex(int rowIndex) {
+      return _expandedLabelForIndex(rowIndex);
+    }
     _screenWidth = MediaQuery.of(context).size.width;
 
     return WillPopScope(
@@ -820,10 +867,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                         notes: _editNotes ?? _recording.notes,
                         tuningSystem: state.tuningSystem,
                         baseMidi: 21,
-                        rowCount: _viewportRowCount,
+                        rowCount: rowCount,
                         baseOffset: 0.0,
                         labelWidth: _tunerLabelWidth,
                         rootSemitone: rootSemitoneForView,
+                        ragaName: _ragaName,
                         guidelineFraction: 2.0,
                         guidelineOffset: _guidelineOffset,
                         scrollController: _editScrollController,
@@ -887,7 +935,20 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                                   nowOverride: _running ? null : _frozenAt,
                                   noteLabels: noteLabels,
                                   labelTextStyle: labelStyle,
-                                  rowCount: _viewportRowCount,
+                                  rowCount: rowCount,
+                                  minRowIndex: minRowIndex,
+                                  maxRowIndex: maxRowIndex,
+                                  rowIndexForMidi: useExpandedRows
+                                      ? (midi) => _expandedRowIndexForMidi(
+                                            midi,
+                                            state.tuningSystem,
+                                            _ragaName,
+                                          )
+                                      : null,
+                                  midiForRowIndex:
+                                      useExpandedRows ? _midiForExpandedIndex : null,
+                                  labelForRowIndex:
+                                      useExpandedRows ? labelForRowIndex : null,
                                   guidelineFraction: _guidelineFraction,
                                   guidelineOffset: _guidelineOffset,
                                   rootSemitone: rootSemitoneForView,
@@ -906,10 +967,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                                   running: _running,
                                   bpm: _bpm,
                                   baseMidi: _viewportBaseMidi,
-                                  rowCount: _viewportRowCount,
+                                  rowCount: rowCount,
                                   baseOffset: _viewportOffset,
                                   tuningSystem: state.tuningSystem,
                                   rootSemitone: rootSemitoneForView,
+                                  ragaName: _ragaName,
                                   guidelineFraction: _guidelineFraction,
                                   guidelineOffset: _guidelineOffset,
                                 ),
@@ -1555,6 +1617,7 @@ class _TargetNoteTrack extends StatelessWidget {
     required this.baseOffset,
     required this.tuningSystem,
     required this.rootSemitone,
+    required this.ragaName,
     required this.guidelineFraction,
     required this.guidelineOffset,
   });
@@ -1569,6 +1632,7 @@ class _TargetNoteTrack extends StatelessWidget {
   final double baseOffset;
   final String tuningSystem;
   final int rootSemitone;
+  final String ragaName;
   final double guidelineFraction;
   final double guidelineOffset;
 
@@ -1587,6 +1651,7 @@ class _TargetNoteTrack extends StatelessWidget {
           baseOffset: baseOffset,
           tuningSystem: tuningSystem,
           rootSemitone: rootSemitone,
+          ragaName: ragaName,
           guidelineFraction: guidelineFraction,
           guidelineOffset: guidelineOffset,
         ),
@@ -1707,6 +1772,7 @@ class _EditableTargetOverlay extends StatefulWidget {
     required this.baseOffset,
     required this.labelWidth,
     required this.rootSemitone,
+    required this.ragaName,
     required this.guidelineFraction,
     required this.guidelineOffset,
     required this.scrollController,
@@ -1726,6 +1792,7 @@ class _EditableTargetOverlay extends StatefulWidget {
   final double baseOffset;
   final double labelWidth;
   final int rootSemitone;
+  final String ragaName;
   final double guidelineFraction;
   final double guidelineOffset;
   final ScrollController scrollController;
@@ -1860,6 +1927,8 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         topMidi: topMidi,
         baseOffset: baseOffset,
         rowHeight: rowHeight,
+        tuningSystem: widget.tuningSystem,
+        ragaName: widget.ragaName,
       );
       if (onlyIfAbove && top >= currentOffset) {
         return;
@@ -1886,14 +1955,21 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     _centerOnInsertColumn();
   }
 
-  String _labelForMidi(int midi, String tuningSystem) {
+String _labelForMidi(int midi, String tuningSystem) {
     final labels = _noteLabelsForSystem(
       tuningSystem,
       rootSemitone: widget.rootSemitone,
+      ragaName: widget.ragaName,
     );
     final semitone = (midi % 12 + 12) % 12;
     final octave = (midi / 12).floor() - 1;
-    return '${labels[semitone]}$octave';
+    final label = _preferredLabelForSemitone(
+      semitone,
+      tuningSystem,
+      widget.ragaName,
+      labels,
+    );
+    return '$label$octave';
   }
 
   @override
@@ -1942,12 +2018,23 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         final blockHeight = rowHeight * _EditableTargetOverlay._blockHeightFactor;
         final labelHeight = rowHeight * _EditableTargetOverlay._labelHeightFactor;
         final topMidi = baseMidi + rowCount - 1;
+        final expandedRows = _useExpandedRows(tuningSystem, widget.ragaName);
         const minMidi = 21;
         const maxMidi = 108;
-        final extraAboveRows = max(0, maxMidi - topMidi);
-        final extraBelowRows = max(0, baseMidi - minMidi);
+        final minExpanded =
+            _expandedRowIndexForMidi(minMidi, tuningSystem, widget.ragaName);
+        final maxExpanded =
+            _expandedRowIndexForMidi(maxMidi, tuningSystem, widget.ragaName);
+        final baseExpanded =
+            _expandedRowIndexForMidi(baseMidi, tuningSystem, widget.ragaName);
+        final topExpanded = baseExpanded + rowCount - 1;
+        final extraAboveRows = max(0, maxExpanded - topExpanded);
+        final extraBelowRows = max(0, baseExpanded - minExpanded);
         final totalRows = rowCount + extraAboveRows + extraBelowRows;
-        final extendedTopMidi = topMidi + extraAboveRows;
+        final extendedTopExpanded = topExpanded + extraAboveRows;
+        final extendedTopMidi = expandedRows
+            ? _midiForExpandedIndex(extendedTopExpanded)
+            : topMidi + extraAboveRows;
         final contentHeight = rowHeight * totalRows;
         if (!_syncedVertical) {
           _syncedVertical = true;
@@ -2041,6 +2128,8 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
             topMidi: extendedTopMidi,
             baseOffset: baseOffset,
             rowHeight: rowHeight,
+            tuningSystem: tuningSystem,
+            ragaName: widget.ragaName,
           );
           final expandedTop =
               blockTop - (blockHeight - rowHeight) / 2;
@@ -2064,7 +2153,12 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                         feedback: Material(
                           color: Colors.transparent,
                           child: _EditableTargetContent(
-                            label: _formatNoteForEdit(note.note, tuningSystem),
+                            label: _displayLabel(
+                              note.note,
+                              tuningSystem,
+                              widget.rootSemitone,
+                              ragaName: widget.ragaName,
+                            ),
                             height: blockHeight,
                             onDelete: null,
                             selected: true,
@@ -2072,9 +2166,11 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                         ),
                         childWhenDragging: const SizedBox.shrink(),
                         child: _EditableTargetContent(
-                          label: _formatNoteForEdit(
+                          label: _displayLabel(
                             note.note,
                             tuningSystem,
+                            widget.rootSemitone,
+                            ragaName: widget.ragaName,
                           ),
                           height: blockHeight,
                           onDelete: () => widget.onDelete(i),
@@ -2082,7 +2178,12 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                         ),
                       )
                     : _EditableTargetContent(
-                        label: _formatNoteForEdit(note.note, tuningSystem),
+                        label: _displayLabel(
+                          note.note,
+                          tuningSystem,
+                          widget.rootSemitone,
+                          ragaName: widget.ragaName,
+                        ),
                         height: blockHeight,
                         onDelete: () => widget.onDelete(i),
                         selected: false,
@@ -2118,6 +2219,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         final noteLabels = _noteLabelsForSystem(
           tuningSystem,
           rootSemitone: widget.rootSemitone,
+          ragaName: widget.ragaName,
         );
         const sharpSemitones = {1, 3, 6, 8, 10};
         final labelRows = <Widget>[];
@@ -2127,7 +2229,10 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         final bandRootSemitone =
             widget.tuningSystem == 'carnatic' ? widget.rootSemitone : 0;
         for (var i = 0; i <= totalRows; i++) {
-          final midi = extendedTopMidi - i;
+        final expandedIndex = extendedTopExpanded - i;
+        final midi = expandedRows
+            ? _midiForExpandedIndex(expandedIndex)
+            : expandedIndex;
           final adjustedMidi = midi + bandRootSemitone;
           final octave = (adjustedMidi / 12).floor() - 1;
           if (currentOctave == null) {
@@ -2169,9 +2274,19 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           }
         }
         for (var i = 0; i < totalRows; i++) {
-          final midi = extendedTopMidi - i;
+          final expandedIndex = extendedTopExpanded - i;
+          final midi = expandedRows
+              ? _midiForExpandedIndex(expandedIndex)
+              : expandedIndex;
           final semitone = (midi % 12 + 12) % 12;
-          final label = noteLabels[semitone];
+          final labelsForRow = expandedRows
+              ? [_expandedLabelForIndex(expandedIndex)]
+              : _splitLabelsForSemitone(
+                  semitone,
+                  tuningSystem,
+                  widget.ragaName,
+                  noteLabels,
+                );
           final isSharp = sharpSemitones.contains(semitone);
           final rowBg =
               isSharp ? Colors.black : const Color(0xFFCBD1D6);
@@ -2185,34 +2300,54 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           final resolvedStyle = baseStyle.copyWith(color: rowTextColor);
           final labelTop =
               (i + baseOffset) * rowHeight - (labelHeight - rowHeight) / 2;
-          labelRows.add(
-            Positioned(
-              left: 0,
-              right: 0,
-              top: labelTop,
-              height: labelHeight,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: () => _commitInsertWithLabel(label),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        color: rowBg,
-                        alignment: Alignment.center,
-                        child: SizedBox(
-                          height: labelHeight,
-                          child: Center(
-                            child: Text(label, style: resolvedStyle),
+          final combinedLabel = !expandedRows && labelsForRow.length > 1
+              ? labelsForRow.join('/')
+              : null;
+          final displayLabels =
+              combinedLabel != null ? [combinedLabel] : labelsForRow;
+          final commitLabels = combinedLabel != null
+              ? [
+                  _preferredLabelForSemitone(
+                    semitone,
+                    tuningSystem,
+                    widget.ragaName,
+                    noteLabels,
+                  )
+                ]
+              : labelsForRow;
+          final segmentHeight = labelHeight / displayLabels.length;
+          for (var j = 0; j < displayLabels.length; j++) {
+            final displayLabel = displayLabels[j];
+            final commitLabel = commitLabels[j];
+            labelRows.add(
+              Positioned(
+                left: 0,
+                right: 0,
+                top: labelTop + (segmentHeight * j),
+                height: segmentHeight,
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => _commitInsertWithLabel(commitLabel),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          color: rowBg,
+                          alignment: Alignment.center,
+                          child: SizedBox(
+                            height: segmentHeight,
+                            child: Center(
+                              child: Text(displayLabel, style: resolvedStyle),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-          );
+            );
+          }
         }
 
         if (_pendingInsertIndex != null && pendingInsertX != null) {
@@ -2232,9 +2367,13 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                 onTapDown: (details) {
                   final localY = details.localPosition.dy;
                   final rowIndex = (localY / rowHeight).floor();
-                  final midi =
-                      (extendedTopMidi - rowIndex).clamp(minMidi, maxMidi);
-                  final label = _labelForMidi(midi, tuningSystem);
+                  final expandedIndex = extendedTopExpanded - rowIndex;
+                  final midi = expandedRows
+                      ? _midiForExpandedIndex(expandedIndex)
+                      : expandedIndex;
+                  final label = expandedRows
+                      ? _expandedLabelForIndex(expandedIndex)
+                      : _labelForMidi(midi, tuningSystem);
                   _commitInsertWithLabel(label);
                   _centerOnMidi(
                     midi,
@@ -2261,6 +2400,8 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                           topMidi: extendedTopMidi,
                           baseOffset: baseOffset,
                           rowHeight: rowHeight,
+                          tuningSystem: tuningSystem,
+                          ragaName: widget.ragaName,
                         ),
                         left: 0,
                         right: 0,
@@ -2311,7 +2452,11 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                               height: rowHeight,
                               child: ColoredBox(
                                 color: _octaveBandColor(
-                                  extendedTopMidi - i,
+                                  expandedRows
+                                      ? _midiForExpandedIndex(
+                                          extendedTopExpanded - i,
+                                        )
+                                      : extendedTopMidi - i,
                                   bandRootSemitone,
                                 ),
                               ),
@@ -2321,17 +2466,17 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                               left: 0,
                               right: 0,
                               top: (i + baseOffset) * rowHeight,
-                                  height: rowHeight,
-                                  child: ColoredBox(
-                                    color: i.isEven
-                                        ? const Color(0xFF2A2F33)
-                                        : const Color(0xFF343A3F),
-                                  ),
-                                ),
-                              ...labelRows,
-                            ],
-                          ),
-                        ),
+                              height: rowHeight,
+                              child: ColoredBox(
+                                color: i.isEven
+                                    ? const Color(0xFF2A2F33)
+                                    : const Color(0xFF343A3F),
+                              ),
+                            ),
+                          ...labelRows,
+                        ],
+                      ),
+                    ),
                     SizedBox(
                       width: plotWidth,
                       height: contentHeight,
@@ -2372,10 +2517,16 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                                           box.globalToLocal(details.offset);
                                       final rowIndex =
                                           (local.dy / rowHeight).floor();
-                                      final midi = (extendedTopMidi - rowIndex)
-                                          .clamp(minMidi, maxMidi);
-                                      final label =
-                                          _labelForMidi(midi, tuningSystem);
+                                      final expandedIndex =
+                                          extendedTopExpanded - rowIndex;
+                                      final midi = expandedRows
+                                          ? _midiForExpandedIndex(expandedIndex)
+                                              .clamp(minMidi, maxMidi)
+                                          : (extendedTopMidi - rowIndex)
+                                              .clamp(minMidi, maxMidi);
+                                      final label = expandedRows
+                                          ? _expandedLabelForIndex(expandedIndex)
+                                          : _labelForMidi(midi, tuningSystem);
                                       widget.onNoteChanged(
                                         details.data.index,
                                         label,
@@ -2459,8 +2610,24 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
     required int topMidi,
     required double baseOffset,
     required double rowHeight,
+    required String tuningSystem,
+    required String? ragaName,
   }) {
     final midi = midiFromNote ?? topMidi;
+    if (_useExpandedRows(tuningSystem, ragaName)) {
+      final topIndex = _expandedRowIndexForMidi(
+        topMidi,
+        tuningSystem,
+        ragaName,
+      );
+      final rowIndex = topIndex -
+          _expandedRowIndexForMidi(
+            midi,
+            tuningSystem,
+            ragaName,
+          );
+      return (rowIndex + baseOffset) * rowHeight;
+    }
     final rowIndex = topMidi - midi;
     return (rowIndex + baseOffset) * rowHeight;
   }
@@ -4016,14 +4183,21 @@ String _noteLabel(
   double frequency,
   String tuningSystem, {
   required int rootSemitone,
+  String? ragaName,
 }) {
   final labels = _noteLabelsForSystem(
     tuningSystem,
     rootSemitone: rootSemitone,
+    ragaName: ragaName,
   );
   final midi = midiFromFrequency(frequency).round().clamp(0, 127);
   final octave = (midi / 12).floor() - 1;
-  final label = labels[midi % 12];
+  final label = _preferredLabelForSemitone(
+    midi % 12,
+    tuningSystem,
+    ragaName,
+    labels,
+  );
   return '$label$octave';
 }
 
@@ -4053,6 +4227,7 @@ class _TargetNotePainter extends CustomPainter {
     required this.baseOffset,
     required this.tuningSystem,
     required this.rootSemitone,
+    required this.ragaName,
     required this.guidelineFraction,
     required this.guidelineOffset,
   });
@@ -4067,13 +4242,14 @@ class _TargetNotePainter extends CustomPainter {
   final double baseOffset;
   final String tuningSystem;
   final int rootSemitone;
+  final String ragaName;
   final double guidelineFraction;
   final double guidelineOffset;
 
-  static const _labelWidth = 58.0;
+  static const _labelWidth = 70.0;
   static const _trackWindowMs = 6400.0;
   static const _blockColor = Color(0xFF2B6BFF);
-  static const _blockHeightFactor = 1.0;
+  static const _blockHeightFactor = 2;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -4113,6 +4289,7 @@ class _TargetNotePainter extends CustomPainter {
     final loopMs = max(1, totalDurationMs).toDouble() * scale;
     final windowMs = _trackWindowMs.toDouble();
     final paint = Paint()..color = _blockColor.withOpacity(0.4);
+    final expandedRows = _useExpandedRows(tuningSystem, ragaName);
     final textStyle = (tuningSystem == 'carnatic'
             ? const TextStyle(
                 fontFamily: 'RobotoMono',
@@ -4149,10 +4326,19 @@ class _TargetNotePainter extends CustomPainter {
           continue;
         }
 
-      final rowIndex = _rowIndexForMidi(block.midi);
-        final blockHeight = rowHeight * _blockHeightFactor;
+        final rowIndex = _rowIndexForMidi(block.midi);
+        final semitone = (block.midi % 12 + 12) % 12;
+        final splitIndex = expandedRows
+            ? 0
+            : _preferredSplitIndex(semitone, tuningSystem, ragaName);
+        final splitDivisor = expandedRows
+            ? 1
+            : (_isSplitSemitone(semitone, tuningSystem, ragaName) ? 2 : 1);
+        final blockHeight = (rowHeight / splitDivisor) * _blockHeightFactor;
         final top =
-            (rowIndex + baseOffset) * rowHeight - (blockHeight - rowHeight) / 2;
+            (rowIndex + baseOffset) * rowHeight +
+            (splitIndex * (rowHeight / splitDivisor)) -
+            (blockHeight - (rowHeight / splitDivisor)) / 2;
         final rect = Rect.fromLTWH(leftEdge, top, blockWidth, blockHeight);
         canvas.drawRect(rect, paint);
         final outline = Paint()
@@ -4161,9 +4347,14 @@ class _TargetNotePainter extends CustomPainter {
           ..strokeWidth = 0.5;
         canvas.drawRect(rect, outline);
 
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: _displayLabel(block.label, tuningSystem, rootSemitone),
+        final textPainter = TextPainter(
+          text: TextSpan(
+          text: _displayLabel(
+            block.label,
+            tuningSystem,
+            rootSemitone,
+            ragaName: ragaName,
+          ),
           style: textStyle,
         ),
         textDirection: TextDirection.ltr,
@@ -4184,6 +4375,12 @@ class _TargetNotePainter extends CustomPainter {
 
   int _rowIndexForMidi(int midi) {
     final topMidi = baseMidi + rowCount - 1;
+    final expandedRows = _useExpandedRows(tuningSystem, ragaName);
+    if (expandedRows) {
+      final rowIndex =
+          _expandedRowIndexForMidi(midi, tuningSystem, ragaName);
+      return (topMidi - rowIndex).clamp(0, rowCount - 1);
+    }
     if (midi >= topMidi) {
       return 0;
     }
@@ -4204,7 +4401,8 @@ class _TargetNotePainter extends CustomPainter {
         oldDelegate.rowCount != rowCount ||
         oldDelegate.baseOffset != baseOffset ||
         oldDelegate.tuningSystem != tuningSystem ||
-        oldDelegate.rootSemitone != rootSemitone;
+        oldDelegate.rootSemitone != rootSemitone ||
+        oldDelegate.ragaName != ragaName;
   }
 }
 
@@ -4290,6 +4488,21 @@ const _westernNoteLabels = [
   'B',
 ];
 
+const _westernNoteNamesLower = [
+  'c',
+  'c#',
+  'd',
+  'd#',
+  'e',
+  'f',
+  'f#',
+  'g',
+  'g#',
+  'a',
+  'a#',
+  'b',
+];
+
 String _westernLabelForMidi(int midi) {
   final semitone = (midi % 12 + 12) % 12;
   final octave = (midi / 12).floor() - 1;
@@ -4311,20 +4524,293 @@ const _carnaticNoteLabels = [
   'Ni2',
 ];
 
+const _melakartaSemitones = {
+  'S': 0,
+  'R1': 1,
+  'R2': 2,
+  'R3': 3,
+  'G1': 2,
+  'G2': 3,
+  'G3': 4,
+  'M1': 5,
+  'M2': 6,
+  'P': 7,
+  'D1': 8,
+  'D2': 9,
+  'D3': 10,
+  'N1': 9,
+  'N2': 10,
+  'N3': 11,
+};
+
+const _carnaticTokenLabels = {
+  'S': 'Sa',
+  'R1': 'Ri1',
+  'R2': 'Ri2',
+  'R3': 'Ri3',
+  'G1': 'Ga1',
+  'G2': 'Ga2',
+  'G3': 'Ga3',
+  'M1': 'Ma1',
+  'M2': 'Ma2',
+  'P': 'Pa',
+  'D1': 'Da1',
+  'D2': 'Da2',
+  'D3': 'Da3',
+  'N1': 'Ni1',
+  'N2': 'Ni2',
+  'N3': 'Ni3',
+};
+
+const _expandedSemitoneOrder = [
+  0,
+  1,
+  2,
+  2,
+  3,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  9,
+  10,
+  10,
+  11,
+];
+
+const _expandedCarnaticLabelOrder = [
+  'Sa',
+  'Ri1',
+  'Ri2',
+  'Ga1',
+  'Ri3',
+  'Ga2',
+  'Ga3',
+  'Ma1',
+  'Ma2',
+  'Pa',
+  'Da1',
+  'Da2',
+  'Ni1',
+  'Da3',
+  'Ni2',
+  'Ni3',
+];
+
+bool _isExpandedCarnaticScale(String tuningSystem, String? ragaName) {
+  if (tuningSystem != 'carnatic') {
+    return false;
+  }
+  if (ragaName == null || ragaName.trim().isEmpty) {
+    return false;
+  }
+  final normalized = _normalizeRagaName(ragaName);
+  return normalized != _normalizeRagaName('Mayamalavagowla') &&
+      normalized != _normalizeRagaName('Mayamalava gowla');
+}
+
+bool _useExpandedRows(String tuningSystem, String? ragaName) {
+  return false;
+}
+
+int _expandedRowIndexForMidi(
+  int midi,
+  String tuningSystem,
+  String? ragaName,
+) {
+  if (!_useExpandedRows(tuningSystem, ragaName)) {
+    return midi;
+  }
+  final octave = (midi / 12).floor();
+  final semitone = (midi % 12 + 12) % 12;
+  final rowInOctave =
+      _expandedRowInOctaveForSemitone(semitone, tuningSystem, ragaName);
+  return (octave * 16) + rowInOctave;
+}
+
+int _expandedRowInOctaveForSemitone(
+  int semitone,
+  String tuningSystem,
+  String? ragaName,
+) {
+  if (!_useExpandedRows(tuningSystem, ragaName)) {
+    return semitone;
+  }
+  switch (semitone) {
+    case 0:
+      return 0;
+    case 1:
+      return 1;
+    case 2:
+      return 2 + _preferredSplitIndex(semitone, tuningSystem, ragaName);
+    case 3:
+      return 4 + _preferredSplitIndex(semitone, tuningSystem, ragaName);
+    case 4:
+      return 6;
+    case 5:
+      return 7;
+    case 6:
+      return 8;
+    case 7:
+      return 9;
+    case 8:
+      return 10;
+    case 9:
+      return 11 + _preferredSplitIndex(semitone, tuningSystem, ragaName);
+    case 10:
+      return 13 + _preferredSplitIndex(semitone, tuningSystem, ragaName);
+    case 11:
+      return 15;
+    default:
+      return semitone;
+  }
+}
+
+int _midiForExpandedIndex(int expandedIndex) {
+  final octave = expandedIndex ~/ 16;
+  final rowInOctave = expandedIndex % 16;
+  final semitone = _expandedSemitoneOrder[rowInOctave.clamp(0, 15)];
+  return (octave * 12) + semitone;
+}
+
+String _expandedLabelForIndex(int expandedIndex) {
+  final rowInOctave = expandedIndex % 16;
+  return _expandedCarnaticLabelOrder[rowInOctave.clamp(0, 15)];
+}
+
+bool _isSplitSemitone(int semitone, String tuningSystem, String? ragaName) {
+  if (tuningSystem != 'carnatic') {
+    return false;
+  }
+  if (ragaName == null || ragaName.trim().isEmpty) {
+    return false;
+  }
+  if (_normalizeRagaName(ragaName) ==
+      _normalizeRagaName('Mayamalavagowla')) {
+    return false;
+  }
+  return semitone == 2 || semitone == 3 || semitone == 9 || semitone == 10;
+}
+
+List<String> _splitLabelsForSemitone(
+  int semitone,
+  String tuningSystem,
+  String? ragaName,
+  List<String> baseLabels,
+) {
+  if (!_isSplitSemitone(semitone, tuningSystem, ragaName)) {
+    return [baseLabels[semitone]];
+  }
+  switch (semitone) {
+    case 2:
+      return const ['Ri2', 'Ga1'];
+    case 3:
+      return const ['Ri3', 'Ga2'];
+    case 9:
+      return const ['Da2', 'Ni1'];
+    case 10:
+      return const ['Da3', 'Ni2'];
+    default:
+      return [baseLabels[semitone]];
+  }
+}
+
+int _preferredSplitIndex(
+  int semitone,
+  String tuningSystem,
+  String? ragaName,
+) {
+  if (!_isSplitSemitone(semitone, tuningSystem, ragaName)) {
+    return 0;
+  }
+  final tokens = _ragaTokensFor(ragaName);
+  switch (semitone) {
+    case 2:
+      return tokens.contains('G1') ? 1 : 0;
+    case 3:
+      return tokens.contains('G2') ? 1 : 0;
+    case 9:
+      return tokens.contains('N1') ? 1 : 0;
+    case 10:
+      return tokens.contains('N2') ? 1 : 0;
+    default:
+      return 0;
+  }
+}
+
+String _preferredLabelForSemitone(
+  int semitone,
+  String tuningSystem,
+  String? ragaName,
+  List<String> baseLabels,
+) {
+  final labels = _splitLabelsForSemitone(
+    semitone,
+    tuningSystem,
+    ragaName,
+    baseLabels,
+  );
+  if (labels.length == 1) {
+    return labels.first;
+  }
+  final index = _preferredSplitIndex(semitone, tuningSystem, ragaName);
+  return labels[index.clamp(0, labels.length - 1)];
+}
+
+Set<String> _ragaTokensFor(String? ragaName) {
+  if (ragaName == null || ragaName.trim().isEmpty) {
+    return {};
+  }
+  final normalized = _normalizeRagaName(ragaName);
+  MelakartaRaga? raga;
+  for (final item in melakartaRagas) {
+    if (_normalizeRagaName(item.name) == normalized) {
+      raga = item;
+      break;
+    }
+  }
+  if (raga == null) {
+    return {};
+  }
+  return <String>{
+    ...raga.arohanam.split(' '),
+    ...raga.avarohanam.split(' '),
+  }.map((token) => token.trim()).where((token) => token.isNotEmpty).toSet();
+}
+
+
 List<String> _noteLabelsForSystem(
   String tuningSystem, {
   int rootSemitone = 0,
+  String? ragaName,
 }) {
   if (tuningSystem != 'carnatic') {
     return _westernNoteLabels;
   }
+  final baseLabels = (ragaName != null && ragaName.trim().isNotEmpty)
+      ? _ragaAwareCarnaticLabels(ragaName)
+      : _carnaticNoteLabels;
+  final resolvedLabels = List<String>.generate(baseLabels.length, (index) {
+    if (_isSplitSemitone(index, tuningSystem, ragaName)) {
+      final parts = _splitLabelsForSemitone(
+        index,
+        tuningSystem,
+        ragaName,
+        baseLabels,
+      );
+      return parts.join('/');
+    }
+    return baseLabels[index];
+  });
   if (rootSemitone == 0) {
-    return _carnaticNoteLabels;
+    return resolvedLabels;
   }
   return List<String>.generate(
-    _carnaticNoteLabels.length,
-    (index) =>
-        _carnaticNoteLabels[(index - rootSemitone) % _carnaticNoteLabels.length],
+    resolvedLabels.length,
+    (index) => resolvedLabels[(index - rootSemitone) % resolvedLabels.length],
   );
 }
 
@@ -4343,12 +4829,13 @@ TextStyle? _labelStyleForSystem(String tuningSystem) {
 String _displayLabel(
   String westernNote,
   String tuningSystem,
-  int rootSemitone,
-) {
+  int rootSemitone, {
+  String? ragaName,
+}) {
   if (tuningSystem != 'carnatic') {
     return westernNote.replaceAll(RegExp(r'-?\d+$'), '');
   }
-  final match = RegExp(r'^([A-G])(#?)(-?\d+)$').firstMatch(westernNote);
+  final match = RegExp(r'^([A-Ga-g])(#?)(-?\d+)$').firstMatch(westernNote);
   if (match == null) {
     return westernNote;
   }
@@ -4357,7 +4844,7 @@ String _displayLabel(
   if (name == null) {
     return westernNote;
   }
-  final baseIndex = switch (name) {
+  final baseIndex = switch (name.toUpperCase()) {
     'C' => 0,
     'D' => 2,
     'E' => 4,
@@ -4368,11 +4855,43 @@ String _displayLabel(
     _ => 0,
   };
   final semitone = (baseIndex + (sharp == '#' ? 1 : 0)) % 12;
-  final label = _noteLabelsForSystem(
+  final labels = _noteLabelsForSystem(
     tuningSystem,
     rootSemitone: rootSemitone,
-  )[semitone];
-  return label;
+    ragaName: ragaName,
+  );
+  return _preferredLabelForSemitone(
+    semitone,
+    tuningSystem,
+    ragaName,
+    labels,
+  );
+}
+
+String _normalizeRagaName(String value) {
+  return value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+}
+
+List<String> _ragaAwareCarnaticLabels(String ragaName) {
+  final normalized = _normalizeRagaName(ragaName);
+  if (normalized == _normalizeRagaName('Mayamalavagowla') ||
+      normalized == _normalizeRagaName('Mayamalava gowla')) {
+    return _carnaticNoteLabels;
+  }
+  return [
+    'Sa', // 0
+    'Ri1', // 1
+    'Ri2', // 2
+    'Ri3', // 3
+    'Ga3', // 4
+    'Ma1', // 5
+    'Ma2', // 6
+    'Pa', // 7
+    'Da1', // 8
+    'Da2', // 9
+    'Da3', // 10
+    'Ni3', // 11
+  ];
 }
 
 String _composeDisplayLabel(
@@ -4420,7 +4939,7 @@ String _formatNoteForEdit(String note, String tuningSystem) {
     return trimmed.toUpperCase().replaceAll(RegExp(r'-?\d+$'), '');
   }
   final carnatic = RegExp(
-    r'^(sa|ri1|ri2|ga1|ga2|ma1|ma2|pa|da1|da2|ni1|ni2)-?(\d+)$',
+    r'^(sa|ri1|ri2|ri3|ga1|ga2|ga3|ma1|ma2|pa|da1|da2|da3|ni1|ni2|ni3)-?(\d+)$',
     caseSensitive: false,
   ).firstMatch(trimmed);
   if (carnatic != null) {
@@ -4428,15 +4947,19 @@ String _formatNoteForEdit(String note, String tuningSystem) {
       'sa': 'Sa',
       'ri1': 'Ri1',
       'ri2': 'Ri2',
+      'ri3': 'Ri3',
       'ga1': 'Ga1',
       'ga2': 'Ga2',
+      'ga3': 'Ga3',
       'ma1': 'Ma1',
       'ma2': 'Ma2',
       'pa': 'Pa',
       'da1': 'Da1',
       'da2': 'Da2',
+      'da3': 'Da3',
       'ni1': 'Ni1',
       'ni2': 'Ni2',
+      'ni3': 'Ni3',
     };
     final name = (carnatic.group(1) ?? '').toLowerCase();
     final label = casing[name] ?? name.toUpperCase();
@@ -4458,7 +4981,8 @@ String _formatNoteForEdit(String note, String tuningSystem) {
         _ => 0,
       };
       final semitone = (baseIndex + (sharp == '#' ? 1 : 0)) % 12;
-      final label = _carnaticNoteLabels[semitone];
+      final noteName = '${name.toUpperCase()}${sharp ?? ''}';
+      final label = _carnaticNoteFor(noteName) ?? _carnaticNoteLabels[semitone];
       return label;
     }
   }
@@ -4479,27 +5003,36 @@ String _normalizeNoteForStorage(String input, String tuningSystem) {
   }
   if (tuningSystem == 'carnatic') {
     final carnatic = RegExp(
-      r'^(sa|ri1|ri2|ga1|ga2|ma1|ma2|pa|da1|da2|ni1|ni2)-?(\d+)$',
+      r'^(sa|ri1|ri2|ri3|ga1|ga2|ga3|ma1|ma2|pa|da1|da2|da3|ni1|ni2|ni3)-?(\d+)$',
       caseSensitive: false,
     ).firstMatch(trimmed);
     if (carnatic != null) {
       final name = (carnatic.group(1) ?? '').toLowerCase();
       final octave = carnatic.group(2) ?? '';
-      const map = {
-        'sa': 'c',
-        'ri1': 'c#',
-        'ri2': 'd',
-        'ga1': 'd#',
-        'ga2': 'e',
-        'ma1': 'f',
-        'ma2': 'f#',
-        'pa': 'g',
-        'da1': 'g#',
-        'da2': 'a',
-        'ni1': 'a#',
-        'ni2': 'b',
+      const labelToToken = {
+        'sa': 'S',
+        'ri1': 'R1',
+        'ri2': 'R2',
+        'ri3': 'R3',
+        'ga1': 'G1',
+        'ga2': 'G2',
+        'ga3': 'G3',
+        'ma1': 'M1',
+        'ma2': 'M2',
+        'pa': 'P',
+        'da1': 'D1',
+        'da2': 'D2',
+        'da3': 'D3',
+        'ni1': 'N1',
+        'ni2': 'N2',
+        'ni3': 'N3',
       };
-      final westernNote = map[name] ?? 'c';
+      final token = labelToToken[name];
+      final semitone = token == null ? null : _melakartaSemitones[token];
+      if (semitone == null) {
+        return '';
+      }
+      final westernNote = _westernNoteNamesLower[semitone];
       return '$westernNote$octave';
     }
   }
@@ -4782,7 +5315,7 @@ bool _isValidNoteForSystem(String value, String tuningSystem) {
   if (trimmed.isEmpty) return false;
   if (tuningSystem == 'carnatic') {
     final carnatic = RegExp(
-      r'^(sa|ri1|ri2|ga1|ga2|ma1|ma2|pa|da1|da2|ni1|ni2)-?\d+$',
+      r'^(sa|ri1|ri2|ri3|ga1|ga2|ga3|ma1|ma2|pa|da1|da2|da3|ni1|ni2|ni3)-?\d+$',
       caseSensitive: false,
     );
     if (carnatic.hasMatch(trimmed)) {
@@ -4804,27 +5337,31 @@ String? _carnaticNoteFor(String value) {
     'C': 'Sa',
     'C#': 'Ri1',
     'D': 'Ri2',
-    'D#': 'Ga1',
-    'E': 'Ga2',
+    'D#': 'Ri3',
+    'E': 'Ga3',
     'F': 'Ma1',
     'F#': 'Ma2',
     'G': 'Pa',
     'G#': 'Da1',
     'A': 'Da2',
-    'A#': 'Ni1',
-    'B': 'Ni2',
+    'A#': 'Da3',
+    'B': 'Ni3',
     'Sa': 'Sa',
     'Ri1': 'Ri1',
     'Ri2': 'Ri2',
+    'Ri3': 'Ri3',
     'Ga1': 'Ga1',
     'Ga2': 'Ga2',
+    'Ga3': 'Ga3',
     'Ma1': 'Ma1',
     'Ma2': 'Ma2',
     'Pa': 'Pa',
     'Da1': 'Da1',
     'Da2': 'Da2',
+    'Da3': 'Da3',
     'Ni1': 'Ni1',
     'Ni2': 'Ni2',
+    'Ni3': 'Ni3',
   };
   return mapping[value];
 }
