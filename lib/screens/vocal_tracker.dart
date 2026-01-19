@@ -1920,6 +1920,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         final gridMs = 60000.0 / bpm;
         _currentScale = scale;
         final pendingExtraMs = _pendingInsertIndex == null ? 0.0 : gridMs;
+        final trailingExtraMs = gridMs * 3;
         final nowX =
             constraints.maxWidth * guidelineFraction + guidelineOffset;
         final plotRightPadding =
@@ -1929,7 +1930,10 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           constraints.maxWidth - labelWidth - plotRightPadding,
         );
         _plotWidth = plotWidth;
-        final width = max(plotWidth, (totalMs + pendingExtraMs) * scale)
+        final width = max(
+          plotWidth,
+          (totalMs + pendingExtraMs + trailingExtraMs) * scale,
+        )
             .toDouble();
         final baseRowHeight =
             rowCount > 0 ? viewportHeight / rowCount : 0.0;
