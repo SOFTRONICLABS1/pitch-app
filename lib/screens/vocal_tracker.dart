@@ -78,8 +78,9 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   double? _screenWidth;
   double? _initialBaseMidi;
   static const _guidelineFraction = 0.8;
+  static const _editGuidelineFraction = 0.9;
   static const _guidelineOffset = 0.0;
-  static const _tunerLabelWidth = 58.0;
+  static const _tunerLabelWidth = 72.0;
   String _lastNoteEntryInput = '';
   DateTime? _harmonicsWindowStart;
   DateTime? _harmonicsWindowEnd;
@@ -810,147 +811,150 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
           ],
         ),
         body: SafeArea(
-          child: CustomScrollView(
-            slivers: [
-              const SliverToBoxAdapter(child: SizedBox(height: 12)),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: Align(
-                    alignment: Alignment.topRight,
-                    child: _NoteBadge(note: note),
-                  ),
-                ),
-              ),
-              const SliverToBoxAdapter(child: SizedBox(height: 12)),
-              SliverFillRemaining(
-                hasScrollBody: true,
-                child: Column(
+          child: _editMode
+              ? Column(
                   children: [
                     Expanded(
-                      child: Stack(
+                      child: _EditableTargetOverlay(
+                        key: _editOverlayKey,
+                        notes: _editNotes ?? _recording.notes,
+                        tuningSystem: state.tuningSystem,
+                        baseMidi: 21,
+                        rowCount: _viewportRowCount,
+                        baseOffset: 0.0,
+                        labelWidth: _tunerLabelWidth,
+                        rootSemitone: rootSemitoneForView,
+                        guidelineFraction: 2.0,
+                        guidelineOffset: _guidelineOffset,
+                        scrollController: _editScrollController,
+                        verticalController: _editVerticalController,
+                        onDelete: _deleteTargetAt,
+                        onDurationDrag: (index, deltaMs, commit) {
+                          _adjustTargetDuration(
+                            index,
+                            deltaMs,
+                            commit: commit,
+                          );
+                        },
+                        onInsertNotes: _insertTargetsAt,
+                        onNoteChanged: _updateTargetNoteAt,
+                        bpm: _bpm,
+                        baseOctave: _baseOctave,
+                      ),
+                    ),
+                    _PlayPauseBar(
+                      listening: state.listening,
+                      errorMessage: state.errorMessage,
+                      onStart: () => _handleStart(state),
+                      onStop: () => _handleStop(state),
+                      onEdit: _openEditRecording,
+                      editMode: true,
+                      tanpuraEnabled: _tanpuraEnabled,
+                      onTanpuraToggle: () => _toggleTanpura(state),
+                      onConfirmEdit: () => _saveEditMode(),
+                      onCancelEdit: () => _cancelEditMode(),
+                      showEdit: widget.allowEdit,
+                    ),
+                  ],
+                )
+              : CustomScrollView(
+                  slivers: [
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: Align(
+                          alignment: Alignment.topRight,
+                          child: _NoteBadge(note: note),
+                        ),
+                      ),
+                    ),
+                    const SliverToBoxAdapter(child: SizedBox(height: 12)),
+                    SliverFillRemaining(
+                      hasScrollBody: true,
+                      child: Column(
                         children: [
-                          TunerDisplay(
-                            history: _filteredHistory(state.history),
-                            showBlocks: false,
-                            showLabels: !_editMode,
-                            enableManualScroll: !_editMode,
-                            initialBaseMidi: _initialBaseMidi,
-                            controller: _tunerController,
-                            nowOverride: _running ? null : _frozenAt,
-                            noteLabels: noteLabels,
-                            labelTextStyle: labelStyle,
-                            rowCount: _viewportRowCount,
-                            guidelineFraction: _guidelineFraction,
-                            guidelineOffset: _guidelineOffset,
-                            rootSemitone: rootSemitoneForView,
-                            onViewportChanged: (base, offset) {
-                              if (!mounted) return;
-                              setState(() {
-                                _viewportBaseMidi = base;
-                                _viewportOffset = offset;
-                              });
-                            },
-                          ),
-                          _TargetNoteTrack(
-                            targets: _targets,
-                            elapsed: _effectiveTargetElapsed(),
-                            totalDurationMs: _totalDurationMs,
-                            running: _running,
-                            bpm: _bpm,
-                            baseMidi: _viewportBaseMidi,
-                            rowCount: _viewportRowCount,
-                            baseOffset: _viewportOffset,
-                            tuningSystem: state.tuningSystem,
-                            rootSemitone: rootSemitoneForView,
-                            guidelineFraction: _guidelineFraction,
-                            guidelineOffset: _guidelineOffset,
-                          ),
-                              if (_editMode)
-                                Positioned.fill(
-                                  child: _EditableTargetOverlay(
-                                    key: _editOverlayKey,
-                                    notes: _editNotes ?? _recording.notes,
-                                    tuningSystem: state.tuningSystem,
-                                    baseMidi: 21,
-                                    rowCount: _viewportRowCount,
-                                    baseOffset: 0.0,
-                                    labelWidth: _tunerLabelWidth,
-                                    rootSemitone: rootSemitoneForView,
-                                    guidelineFraction: _guidelineFraction,
-                                    guidelineOffset: _guidelineOffset,
-                                    scrollController: _editScrollController,
-                                    verticalController: _editVerticalController,
-                                    onDelete: _deleteTargetAt,
-                                    onDurationDrag: (index, deltaMs, commit) {
-                                      _adjustTargetDuration(
-                                        index,
-                                        deltaMs,
-                                        commit: commit,
-                                      );
-                                    },
-                                    onInsertNotes: _insertTargetsAt,
-                                    onNoteChanged: _updateTargetNoteAt,
-                                    bpm: _bpm,
-                                    baseOctave: _baseOctave,
-                                  ),
+                          Expanded(
+                            child: Stack(
+                              children: [
+                                TunerDisplay(
+                                  history: _filteredHistory(state.history),
+                                  showBlocks: false,
+                                  showLabels: true,
+                                  enableManualScroll: true,
+                                  initialBaseMidi: _initialBaseMidi,
+                                  controller: _tunerController,
+                                  nowOverride: _running ? null : _frozenAt,
+                                  noteLabels: noteLabels,
+                                  labelTextStyle: labelStyle,
+                                  rowCount: _viewportRowCount,
+                                  guidelineFraction: _guidelineFraction,
+                                  guidelineOffset: _guidelineOffset,
+                                  rootSemitone: rootSemitoneForView,
+                                  onViewportChanged: (base, offset) {
+                                    if (!mounted) return;
+                                    setState(() {
+                                      _viewportBaseMidi = base;
+                                      _viewportOffset = offset;
+                                    });
+                                  },
                                 ),
+                                _TargetNoteTrack(
+                                  targets: _targets,
+                                  elapsed: _effectiveTargetElapsed(),
+                                  totalDurationMs: _totalDurationMs,
+                                  running: _running,
+                                  bpm: _bpm,
+                                  baseMidi: _viewportBaseMidi,
+                                  rowCount: _viewportRowCount,
+                                  baseOffset: _viewportOffset,
+                                  tuningSystem: state.tuningSystem,
+                                  rootSemitone: rootSemitoneForView,
+                                  guidelineFraction: _guidelineFraction,
+                                  guidelineOffset: _guidelineOffset,
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (!widget.allowEdit)
+                            _PlayPauseBar(
+                              listening: state.listening,
+                              errorMessage: state.errorMessage,
+                              onStart: () => _handleStart(state),
+                              onStop: () => _handleStop(state),
+                              onEdit: _openEditRecording,
+                              editMode: false,
+                              tanpuraEnabled: _tanpuraEnabled,
+                              onTanpuraToggle: () => _toggleTanpura(state),
+                              onConfirmEdit: () => _saveEditMode(),
+                              onCancelEdit: () => _cancelEditMode(),
+                              showEdit: false,
+                            ),
+                          if (widget.allowEdit)
+                            ControlBar(
+                              listening: state.listening,
+                              recording: state.recording,
+                              errorMessage: state.errorMessage,
+                              tanpuraPlaying: state.tanpuraPlaying,
+                              onStart: () => _handleStart(state),
+                              onStop: () => _handleStop(state),
+                              onOpenRecordings: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) => const RecordingsScreen(),
+                                  ),
+                                );
+                              },
+                              onOpenTanpura: () => _toggleTanpura(state),
+                              onToggleRecording: () => _handleRecording(state),
+                              onEdit: _openEditRecording,
+                            ),
+                          const SizedBox(height: 12),
                         ],
                       ),
                     ),
-                    if (_editMode)
-                      _PlayPauseBar(
-                        listening: state.listening,
-                        errorMessage: state.errorMessage,
-                        onStart: () => _handleStart(state),
-                        onStop: () => _handleStop(state),
-                        onEdit: _openEditRecording,
-                        editMode: _editMode,
-                        tanpuraEnabled: _tanpuraEnabled,
-                        onTanpuraToggle: () => _toggleTanpura(state),
-                        onConfirmEdit: () => _saveEditMode(),
-                        onCancelEdit: () => _cancelEditMode(),
-                        showEdit: widget.allowEdit,
-                      ),
-                    if (!_editMode && !widget.allowEdit)
-                      _PlayPauseBar(
-                        listening: state.listening,
-                        errorMessage: state.errorMessage,
-                        onStart: () => _handleStart(state),
-                        onStop: () => _handleStop(state),
-                        onEdit: _openEditRecording,
-                        editMode: false,
-                        tanpuraEnabled: _tanpuraEnabled,
-                        onTanpuraToggle: () => _toggleTanpura(state),
-                        onConfirmEdit: () => _saveEditMode(),
-                        onCancelEdit: () => _cancelEditMode(),
-                        showEdit: false,
-                      ),
-                    if (!_editMode && widget.allowEdit)
-                      ControlBar(
-                        listening: state.listening,
-                        recording: state.recording,
-                        errorMessage: state.errorMessage,
-                        tanpuraPlaying: state.tanpuraPlaying,
-                        onStart: () => _handleStart(state),
-                        onStop: () => _handleStop(state),
-                        onOpenRecordings: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const RecordingsScreen(),
-                            ),
-                          );
-                        },
-                        onOpenTanpura: () => _toggleTanpura(state),
-                        onToggleRecording: () => _handleRecording(state),
-                        onEdit: _openEditRecording,
-                      ),
-                    const SizedBox(height: 12),
                   ],
                 ),
-              ),
-            ],
-          ),
         ),
       ),
     );
