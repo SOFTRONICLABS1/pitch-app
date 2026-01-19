@@ -341,7 +341,7 @@ class _TunerDisplayState extends State<TunerDisplay>
     if (deltaRows == 0) {
       return;
     }
-    _setBaseMidi(_baseMidi - deltaRows);
+    _setBaseMidi(_baseMidi + deltaRows);
   }
 
   void _applyInitialBase(double baseMidi) {
