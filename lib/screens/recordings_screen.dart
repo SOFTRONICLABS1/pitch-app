@@ -992,17 +992,21 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       }
     }
     _inlineHarmonicsKey = key;
-    _playInlineHarmonic(_inlineTargets[index], effectiveDuration);
+    unawaited(_playInlineHarmonic(_inlineTargets[index], effectiveDuration));
   }
 
-  void _playInlineHarmonic(_InlineTargetBlock block, double durationMs) {
+  Future<void> _playInlineHarmonic(
+    _InlineTargetBlock block,
+    double durationMs,
+  ) async {
     final path = _harmonicsAssetForMidi(block.midi);
     if (path == null) {
       return;
     }
-    unawaited(_inlinePlayer.stop());
-    unawaited(_inlinePlayer.setVolume(0.0));
-    unawaited(_inlinePlayer.play(AssetSource(path), volume: 0.0));
+    await _inlinePlayer.stop();
+    await _inlinePlayer.setVolume(0.0);
+    await _inlinePlayer.setSource(AssetSource(path));
+    await _inlinePlayer.resume();
     Timer(const Duration(milliseconds: 30), () {
       _inlinePlayer.setVolume(1.0);
     });
@@ -1300,22 +1304,57 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   }) {
     if (note.isEmpty) return null;
     final match = RegExp(r'^([a-g])(#?)(-?\d+)$').firstMatch(note);
-    if (match == null) return null;
-    final name = match.group(1);
-    final sharp = match.group(2);
-    final octave = int.tryParse(match.group(3) ?? '');
-    if (name == null || octave == null) return null;
-    final base = switch (name) {
-      'c' => 0,
-      'd' => 2,
-      'e' => 4,
-      'f' => 5,
-      'g' => 7,
-      'a' => 9,
-      'b' => 11,
-      _ => 0,
+    if (match != null) {
+      final name = match.group(1);
+      final sharp = match.group(2);
+      final octave = int.tryParse(match.group(3) ?? '');
+      if (name == null || octave == null) return null;
+      final base = switch (name) {
+        'c' => 0,
+        'd' => 2,
+        'e' => 4,
+        'f' => 5,
+        'g' => 7,
+        'a' => 9,
+        'b' => 11,
+        _ => 0,
+      };
+      final semitone = base + (sharp == '#' ? 1 : 0);
+      final midi = (octave + 1) * 12 + semitone + semitoneOffset;
+      final offset = (baseOctave - PitchNotifier.defaultBaseOctave) * 12;
+      return (midi + offset).clamp(0, 127);
+    }
+    final carnatic = RegExp(
+      r'^(sa|ri1|ri2|ri3|ga1|ga2|ga3|ma1|ma2|pa|da1|da2|da3|ni1|ni2|ni3)(-?\d+)$',
+      caseSensitive: false,
+    ).firstMatch(note);
+    if (carnatic == null) {
+      return null;
+    }
+    const labelToToken = {
+      'sa': 'S',
+      'ri1': 'R1',
+      'ri2': 'R2',
+      'ri3': 'R3',
+      'ga1': 'G1',
+      'ga2': 'G2',
+      'ga3': 'G3',
+      'ma1': 'M1',
+      'ma2': 'M2',
+      'pa': 'P',
+      'da1': 'D1',
+      'da2': 'D2',
+      'da3': 'D3',
+      'ni1': 'N1',
+      'ni2': 'N2',
+      'ni3': 'N3',
     };
-    final semitone = base + (sharp == '#' ? 1 : 0);
+    final name = (carnatic.group(1) ?? '').toLowerCase();
+    final octave = int.tryParse(carnatic.group(2) ?? '');
+    if (octave == null) return null;
+    final token = labelToToken[name];
+    final semitone = token == null ? null : _melakartaSemitones[token];
+    if (semitone == null) return null;
     final midi = (octave + 1) * 12 + semitone + semitoneOffset;
     final offset = (baseOctave - PitchNotifier.defaultBaseOctave) * 12;
     return (midi + offset).clamp(0, 127);
@@ -1336,11 +1375,20 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       'asharp',
       'b',
     ];
-    final octave = (midi / 12).floor() - 1;
-    if (octave < 0 || octave > 8) {
+    final name = names[midi % 12];
+    var octave = (midi / 12).floor() - 1;
+    if (octave < 0) {
       return null;
     }
-    final name = names[midi % 12];
+    if (octave > 8) {
+      octave = 8;
+    }
+    if (octave == 8 && name != 'c') {
+      octave = 7;
+    }
+    if (octave == 0 && name != 'a' && name != 'asharp' && name != 'b') {
+      octave = 1;
+    }
     return 'harmonics/${name}${octave}.wav';
   }
 

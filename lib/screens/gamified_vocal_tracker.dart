@@ -1202,10 +1202,19 @@ String? _harmonicsAssetForMidi(int midi) {
     'asharp',
     'b',
   ];
-  final octave = (midi / 12).floor() - 1;
-  if (octave < 0 || octave > 8) {
+  final name = names[midi % 12];
+  var octave = (midi / 12).floor() - 1;
+  if (octave < 0) {
     return null;
   }
-  final name = names[midi % 12];
+  if (octave > 8) {
+    octave = 8;
+  }
+  if (octave == 8 && name != 'c') {
+    octave = 7;
+  }
+  if (octave == 0 && name != 'a' && name != 'asharp' && name != 'b') {
+    octave = 1;
+  }
   return 'harmonics/${name}${octave}.wav';
 }

@@ -68,6 +68,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   int _viewportBaseMidi = 33;
   double _viewportOffset = 0.0;
   static const _viewportRowCount = 48;
+  static const _normalRowHeightFactor = 1.25;
   bool _harmonicsEnabled = false;
   bool _editMode = false;
   List<RecordedNote>? _editNotes;
@@ -103,6 +104,12 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
         : _viewportRowCount;
   }
 
+  int _normalRowCountForSystem(String tuningSystem) {
+    final baseRows = _rowCountForSystem(tuningSystem);
+    final scaled = baseRows / _normalRowHeightFactor;
+    return max(1, scaled.round());
+  }
+
   @override
   void initState() {
     super.initState();
@@ -136,6 +143,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _stopwatch.reset();
     _frozenAt = DateTime.now();
     _harmonicsPlayer.setReleaseMode(ReleaseMode.stop);
+    _harmonicsPlayer.setPlayerMode(PlayerMode.lowLatency);
     _preloadHarmonics();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -724,7 +732,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     final midi = _targets[index].midi;
     final bottom = _viewportBaseMidi;
     final rowCount =
-        _rowCountForSystem(_pitchNotifier?.tuningSystem ?? 'western');
+        _normalRowCountForSystem(_pitchNotifier?.tuningSystem ?? 'western');
     final top = _viewportBaseMidi + rowCount - 1;
     final tuningSystem = _pitchNotifier?.tuningSystem ?? 'western';
     final useExpanded = _useExpandedRows(tuningSystem, _ragaName);
@@ -760,7 +768,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     const minMidi = 21.0;
     const maxMidi = 108.0;
     final tuningSystem = _pitchNotifier?.tuningSystem ?? 'western';
-    final rowCount = _rowCountForSystem(tuningSystem);
+    final rowCount = _normalRowCountForSystem(tuningSystem);
     final useExpanded = _useExpandedRows(tuningSystem, _ragaName);
     final targetRow = useExpanded
         ? _expandedRowIndexForMidi(targetMidi, tuningSystem, _ragaName)
@@ -799,7 +807,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     final labelStyle = _labelStyleForSystem(state.tuningSystem);
     final useExpandedRows =
         _useExpandedRows(state.tuningSystem, _ragaName);
-    final rowCount = _rowCountForSystem(state.tuningSystem);
+    final editRowCount = _rowCountForSystem(state.tuningSystem);
+    final normalRowCount = _normalRowCountForSystem(state.tuningSystem);
     final minRowIndex = useExpandedRows
         ? _expandedRowIndexForMidi(21, state.tuningSystem, _ragaName)
         : null;
@@ -867,7 +876,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                         notes: _editNotes ?? _recording.notes,
                         tuningSystem: state.tuningSystem,
                         baseMidi: 21,
-                        rowCount: rowCount,
+                        rowCount: editRowCount,
                         baseOffset: 0.0,
                         labelWidth: _tunerLabelWidth,
                         rootSemitone: rootSemitoneForView,
@@ -935,7 +944,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                                   nowOverride: _running ? null : _frozenAt,
                                   noteLabels: noteLabels,
                                   labelTextStyle: labelStyle,
-                                  rowCount: rowCount,
+                                  rowCount: normalRowCount,
                                   minRowIndex: minRowIndex,
                                   maxRowIndex: maxRowIndex,
                                   rowIndexForMidi: useExpandedRows
@@ -967,7 +976,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                                   running: _running,
                                   bpm: _bpm,
                                   baseMidi: _viewportBaseMidi,
-                                  rowCount: rowCount,
+                                  rowCount: normalRowCount,
                                   baseOffset: _viewportOffset,
                                   tuningSystem: state.tuningSystem,
                                   rootSemitone: rootSemitoneForView,
@@ -1396,18 +1405,19 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       }
     }
     _currentHarmonicsKey = key;
-    _playHarmonicFor(_targets[index], effectiveDuration);
+    unawaited(_playHarmonicFor(_targets[index], effectiveDuration));
   }
 
-  void _playHarmonicFor(_TargetBlock block, double durationMs) {
+  Future<void> _playHarmonicFor(_TargetBlock block, double durationMs) async {
     final path = _harmonicsAssetForMidi(block.midi);
     if (path == null) {
       return;
     }
     _harmonicsStopTimer?.cancel();
-    _harmonicsPlayer.stop();
-    _harmonicsPlayer.setVolume(0.0);
-    _harmonicsPlayer.play(AssetSource(path), volume: 0.0);
+    await _harmonicsPlayer.stop();
+    await _harmonicsPlayer.setVolume(0.0);
+    await _harmonicsPlayer.setSource(AssetSource(path));
+    await _harmonicsPlayer.resume();
     Timer(const Duration(milliseconds: 30), () {
       _harmonicsPlayer.setVolume(_harmonicsVolume);
     });
@@ -1460,11 +1470,20 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       'asharp',
       'b',
     ];
-    final octave = (midi / 12).floor() - 1;
-    if (octave < 0 || octave > 8) {
+    final name = names[midi % 12];
+    var octave = (midi / 12).floor() - 1;
+    if (octave < 0) {
       return null;
     }
-    final name = names[midi % 12];
+    if (octave > 8) {
+      octave = 8;
+    }
+    if (octave == 8 && name != 'c') {
+      octave = 7;
+    }
+    if (octave == 0 && name != 'a' && name != 'asharp' && name != 'b') {
+      octave = 1;
+    }
     return 'harmonics/${name}${octave}.wav';
   }
 }
@@ -4235,7 +4254,7 @@ class _TargetNotePainter extends CustomPainter {
   static const _labelWidth = 70.0;
   static const _trackWindowMs = 6400.0;
   static const _blockColor = Color(0xFF2B6BFF);
-  static const _blockHeightFactor = 2;
+  static const _blockHeightFactor = 1.0;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -4314,12 +4333,8 @@ class _TargetNotePainter extends CustomPainter {
 
         final rowIndex = _rowIndexForMidi(block.midi);
         final semitone = (block.midi % 12 + 12) % 12;
-        final splitIndex = expandedRows
-            ? 0
-            : _preferredSplitIndex(semitone, tuningSystem, ragaName);
-        final splitDivisor = expandedRows
-            ? 1
-            : (_isSplitSemitone(semitone, tuningSystem, ragaName) ? 2 : 1);
+        const splitIndex = 0;
+        const splitDivisor = 1;
         final blockHeight = (rowHeight / splitDivisor) * _blockHeightFactor;
         final top =
             (rowIndex + baseOffset) * rowHeight +
@@ -4438,22 +4453,57 @@ _TargetBuildResult _targetBlocksFromRecording(
 int? _midiFromNoteLabel(String note, int baseOctave) {
   if (note.isEmpty) return null;
   final match = RegExp(r'^([a-g])(#?)(-?\d+)$').firstMatch(note);
-  if (match == null) return null;
-  final name = match.group(1);
-  final sharp = match.group(2);
-  final octave = int.tryParse(match.group(3) ?? '');
-  if (name == null || octave == null) return null;
-  final base = switch (name) {
-    'c' => 0,
-    'd' => 2,
-    'e' => 4,
-    'f' => 5,
-    'g' => 7,
-    'a' => 9,
-    'b' => 11,
-    _ => 0,
+  if (match != null) {
+    final name = match.group(1);
+    final sharp = match.group(2);
+    final octave = int.tryParse(match.group(3) ?? '');
+    if (name == null || octave == null) return null;
+    final base = switch (name) {
+      'c' => 0,
+      'd' => 2,
+      'e' => 4,
+      'f' => 5,
+      'g' => 7,
+      'a' => 9,
+      'b' => 11,
+      _ => 0,
+    };
+    final semitone = base + (sharp == '#' ? 1 : 0);
+    final midi = (octave + 1) * 12 + semitone;
+    final offset = (baseOctave - PitchNotifier.defaultBaseOctave) * 12;
+    return midi + offset;
+  }
+  final carnatic = RegExp(
+    r'^(sa|ri1|ri2|ri3|ga1|ga2|ga3|ma1|ma2|pa|da1|da2|da3|ni1|ni2|ni3)(-?\d+)$',
+    caseSensitive: false,
+  ).firstMatch(note);
+  if (carnatic == null) {
+    return null;
+  }
+  const labelToToken = {
+    'sa': 'S',
+    'ri1': 'R1',
+    'ri2': 'R2',
+    'ri3': 'R3',
+    'ga1': 'G1',
+    'ga2': 'G2',
+    'ga3': 'G3',
+    'ma1': 'M1',
+    'ma2': 'M2',
+    'pa': 'P',
+    'da1': 'D1',
+    'da2': 'D2',
+    'da3': 'D3',
+    'ni1': 'N1',
+    'ni2': 'N2',
+    'ni3': 'N3',
   };
-  final semitone = base + (sharp == '#' ? 1 : 0);
+  final name = (carnatic.group(1) ?? '').toLowerCase();
+  final octave = int.tryParse(carnatic.group(2) ?? '');
+  if (octave == null) return null;
+  final token = labelToToken[name];
+  final semitone = token == null ? null : _melakartaSemitones[token];
+  if (semitone == null) return null;
   final midi = (octave + 1) * 12 + semitone;
   final offset = (baseOctave - PitchNotifier.defaultBaseOctave) * 12;
   return midi + offset;
@@ -4816,7 +4866,33 @@ String _displayLabel(
   String? ragaName,
 }) {
   if (tuningSystem != 'carnatic') {
-    return westernNote.replaceAll(RegExp(r'-?\d+$'), '');
+    return westernNote.replaceAll(RegExp(r'-?\d+$'), '').toUpperCase();
+  }
+  final carnatic = RegExp(
+    r'^(sa|ri1|ri2|ri3|ga1|ga2|ga3|ma1|ma2|pa|da1|da2|da3|ni1|ni2|ni3)-?\d+$',
+    caseSensitive: false,
+  ).firstMatch(westernNote);
+  if (carnatic != null) {
+    const casing = {
+      'sa': 'Sa',
+      'ri1': 'Ri1',
+      'ri2': 'Ri2',
+      'ri3': 'Ri3',
+      'ga1': 'Ga1',
+      'ga2': 'Ga2',
+      'ga3': 'Ga3',
+      'ma1': 'Ma1',
+      'ma2': 'Ma2',
+      'pa': 'Pa',
+      'da1': 'Da1',
+      'da2': 'Da2',
+      'da3': 'Da3',
+      'ni1': 'Ni1',
+      'ni2': 'Ni2',
+      'ni3': 'Ni3',
+    };
+    final name = (carnatic.group(1) ?? '').toLowerCase();
+    return casing[name] ?? name.toUpperCase();
   }
   final match = RegExp(r'^([A-Ga-g])(#?)(-?\d+)$').firstMatch(westernNote);
   if (match == null) {
