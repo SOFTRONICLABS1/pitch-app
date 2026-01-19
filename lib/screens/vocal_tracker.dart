@@ -2281,12 +2281,14 @@ String _labelForMidi(int midi, String tuningSystem) {
           final semitone = (midi % 12 + 12) % 12;
           final labelsForRow = expandedRows
               ? [_expandedLabelForIndex(expandedIndex)]
-              : _splitLabelsForSemitone(
-                  semitone,
-                  tuningSystem,
-                  widget.ragaName,
-                  noteLabels,
-                );
+              : [
+                  _preferredLabelForSemitone(
+                    semitone,
+                    tuningSystem,
+                    widget.ragaName,
+                    noteLabels,
+                  )
+                ];
           final isSharp = sharpSemitones.contains(semitone);
           final rowBg =
               isSharp ? Colors.black : const Color(0xFFCBD1D6);
@@ -2300,25 +2302,9 @@ String _labelForMidi(int midi, String tuningSystem) {
           final resolvedStyle = baseStyle.copyWith(color: rowTextColor);
           final labelTop =
               (i + baseOffset) * rowHeight - (labelHeight - rowHeight) / 2;
-          final combinedLabel = !expandedRows && labelsForRow.length > 1
-              ? labelsForRow.join('/')
-              : null;
-          final displayLabels =
-              combinedLabel != null ? [combinedLabel] : labelsForRow;
-          final commitLabels = combinedLabel != null
-              ? [
-                  _preferredLabelForSemitone(
-                    semitone,
-                    tuningSystem,
-                    widget.ragaName,
-                    noteLabels,
-                  )
-                ]
-              : labelsForRow;
-          final segmentHeight = labelHeight / displayLabels.length;
-          for (var j = 0; j < displayLabels.length; j++) {
-            final displayLabel = displayLabels[j];
-            final commitLabel = commitLabels[j];
+          final segmentHeight = labelHeight / labelsForRow.length;
+          for (var j = 0; j < labelsForRow.length; j++) {
+            final label = labelsForRow[j];
             labelRows.add(
               Positioned(
                 left: 0,
@@ -2327,7 +2313,7 @@ String _labelForMidi(int midi, String tuningSystem) {
                 height: segmentHeight,
                 child: GestureDetector(
                   behavior: HitTestBehavior.opaque,
-                  onTap: () => _commitInsertWithLabel(commitLabel),
+                  onTap: () => _commitInsertWithLabel(label),
                   child: Row(
                     children: [
                       Expanded(
@@ -2337,7 +2323,7 @@ String _labelForMidi(int midi, String tuningSystem) {
                           child: SizedBox(
                             height: segmentHeight,
                             child: Center(
-                              child: Text(displayLabel, style: resolvedStyle),
+                              child: Text(label, style: resolvedStyle),
                             ),
                           ),
                         ),
@@ -4793,18 +4779,15 @@ List<String> _noteLabelsForSystem(
   final baseLabels = (ragaName != null && ragaName.trim().isNotEmpty)
       ? _ragaAwareCarnaticLabels(ragaName)
       : _carnaticNoteLabels;
-  final resolvedLabels = List<String>.generate(baseLabels.length, (index) {
-    if (_isSplitSemitone(index, tuningSystem, ragaName)) {
-      final parts = _splitLabelsForSemitone(
-        index,
-        tuningSystem,
-        ragaName,
-        baseLabels,
-      );
-      return parts.join('/');
-    }
-    return baseLabels[index];
-  });
+  final resolvedLabels = List<String>.generate(
+    baseLabels.length,
+    (index) => _preferredLabelForSemitone(
+      index,
+      tuningSystem,
+      ragaName,
+      baseLabels,
+    ),
+  );
   if (rootSemitone == 0) {
     return resolvedLabels;
   }
