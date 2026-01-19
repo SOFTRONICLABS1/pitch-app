@@ -42,7 +42,7 @@ class PitchNotifier extends ChangeNotifier {
   double powerThreshold = 0.15;
   String displayMode = 'timeline'; // or circle
   String tuningSystem = 'western'; // or carnatic
-  String tanpuraString = 'Sa';
+  String tanpuraString = 'Pa';
   String tanpuraNote = 'Sa';
   bool tanpuraPlaying = false;
   double tanpuraVolume = 0.3;

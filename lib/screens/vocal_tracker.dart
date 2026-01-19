@@ -79,6 +79,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   static const _guidelineFraction = 0.8;
   static const _guidelineOffset = 0.0;
   static const _tunerLabelWidth = 58.0;
+  String _lastNoteEntryInput = '';
   DateTime? _harmonicsWindowStart;
   DateTime? _harmonicsWindowEnd;
   int? _harmonicsMidi;
@@ -367,6 +368,71 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       _editNotes = null;
       _editDirty = false;
     });
+  }
+
+  Future<void> _openNoteEntry() async {
+    if (!_editMode) return;
+    final existingNotes = _editNotes ?? _recording.notes;
+    final tuningSystem = context.read<PitchNotifier>().tuningSystem;
+    final seed = existingNotes.isEmpty
+        ? _lastNoteEntryInput
+        : _serializeNotesForEntry(
+            existingNotes,
+            bpm: _bpm,
+            baseOctave: _baseOctave,
+            tuningSystem: tuningSystem,
+          );
+    final controller = TextEditingController(text: seed);
+    final input = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Enter notes'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 2,
+            maxLines: 4,
+            decoration: const InputDecoration(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(context).pop(controller.text.trim()),
+              child: const Text('Insert'),
+            ),
+          ],
+        );
+      },
+    );
+    if (input == null || input.isEmpty) {
+      return;
+    }
+    _lastNoteEntryInput = input;
+    final result = _parseNoteEntry(
+      input,
+      bpm: _bpm,
+      baseOctave: _baseOctave,
+      tuningSystem: tuningSystem,
+    );
+    if (result.notes.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result.error ?? 'No valid notes found.'),
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _editNotes = List<RecordedNote>.from(result.notes);
+      _editDirty = true;
+    });
+    _editOverlayKey.currentState?.queueInsertAtEnd();
   }
 
   void _clearAllEditNotes() {
@@ -724,6 +790,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
               IconButton(
                 icon: const Icon(Icons.add),
                 onPressed: _queueInsertAtEnd,
+              ),
+            if (_editMode)
+              IconButton(
+                icon: const Icon(Icons.keyboard_outlined),
+                onPressed: _openNoteEntry,
               ),
             if (_editMode)
               IconButton(
@@ -1664,6 +1735,8 @@ class _EditableTargetOverlay extends StatefulWidget {
   static const _msToWidth = 0.08;
   static const _minTileWidth = 24.0;
   static const _defaultInsertDurationMs = 1000;
+  static const _blockHeightFactor = 1.0;
+  static const _labelHeightFactor = 1.0;
 
   @override
   State<_EditableTargetOverlay> createState() => _EditableTargetOverlayState();
@@ -1698,6 +1771,14 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
       _pendingInsertMidi = null;
     });
     _centerOnInsertColumn();
+  }
+
+  int? currentInsertIndex() {
+    return _pendingInsertIndex;
+  }
+
+  void moveInsertTo(int insertIndex) {
+    _queueInsert(insertIndex);
   }
 
   void queueInsertAtEnd() {
@@ -1845,6 +1926,8 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
         final width = max(plotWidth, (totalMs + pendingExtraMs) * scale)
             .toDouble();
         final rowHeight = rowCount > 0 ? viewportHeight / rowCount : 0.0;
+        final blockHeight = rowHeight * _EditableTargetOverlay._blockHeightFactor;
+        final labelHeight = rowHeight * _EditableTargetOverlay._labelHeightFactor;
         final topMidi = baseMidi + rowCount - 1;
         const minMidi = 21;
         const maxMidi = 108;
@@ -1946,13 +2029,15 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
             baseOffset: baseOffset,
             rowHeight: rowHeight,
           );
+          final expandedTop =
+              blockTop - (blockHeight - rowHeight) / 2;
           final isSelected = _selectedNoteIndex == i;
           blocks.add(
             Positioned(
               left: x,
-              top: blockTop,
+              top: expandedTop,
               width: blockWidth,
-              height: rowHeight,
+              height: blockHeight,
               child: GestureDetector(
                 onTap: () {
                   setState(() {
@@ -1967,7 +2052,7 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                           color: Colors.transparent,
                           child: _EditableTargetContent(
                             label: _formatNoteForEdit(note.note, tuningSystem),
-                            height: rowHeight,
+                            height: blockHeight,
                             onDelete: null,
                             selected: true,
                           ),
@@ -1978,14 +2063,14 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                             note.note,
                             tuningSystem,
                           ),
-                          height: rowHeight,
+                          height: blockHeight,
                           onDelete: () => widget.onDelete(i),
                           selected: true,
                         ),
                       )
                     : _EditableTargetContent(
                         label: _formatNoteForEdit(note.note, tuningSystem),
-                        height: rowHeight,
+                        height: blockHeight,
                         onDelete: () => widget.onDelete(i),
                         selected: false,
                       ),
@@ -2084,12 +2169,14 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                 fontWeight: FontWeight.w600,
               );
           final resolvedStyle = baseStyle.copyWith(color: rowTextColor);
+          final labelTop =
+              (i + baseOffset) * rowHeight - (labelHeight - rowHeight) / 2;
           labelRows.add(
             Positioned(
               left: 0,
               right: 0,
-              top: (i + baseOffset) * rowHeight,
-              height: rowHeight,
+              top: labelTop,
+              height: labelHeight,
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => _commitInsertWithLabel(label),
@@ -2099,7 +2186,12 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
                       child: Container(
                         color: rowBg,
                         alignment: Alignment.center,
-                        child: Text(label, style: resolvedStyle),
+                        child: SizedBox(
+                          height: labelHeight,
+                          child: Center(
+                            child: Text(label, style: resolvedStyle),
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -3960,6 +4052,7 @@ class _TargetNotePainter extends CustomPainter {
   static const _labelWidth = 58.0;
   static const _trackWindowMs = 6400.0;
   static const _blockColor = Color(0xFF2B6BFF);
+  static const _blockHeightFactor = 1.0;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -4036,8 +4129,9 @@ class _TargetNotePainter extends CustomPainter {
         }
 
       final rowIndex = _rowIndexForMidi(block.midi);
-        final blockHeight = rowHeight;
-        final top = (rowIndex + baseOffset) * rowHeight;
+        final blockHeight = rowHeight * _blockHeightFactor;
+        final top =
+            (rowIndex + baseOffset) * rowHeight - (blockHeight - rowHeight) / 2;
         final rect = Rect.fromLTWH(leftEdge, top, blockWidth, blockHeight);
         canvas.drawRect(rect, paint);
         final outline = Paint()
@@ -4403,6 +4497,263 @@ String _noteErrorTextForSystem(String tuningSystem) {
     return 'Enter a valid note (e.g., C#4 or Sa3).';
   }
   return 'Enter a valid Western note (e.g., C#4, A3).';
+}
+
+class _ParsedNoteEntry {
+  const _ParsedNoteEntry(this.notes, [this.error]);
+
+  final List<RecordedNote> notes;
+  final String? error;
+}
+
+_ParsedNoteEntry _parseNoteEntry(
+  String input, {
+  required int bpm,
+  required int baseOctave,
+  required String tuningSystem,
+}) {
+  final cleaned = input.replaceAll(RegExp(r'\s+'), '');
+  if (cleaned.isEmpty) {
+    return const _ParsedNoteEntry([], 'Enter at least one note.');
+  }
+  final segments = cleaned.split('|');
+  final nonEmpty = <String>[];
+  final sameBeatWithPrev = <bool>[];
+  var seenEmpty = false;
+  for (final segment in segments) {
+    if (segment.isEmpty) {
+      seenEmpty = true;
+      continue;
+    }
+    if (nonEmpty.isEmpty) {
+      nonEmpty.add(segment);
+    } else {
+      sameBeatWithPrev.add(seenEmpty);
+      nonEmpty.add(segment);
+    }
+    seenEmpty = false;
+  }
+  if (nonEmpty.isEmpty) {
+    return const _ParsedNoteEntry([], 'Enter at least one note.');
+  }
+  final beatGroups = <List<String>>[];
+  beatGroups.add([nonEmpty.first]);
+  for (var i = 1; i < nonEmpty.length; i++) {
+    final sameBeat = sameBeatWithPrev[i - 1];
+    if (sameBeat) {
+      beatGroups.last.add(nonEmpty[i]);
+    } else {
+      beatGroups.add([nonEmpty[i]]);
+    }
+  }
+
+  final beatMs = (60000 / max(1, bpm)).round();
+  final notes = <RecordedNote>[];
+  for (final group in beatGroups) {
+    final tokens = <String>[];
+    for (final segment in group) {
+      for (var i = 0; i < segment.length; i++) {
+        final char = segment[i];
+        if (char == '-') {
+          tokens.add('-');
+          continue;
+        }
+        if (_isSwaraChar(char)) {
+          tokens.add(char);
+        }
+      }
+    }
+    final noteTokens = tokens.where((token) => token != '-').toList();
+    final dashCount = tokens.length - noteTokens.length;
+    if (noteTokens.isEmpty) {
+      if (dashCount == 0) {
+        continue;
+      }
+      if (notes.isEmpty) {
+        return const _ParsedNoteEntry([], 'Dash without a note.');
+      }
+      for (var i = 0; i < dashCount; i++) {
+        final last = notes.last;
+        notes[notes.length - 1] = RecordedNote(
+          note: last.note,
+          durationMs: last.durationMs + beatMs,
+        );
+      }
+      continue;
+    }
+    final durations = _splitBeatDurations(beatMs, noteTokens.length);
+    var durationIndex = 0;
+    for (final token in tokens) {
+      if (token == '-') {
+        if (notes.isEmpty) {
+          return const _ParsedNoteEntry([], 'Dash without a note.');
+        }
+        final last = notes.last;
+        notes[notes.length - 1] = RecordedNote(
+          note: last.note,
+          durationMs: last.durationMs + beatMs,
+        );
+        continue;
+      }
+      final label = _noteLabelFromSwara(
+        token,
+        baseOctave: baseOctave,
+        tuningSystem: tuningSystem,
+      );
+      if (label == null) {
+        return const _ParsedNoteEntry([], 'Unsupported note token.');
+      }
+      final normalized = _normalizeNoteForStorage(label, tuningSystem);
+      if (normalized.isEmpty) {
+        return const _ParsedNoteEntry([], 'Unsupported note token.');
+      }
+      final duration = durations[durationIndex];
+      durationIndex++;
+      notes.add(RecordedNote(note: normalized, durationMs: duration));
+    }
+  }
+
+  return _ParsedNoteEntry(notes);
+}
+
+bool _isSwaraChar(String value) {
+  if (value.isEmpty) return false;
+  const swaras = {'S', 'R', 'G', 'M', 'P', 'D', 'N'};
+  return swaras.contains(value.toUpperCase());
+}
+
+List<int> _splitBeatDurations(int totalMs, int count) {
+  if (count <= 0) return const [];
+  final base = totalMs ~/ count;
+  final remainder = totalMs % count;
+  return List<int>.generate(
+    count,
+    (index) => base + (index < remainder ? 1 : 0),
+  );
+}
+
+String? _noteLabelFromSwara(
+  String token, {
+  required int baseOctave,
+  required String tuningSystem,
+}) {
+  const swaras = {'S', 'R', 'G', 'M', 'P', 'D', 'N'};
+  if (token.isEmpty) return null;
+  final upper = token.toUpperCase();
+  if (!swaras.contains(upper)) {
+    return null;
+  }
+  final octave = baseOctave + (token == upper ? 1 : 0);
+  if (tuningSystem == 'carnatic') {
+    const map = {
+      'S': 'Sa',
+      'R': 'Ri1',
+      'G': 'Ga1',
+      'M': 'Ma1',
+      'P': 'Pa',
+      'D': 'Da1',
+      'N': 'Ni1',
+    };
+    return '${map[upper]}$octave';
+  }
+  const map = {
+    'S': 'C',
+    'R': 'C#',
+    'G': 'D#',
+    'M': 'F',
+    'P': 'G',
+    'D': 'G#',
+    'N': 'A#',
+  };
+  return '${map[upper]}$octave';
+}
+
+String _serializeNotesForEntry(
+  List<RecordedNote> notes, {
+  required int bpm,
+  required int baseOctave,
+  required String tuningSystem,
+}) {
+  if (notes.isEmpty) return '';
+  final beatMs = (60000 / max(1, bpm)).round();
+  final beats = <String>[];
+  final current = <String>[];
+  var remainingMs = beatMs;
+
+  void flushCurrent() {
+    if (current.isEmpty) return;
+    beats.add(current.join(''));
+    current.clear();
+    remainingMs = beatMs;
+  }
+
+  for (final note in notes) {
+    final token = _swaraTokenFromStored(
+      note.note,
+      baseOctave: baseOctave,
+      tuningSystem: tuningSystem,
+    );
+    if (token == null) {
+      continue;
+    }
+    final durationMs = note.durationMs;
+    if (durationMs >= beatMs) {
+      flushCurrent();
+      final beatsCount = max(1, (durationMs / beatMs).round());
+      beats.add(token);
+      for (var i = 1; i < beatsCount; i++) {
+        beats.add('-');
+      }
+      continue;
+    }
+    if (durationMs > remainingMs) {
+      flushCurrent();
+    }
+    current.add(token);
+    remainingMs -= durationMs;
+    if (remainingMs <= 1) {
+      flushCurrent();
+    }
+  }
+  flushCurrent();
+  return beats.join('|');
+}
+
+String? _swaraTokenFromStored(
+  String stored, {
+  required int baseOctave,
+  required String tuningSystem,
+}) {
+  final match = RegExp(r'^([a-g])(#?)(-?\d+)$').firstMatch(stored);
+  if (match == null) return null;
+  final name = match.group(1);
+  final sharp = match.group(2);
+  final octave = int.tryParse(match.group(3) ?? '');
+  if (name == null || octave == null) return null;
+  final baseIndex = switch (name.toUpperCase()) {
+    'C' => 0,
+    'D' => 2,
+    'E' => 4,
+    'F' => 5,
+    'G' => 7,
+    'A' => 9,
+    'B' => 11,
+    _ => 0,
+  };
+  final semitone = (baseIndex + (sharp == '#' ? 1 : 0)) % 12;
+  const semitoneToSwara = {
+    0: 'S',
+    1: 'R',
+    3: 'G',
+    5: 'M',
+    7: 'P',
+    8: 'D',
+    10: 'N',
+  };
+  final swara = semitoneToSwara[semitone];
+  if (swara == null) return null;
+  final useUpper = octave >= baseOctave + 1;
+  return useUpper ? swara : swara.toLowerCase();
 }
 
 bool _isValidNoteForSystem(String value, String tuningSystem) {
