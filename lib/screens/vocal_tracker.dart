@@ -70,7 +70,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   bool _editDirty = false;
   bool _tanpuraEnabled = false;
   final AudioPlayer _harmonicsPlayer = AudioPlayer();
-  static const double _harmonicsVolume = 1.5;
+  static const double _harmonicsVolume = 2.0;
   Timer? _harmonicsStopTimer;
   int? _currentHarmonicsKey;
   double _lastTargetElapsedMs = 0.0;
@@ -1296,7 +1296,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     double? durationMs;
     double? bestStart;
     double? bestEnd;
-    const gapMs = 60.0;
+    const gapMs = 7.0;
     for (var k = minCycle; k <= maxCycle; k++) {
       final cycleOffset = k * loopMs;
       for (var i = 0; i < _targets.length; i++) {

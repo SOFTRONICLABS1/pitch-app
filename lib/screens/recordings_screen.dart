@@ -845,7 +845,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     double? durationMs;
     double? bestStart;
     double? bestEnd;
-    const gapMs = 60.0;
+    const gapMs = 7.0;
     for (var k = minCycle; k <= maxCycle; k++) {
       final cycleOffset = k * loopMs;
       for (var i = 0; i < _inlineTargets.length; i++) {
