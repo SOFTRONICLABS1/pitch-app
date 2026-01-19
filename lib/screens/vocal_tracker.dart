@@ -70,6 +70,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   bool _editDirty = false;
   bool _tanpuraEnabled = false;
   final AudioPlayer _harmonicsPlayer = AudioPlayer();
+  static const double _harmonicsVolume = 1.5;
   Timer? _harmonicsStopTimer;
   int? _currentHarmonicsKey;
   double _lastTargetElapsedMs = 0.0;
@@ -1342,7 +1343,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _harmonicsPlayer.setVolume(0.0);
     _harmonicsPlayer.play(AssetSource(path), volume: 0.0);
     Timer(const Duration(milliseconds: 30), () {
-      _harmonicsPlayer.setVolume(1.0);
+      _harmonicsPlayer.setVolume(_harmonicsVolume);
     });
     final duration = durationMs.clamp(50, 600000).toDouble();
     _harmonicsMidi = block.midi;
@@ -2160,12 +2161,13 @@ class _EditableTargetOverlayState extends State<_EditableTargetOverlay> {
           final semitone = (midi % 12 + 12) % 12;
           final label = noteLabels[semitone];
           final isSharp = sharpSemitones.contains(semitone);
-          final rowBg = i.isEven ? Colors.white : Colors.black;
-          final rowTextColor = i.isEven ? Colors.black : Colors.white;
+          final rowBg =
+              isSharp ? Colors.black : const Color(0xFFCBD1D6);
+          final rowTextColor = isSharp ? Colors.white : Colors.black;
           final baseStyle = labelStyle ??
               TextStyle(
                 color: rowTextColor,
-                fontSize: 14,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
               );
           final resolvedStyle = baseStyle.copyWith(color: rowTextColor);
@@ -2744,6 +2746,7 @@ class _EditableTargetContent extends StatelessWidget {
   final double height;
   final VoidCallback? onDelete;
   final bool selected;
+  static const _labelPaddingRight = 18.0;
 
   @override
   Widget build(BuildContext context) {
@@ -2756,12 +2759,18 @@ class _EditableTargetContent extends StatelessWidget {
       ),
       child: Stack(
         children: [
-          Center(
-            child: Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+          Padding(
+            padding: EdgeInsets.only(
+              right: onDelete != null ? _labelPaddingRight : 0,
+            ),
+            child: Center(
+              child: Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
