@@ -239,6 +239,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   Future<void> _handleStart(PitchNotifier state) async {
     if (_running) return;
     _historySnapshot ??= List<PitchPoint>.from(state.history);
+    await state.stop();
+    state.replaceHistory(const []);
     await state.start();
     if (!mounted || !state.listening) return;
     if (_tanpuraEnabled) {
@@ -4251,7 +4253,7 @@ class _TargetNotePainter extends CustomPainter {
   final double guidelineFraction;
   final double guidelineOffset;
 
-  static const _labelWidth = 70.0;
+  static const _labelWidth = 58.0;
   static const _trackWindowMs = 6400.0;
   static const _blockColor = Color(0xFF2B6BFF);
   static const _blockHeightFactor = 1.0;

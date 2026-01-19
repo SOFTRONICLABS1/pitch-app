@@ -120,6 +120,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   int _inlineTotalDurationMs = 0;
   double _inlineLastTargetElapsedMs = 0.0;
   int? _inlineHarmonicsKey;
+  Timer? _inlineHarmonicsStopTimer;
   double _inlineScale = 1.0;
   String? _playingId;
   int _inlinePlaybackToken = 0;
@@ -188,6 +189,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   void dispose() {
     _inlinePlaybackToken++;
     _inlineTicker?.cancel();
+    _inlineHarmonicsStopTimer?.cancel();
     _inlinePlayer.stop();
     _inlinePlayer.dispose();
     super.dispose();
@@ -893,6 +895,8 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     _inlineStopwatch = null;
     _inlineHarmonicsKey = null;
     _inlineLastTargetElapsedMs = 0.0;
+    _inlineHarmonicsStopTimer?.cancel();
+    _inlineHarmonicsStopTimer = null;
     _fadeOutAndStopInlinePlayer();
     if (!mounted) return;
     setState(() {
@@ -1003,6 +1007,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     if (path == null) {
       return;
     }
+    _inlineHarmonicsStopTimer?.cancel();
     await _inlinePlayer.stop();
     await _inlinePlayer.setVolume(0.0);
     await _inlinePlayer.setSource(AssetSource(path));
@@ -1011,7 +1016,8 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       _inlinePlayer.setVolume(1.0);
     });
     final duration = durationMs.clamp(50, 600000).toDouble();
-    Timer(Duration(milliseconds: duration.round()), () {
+    _inlineHarmonicsStopTimer =
+        Timer(Duration(milliseconds: duration.round()), () {
       if (_inlinePlaying) {
         _fadeOutAndStopInlinePlayer();
       }
