@@ -1008,13 +1008,11 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       return;
     }
     _inlineHarmonicsStopTimer?.cancel();
-    await _inlinePlayer.stop();
+    await _fadeOutAndStopPlayer(_inlinePlayer, 1.0);
     await _inlinePlayer.setVolume(0.0);
     await _inlinePlayer.setSource(AssetSource(path));
     await _inlinePlayer.resume();
-    Timer(const Duration(milliseconds: 30), () {
-      _inlinePlayer.setVolume(1.0);
-    });
+    unawaited(_fadeInPlayer(_inlinePlayer, 1.0));
     final duration = durationMs.clamp(50, 600000).toDouble();
     _inlineHarmonicsStopTimer =
         Timer(Duration(milliseconds: duration.round()), () {
@@ -1025,10 +1023,34 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   }
 
   void _fadeOutAndStopInlinePlayer() {
-    _inlinePlayer.setVolume(0.0);
-    Timer(const Duration(milliseconds: 30), () {
-      _inlinePlayer.stop();
-    });
+    unawaited(_fadeOutAndStopPlayer(_inlinePlayer, 1.0));
+  }
+
+  Future<void> _fadeInPlayer(
+    AudioPlayer player,
+    double targetVolume, {
+    int steps = 4,
+    int stepMs = 20,
+  }) async {
+    final clamped = targetVolume.clamp(0.0, 2.0);
+    for (var i = 1; i <= steps; i++) {
+      await player.setVolume((clamped * i) / steps);
+      await Future<void>.delayed(Duration(milliseconds: stepMs));
+    }
+  }
+
+  Future<void> _fadeOutAndStopPlayer(
+    AudioPlayer player,
+    double fromVolume, {
+    int steps = 3,
+    int stepMs = 20,
+  }) async {
+    final clamped = fromVolume.clamp(0.0, 2.0);
+    for (var i = steps - 1; i >= 0; i--) {
+      await player.setVolume((clamped * i) / steps);
+      await Future<void>.delayed(Duration(milliseconds: stepMs));
+    }
+    await player.stop();
   }
 
   Future<void> _preloadInlineHarmonics(

@@ -1438,13 +1438,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       return;
     }
     _harmonicsStopTimer?.cancel();
-    await _harmonicsPlayer.stop();
+    await _fadeOutAndStopPlayer(_harmonicsPlayer, _harmonicsVolume);
     await _harmonicsPlayer.setVolume(0.0);
     await _harmonicsPlayer.setSource(AssetSource(path));
     await _harmonicsPlayer.resume();
-    Timer(const Duration(milliseconds: 30), () {
-      _harmonicsPlayer.setVolume(_harmonicsVolume);
-    });
+    unawaited(_fadeInPlayer(_harmonicsPlayer, _harmonicsVolume));
     final duration = durationMs.clamp(50, 600000).toDouble();
     _harmonicsMidi = block.midi;
     _harmonicsWindowStart = DateTime.now();
@@ -1468,10 +1466,34 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   }
 
   void _fadeOutAndStopHarmonics() {
-    _harmonicsPlayer.setVolume(0.0);
-    Timer(const Duration(milliseconds: 30), () {
-      _harmonicsPlayer.stop();
-    });
+    unawaited(_fadeOutAndStopPlayer(_harmonicsPlayer, _harmonicsVolume));
+  }
+
+  Future<void> _fadeInPlayer(
+    AudioPlayer player,
+    double targetVolume, {
+    int steps = 4,
+    int stepMs = 20,
+  }) async {
+    final clamped = targetVolume.clamp(0.0, 2.0);
+    for (var i = 1; i <= steps; i++) {
+      await player.setVolume((clamped * i) / steps);
+      await Future<void>.delayed(Duration(milliseconds: stepMs));
+    }
+  }
+
+  Future<void> _fadeOutAndStopPlayer(
+    AudioPlayer player,
+    double fromVolume, {
+    int steps = 3,
+    int stepMs = 20,
+  }) async {
+    final clamped = fromVolume.clamp(0.0, 2.0);
+    for (var i = steps - 1; i >= 0; i--) {
+      await player.setVolume((clamped * i) / steps);
+      await Future<void>.delayed(Duration(milliseconds: stepMs));
+    }
+    await player.stop();
   }
 
   List<PitchPoint> _filteredHistory(List<PitchPoint> history) {
