@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../data/melakarta_ragas.dart';
+import '../dsp/harmonium_synth.dart';
 import '../dsp/pitch_detection.dart';
 import '../models/recording.dart';
 import '../services/recording_store.dart';
@@ -146,7 +147,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     _stopwatch.reset();
     _frozenAt = DateTime.now();
     _harmonicsPlayer.setReleaseMode(ReleaseMode.stop);
-    _harmonicsPlayer.setPlayerMode(PlayerMode.lowLatency);
+    _harmonicsPlayer.setPlayerMode(PlayerMode.mediaPlayer);
     _preloadHarmonics();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -1343,21 +1344,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   }
 
   Future<void> _preloadHarmonics() async {
-    final assets = <String>[];
-    for (final block in _targets) {
-      final path = _harmonicsAssetForMidi(block.midi);
-      if (path != null) {
-        assets.add(path);
-      }
-    }
-    final unique = assets.toSet().toList();
-    for (final path in unique) {
-      try {
-        await rootBundle.load(path);
-      } catch (_) {
-        // Ignore missing assets; playback will also skip.
-      }
-    }
+    // Harmonics are generated on-demand; nothing to preload.
   }
 
   Duration _effectiveTargetElapsed() {
@@ -1434,11 +1421,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   }
 
   Future<void> _playHarmonicFor(_TargetBlock block, double durationMs) async {
-    final path = _harmonicsAssetForMidi(block.midi);
-    if (path == null) {
-      return;
-    }
     final duration = durationMs.clamp(50, 600000).toDouble();
+    final bytes = HarmoniumSynth.buildWavBytes(
+      midi: block.midi,
+      durationMs: duration.round(),
+    );
     final fadeStepMs = _fadeStepMsForDuration(duration);
     final fadeToken = _nextHarmonicsFadeToken();
     _harmonicsStopTimer?.cancel();
@@ -1453,8 +1440,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       return;
     }
     await _harmonicsPlayer.setVolume(0.0);
-    await _harmonicsPlayer.setSource(AssetSource(path));
-    await _harmonicsPlayer.resume();
+    await _harmonicsPlayer.play(BytesSource(bytes), volume: 0.0);
     unawaited(_fadeInPlayer(
       _harmonicsPlayer,
       _harmonicsVolume,
@@ -1544,37 +1530,6 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     return history;
   }
 
-  String? _harmonicsAssetForMidi(int midi) {
-    const names = [
-      'c',
-      'csharp',
-      'd',
-      'dsharp',
-      'e',
-      'f',
-      'fsharp',
-      'g',
-      'gsharp',
-      'a',
-      'asharp',
-      'b',
-    ];
-    final name = names[midi % 12];
-    var octave = (midi / 12).floor() - 1;
-    if (octave < 0) {
-      return null;
-    }
-    if (octave > 8) {
-      octave = 8;
-    }
-    if (octave == 8 && name != 'c') {
-      octave = 7;
-    }
-    if (octave == 0 && name != 'a' && name != 'asharp' && name != 'b') {
-      octave = 1;
-    }
-    return 'harmonics/${name}${octave}.wav';
-  }
 }
 
 class _BpmTickLabels extends StatelessWidget {

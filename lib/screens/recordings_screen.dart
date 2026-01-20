@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 
 import '../data/melakarta_ragas.dart';
 import '../data/varisai_sequences.dart';
+import '../dsp/harmonium_synth.dart';
 import '../models/recording.dart';
 import '../services/recording_store.dart';
 import '../state/pitch_notifier.dart';
@@ -182,7 +183,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   void initState() {
     super.initState();
     _inlinePlayer.setReleaseMode(ReleaseMode.stop);
-    _inlinePlayer.setPlayerMode(PlayerMode.lowLatency);
+    _inlinePlayer.setPlayerMode(PlayerMode.mediaPlayer);
     _load();
   }
 
@@ -1052,17 +1053,16 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     _InlineTargetBlock block,
     double durationMs,
   ) async {
-    final path = _harmonicsAssetForMidi(block.midi);
-    if (path == null) {
-      return;
-    }
     _inlineHarmonicsStopTimer?.cancel();
+    final duration = durationMs.clamp(50, 600000).toDouble();
+    final bytes = HarmoniumSynth.buildWavBytes(
+      midi: block.midi,
+      durationMs: duration.round(),
+    );
     await _fadeOutAndStopPlayer(_inlinePlayer, 1.0);
     await _inlinePlayer.setVolume(0.0);
-    await _inlinePlayer.setSource(AssetSource(path));
-    await _inlinePlayer.resume();
+    await _inlinePlayer.play(BytesSource(bytes), volume: 0.0);
     unawaited(_fadeInPlayer(_inlinePlayer, 1.0));
-    final duration = durationMs.clamp(50, 600000).toDouble();
     _inlineHarmonicsStopTimer =
         Timer(Duration(milliseconds: duration.round()), () {
       if (_inlinePlaying) {
@@ -1108,27 +1108,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     int rootSemitone,
     String tuningSystem,
   ) async {
-    final assets = <String>[];
-    final semitoneOffset = tuningSystem == 'carnatic' ? rootSemitone : 0;
-    for (final note in entry.notes) {
-      final midi = _midiFromNoteLabel(
-        note.note,
-        baseOctave: baseOctave,
-        semitoneOffset: semitoneOffset,
-      );
-      final path = midi == null ? null : _harmonicsAssetForMidi(midi);
-      if (path != null) {
-        assets.add(path);
-      }
-    }
-    final unique = assets.toSet().toList();
-    for (final path in unique) {
-      try {
-        await rootBundle.load(path);
-      } catch (_) {
-        // Ignore missing assets; playback will also skip.
-      }
-    }
+    // Harmonics are generated on-demand; nothing to preload.
   }
 
   Future<void> _openNewTracker() async {
@@ -1436,38 +1416,6 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     final midi = (octave + 1) * 12 + semitone + semitoneOffset;
     final offset = (baseOctave - PitchNotifier.defaultBaseOctave) * 12;
     return (midi + offset).clamp(0, 127);
-  }
-
-  String? _harmonicsAssetForMidi(int midi) {
-    const names = [
-      'c',
-      'csharp',
-      'd',
-      'dsharp',
-      'e',
-      'f',
-      'fsharp',
-      'g',
-      'gsharp',
-      'a',
-      'asharp',
-      'b',
-    ];
-    final name = names[midi % 12];
-    var octave = (midi / 12).floor() - 1;
-    if (octave < 0) {
-      return null;
-    }
-    if (octave > 8) {
-      octave = 8;
-    }
-    if (octave == 8 && name != 'c') {
-      octave = 7;
-    }
-    if (octave == 0 && name != 'a' && name != 'asharp' && name != 'b') {
-      octave = 1;
-    }
-    return 'harmonics/${name}${octave}.wav';
   }
 
   _GroupSettings _groupSettingsFor(String group) {

@@ -3,9 +3,9 @@ import 'dart:math';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../dsp/harmonium_synth.dart';
 import '../dsp/pitch_detection.dart';
 import '../models/recording.dart';
 import '../state/pitch_notifier.dart';
@@ -61,7 +61,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
     _pitchNotifier = context.read<PitchNotifier>();
     _baseOctave = _pitchNotifier?.baseOctave ?? PitchNotifier.defaultBaseOctave;
     _harmonicsPlayer.setReleaseMode(ReleaseMode.stop);
-    _harmonicsPlayer.setPlayerMode(PlayerMode.lowLatency);
+    _harmonicsPlayer.setPlayerMode(PlayerMode.mediaPlayer);
     _rebuildTargets();
     _preloadHarmonics();
   }
@@ -109,19 +109,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
   }
 
   Future<void> _preloadHarmonics() async {
-    final assets = <String>[];
-    for (final block in _targets) {
-      final path = _harmonicsAssetForMidi(block.midi);
-      if (path != null) {
-        assets.add(path);
-      }
-    }
-    final unique = assets.toSet().toList();
-    for (final path in unique) {
-      try {
-        await rootBundle.load(path);
-      } catch (_) {}
-    }
+    // Harmonics are generated on-demand; nothing to preload.
   }
 
   void _start() async {
@@ -302,12 +290,14 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
   }
 
   void _playHarmonic(_GameTargetBlock block, double durationMs) {
-    final path = _harmonicsAssetForMidi(block.midi);
-    if (path == null) return;
     _harmonicsStopTimer?.cancel();
-    _harmonicsPlayer.stop();
-    _harmonicsPlayer.play(AssetSource(path), volume: 1.0);
     final duration = durationMs.clamp(50, 600000).toDouble();
+    final bytes = HarmoniumSynth.buildWavBytes(
+      midi: block.midi,
+      durationMs: duration.round(),
+    );
+    _harmonicsPlayer.stop();
+    _harmonicsPlayer.play(BytesSource(bytes), volume: 1.0);
     _harmonicsStopTimer = Timer(
       Duration(milliseconds: duration.round()),
       () => _harmonicsPlayer.stop(),
@@ -1185,36 +1175,4 @@ String _normalizeNoteForStorage(String input, String tuningSystem) {
     }
   }
   return trimmed.toLowerCase();
-}
-
-String? _harmonicsAssetForMidi(int midi) {
-  const names = [
-    'c',
-    'csharp',
-    'd',
-    'dsharp',
-    'e',
-    'f',
-    'fsharp',
-    'g',
-    'gsharp',
-    'a',
-    'asharp',
-    'b',
-  ];
-  final name = names[midi % 12];
-  var octave = (midi / 12).floor() - 1;
-  if (octave < 0) {
-    return null;
-  }
-  if (octave > 8) {
-    octave = 8;
-  }
-  if (octave == 8 && name != 'c') {
-    octave = 7;
-  }
-  if (octave == 0 && name != 'a' && name != 'asharp' && name != 'b') {
-    octave = 1;
-  }
-  return 'harmonics/${name}${octave}.wav';
 }
