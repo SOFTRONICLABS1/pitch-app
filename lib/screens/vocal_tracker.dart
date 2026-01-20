@@ -2097,7 +2097,7 @@ String _labelForMidi(int midi, String tuningSystem) {
               extendedTopMidi,
               baseOffset,
               viewportHeight,
-              alignment: 0.1,
+              alignment: 0.75,
             );
           }
         }
