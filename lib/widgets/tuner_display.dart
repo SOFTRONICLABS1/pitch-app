@@ -559,7 +559,7 @@ class _TunerPainter extends CustomPainter {
   static const lineStrokeWidth = 1.0;
   static const lineSmoothingAlpha = 0.35;
   static const _trackWindowMs = 6400.0;
-  static const _blockHeightFactor = 1.5;
+  static const _blockHeightFactor = 1.0;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -725,7 +725,7 @@ class _TunerPainter extends CustomPainter {
             Paint()..color = const Color(0xFF2B6BFF).withOpacity(0.4);
         final textStyle = targetLabelTextStyle ??
             const TextStyle(
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
               color: Colors.white,
             );

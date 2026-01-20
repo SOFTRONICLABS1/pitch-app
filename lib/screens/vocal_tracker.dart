@@ -813,12 +813,12 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
             ? const TextStyle(
                 fontFamily: 'RobotoMono',
                 fontFeatures: [FontFeature.tabularFigures()],
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: Colors.white,
               )
             : const TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w800,
                 color: Colors.white,
               ))

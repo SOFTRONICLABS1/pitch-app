@@ -125,6 +125,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   String? _playingId;
   int _inlinePlaybackToken = 0;
   bool _inlinePlaying = false;
+  bool _inlinePaused = false;
   static const _melakartaBaseOctave = 3;
   static const _melakartaNoteNames = [
     'c',
@@ -839,7 +840,11 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
 
   Future<void> _toggleInlinePlayback(RecordingEntry entry) async {
     if (_inlinePlaying && _playingId == entry.id) {
-      await _stopInlinePlayback();
+      if (_inlinePaused) {
+        _resumeInlinePlayback();
+      } else {
+        await _pauseInlinePlayback();
+      }
       return;
     }
     await _startInlinePlayback(entry);
@@ -873,6 +878,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     setState(() {
       _playingId = entry.id;
       _inlinePlaying = true;
+      _inlinePaused = false;
     });
     _inlineScale = 60.0 / settings.bpm.toDouble();
     _inlineLastTargetElapsedMs = 0.0;
@@ -892,6 +898,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   Future<void> _stopInlinePlayback() async {
     _inlinePlaybackToken++;
     _inlineTicker?.cancel();
+    _inlineStopwatch?.stop();
     _inlineStopwatch = null;
     _inlineHarmonicsKey = null;
     _inlineLastTargetElapsedMs = 0.0;
@@ -902,6 +909,46 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     setState(() {
       _inlinePlaying = false;
       _playingId = null;
+      _inlinePaused = false;
+    });
+  }
+
+  Future<void> _pauseInlinePlayback() async {
+    if (!_inlinePlaying || _inlinePaused) {
+      return;
+    }
+    _inlineTicker?.cancel();
+    _inlineStopwatch?.stop();
+    _inlineHarmonicsKey = null;
+    _inlineHarmonicsStopTimer?.cancel();
+    _inlineHarmonicsStopTimer = null;
+    await _inlinePlayer.pause();
+    if (!mounted) return;
+    setState(() {
+      _inlinePaused = true;
+    });
+  }
+
+  void _resumeInlinePlayback() {
+    if (!_inlinePlaying || !_inlinePaused) {
+      return;
+    }
+    final token = ++_inlinePlaybackToken;
+    final elapsedMs = _inlineStopwatch?.elapsedMilliseconds ?? 0;
+    _inlineLastTargetElapsedMs = max(0.0, elapsedMs.toDouble() - 1.0);
+    _inlineStopwatch?.start();
+    _inlineTicker?.cancel();
+    _inlineTicker = Timer.periodic(const Duration(milliseconds: 16), (timer) {
+      if (!_inlinePlaying || _inlinePlaybackToken != token || _inlinePaused) {
+        timer.cancel();
+        return;
+      }
+      final tickElapsedMs = _inlineStopwatch?.elapsedMilliseconds ?? 0;
+      _updateInlineHarmonics(tickElapsedMs.toDouble());
+    });
+    if (!mounted) return;
+    setState(() {
+      _inlinePaused = false;
     });
   }
 
@@ -1271,7 +1318,8 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     final isDefault = _defaultRecordingIds.contains(recording.id);
     final isSwaravalis = recording.group?.trim() == _swaravalisGroup;
     final canDelete = !isDefault && !isSwaravalis;
-    final isPlaying = _inlinePlaying && _playingId == recording.id;
+    final isPlaying =
+        _inlinePlaying && _playingId == recording.id && !_inlinePaused;
     return InkWell(
       onTap: widget.onSelect == null ? null : () => widget.onSelect?.call(recording),
       child: Padding(
