@@ -16,18 +16,25 @@ class HarmoniumSynth {
     final pcm = Int16List(totalSamples);
 
     final frequency = 440.0 * pow(2.0, (midi - 69) / 12.0);
-    const harmonics = [1.0, 0.62, 0.45, 0.3, 0.2, 0.12];
+    const harmonics = [1.0, 0.35, 0.22, 0.12, 0.08, 0.04];
     final weightSum = harmonics.fold<double>(0.0, (sum, v) => sum + v);
-    final gain = 0.9 / max(0.001, weightSum);
+    final gain = 0.75 / max(0.001, weightSum);
 
-    final attackSamples = max(1, (sampleRate * 0.01).round());
-    final releaseSamples = max(1, (sampleRate * 0.02).round());
+    final attackSamples = max(1, (sampleRate * 0.03).round());
+    final releaseSamples = max(1, (sampleRate * 0.06).round());
+    const vibratoHz = 4.5;
+    const vibratoDepth = 0.004;
+    const tremoloHz = 5.0;
+    const tremoloDepth = 0.035;
 
     for (var i = 0; i < totalSamples; i++) {
       final t = i / sampleRate;
+      final vibrato = 1.0 + (vibratoDepth * sin(2 * pi * vibratoHz * t));
+      final tremolo = 1.0 + (tremoloDepth * sin(2 * pi * tremoloHz * t));
       double sample = 0.0;
       for (var h = 0; h < harmonics.length; h++) {
-        sample += harmonics[h] * sin(2 * pi * frequency * (h + 1) * t);
+        sample += harmonics[h] *
+            sin(2 * pi * frequency * vibrato * (h + 1) * t);
       }
       var envelope = 1.0;
       if (i < attackSamples) {
@@ -35,7 +42,7 @@ class HarmoniumSynth {
       } else if (i > totalSamples - releaseSamples) {
         envelope = (totalSamples - i) / releaseSamples;
       }
-      final scaled = (sample * gain * envelope).clamp(-1.0, 1.0);
+      final scaled = (sample * gain * envelope * tremolo).clamp(-1.0, 1.0);
       pcm[i] = (scaled * 32767).round().clamp(-32767, 32767);
     }
 
