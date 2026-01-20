@@ -842,7 +842,8 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   Future<void> _toggleInlinePlayback(RecordingEntry entry) async {
     if (_inlinePlaying && _playingId == entry.id) {
       if (_inlinePaused) {
-        _resumeInlinePlayback();
+        await _stopInlinePlayback();
+        await _startInlinePlayback(entry);
       } else {
         await _pauseInlinePlayback();
       }
