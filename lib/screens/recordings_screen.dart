@@ -1844,6 +1844,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                                 ragaName: ragaName,
                               );
                             });
+                            _applyInlineBpmIfNeeded(groupName, bpm);
                             Navigator.of(context).pop();
                           },
                           child: const Text('Save'),
@@ -1858,6 +1859,32 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         );
       },
     );
+  }
+
+  void _applyInlineBpmIfNeeded(String groupName, int bpm) {
+    if (!_inlinePlaying || _playingId == null) {
+      return;
+    }
+    RecordingEntry? playing;
+    for (final recording in _recordings) {
+      if (recording.id == _playingId) {
+        playing = recording;
+        break;
+      }
+    }
+    if (playing == null) {
+      return;
+    }
+    final playingGroup = playing.group?.trim().isNotEmpty == true
+        ? playing.group!.trim()
+        : _ungroupedLabel;
+    if (playingGroup != groupName) {
+      return;
+    }
+    _inlineScale = 60.0 / bpm.toDouble();
+    _inlineHarmonicsKey = null;
+    _inlineLastTargetElapsedMs =
+        (_inlineStopwatch?.elapsedMilliseconds ?? 0).toDouble();
   }
 
   void _showGlobalSettings() {
