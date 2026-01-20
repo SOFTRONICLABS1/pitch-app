@@ -127,6 +127,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   int _inlinePlaybackToken = 0;
   bool _inlinePlaying = false;
   bool _inlinePaused = false;
+  HarmoniumProfile _inlineHarmonicsProfile = HarmoniumProfile.softFlute;
   static const _melakartaBaseOctave = 3;
   static const _melakartaNoteNames = [
     'c',
@@ -788,6 +789,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
           initialBpm: settings.bpm,
           initialCarnaticRootSemitone: settings.rootSemitone,
           initialRagaName: settings.ragaName,
+          harmonicsProfile: settings.harmonicsProfile,
         ),
       ),
     );
@@ -834,6 +836,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
             initialTanpuraEnabled: false,
             initialCarnaticRootSemitone: settings.rootSemitone,
             initialRagaName: settings.ragaName,
+            harmonicsProfile: settings.harmonicsProfile,
           ),
         );
       },
@@ -884,6 +887,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       _inlinePaused = false;
     });
     _inlineScale = 60.0 / settings.bpm.toDouble();
+    _inlineHarmonicsProfile = settings.harmonicsProfile;
     _inlineLastTargetElapsedMs = 0.0;
     _inlineHarmonicsKey = null;
     _inlineStopwatch = Stopwatch()..start();
@@ -1058,6 +1062,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     final bytes = HarmoniumSynth.buildWavBytes(
       midi: block.midi,
       durationMs: duration.round(),
+      profile: _inlineHarmonicsProfile,
     );
     await _fadeOutAndStopPlayer(_inlinePlayer, 1.0);
     await _inlinePlayer.setVolume(0.0);
@@ -1425,6 +1430,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         bpm: 60,
         rootSemitone: 0,
         ragaName: 'Mayamalavagowla',
+        harmonicsProfile: HarmoniumProfile.softFlute,
       ),
     );
   }
@@ -1603,6 +1609,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     var bpm = current.bpm;
     var rootSemitone = current.rootSemitone;
     var ragaName = current.ragaName;
+    var harmonicsProfile = _resolveHarmonicsProfile(current.harmonicsProfile);
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF23272B),
@@ -1774,6 +1781,42 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
+                  Text(
+                    'Harmonics',
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(color: Colors.white70),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<HarmoniumProfile>(
+                    value: _resolveHarmonicsProfile(harmonicsProfile),
+                    dropdownColor: const Color(0xFF2A2F35),
+                    decoration: const InputDecoration(
+                      filled: true,
+                      fillColor: Color(0xFF1B1F23),
+                      border: OutlineInputBorder(),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
+                      ),
+                    ),
+                    items: _harmonicsProfileOptions
+                        .map(
+                          (option) => DropdownMenuItem<HarmoniumProfile>(
+                            value: option.profile,
+                            child: Text(option.label),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setSheetState(() {
+                        harmonicsProfile = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
@@ -1791,6 +1834,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                                 bpm: bpm,
                                 rootSemitone: rootSemitone,
                                 ragaName: ragaName,
+                                harmonicsProfile: harmonicsProfile,
                               );
                             });
                             _applyInlineBpmIfNeeded(groupName, bpm);
@@ -1831,6 +1875,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       return;
     }
     _inlineScale = 60.0 / bpm.toDouble();
+    _inlineHarmonicsProfile = _groupSettingsFor(groupName).harmonicsProfile;
     _inlineHarmonicsKey = null;
     _inlineLastTargetElapsedMs =
         (_inlineStopwatch?.elapsedMilliseconds ?? 0).toDouble();
@@ -2055,16 +2100,37 @@ const _rootNoteOptions = [
   _RootNoteOption('B', 11),
 ];
 
+const _harmonicsProfileOptions = [
+  _HarmonicsProfileOption('Soft Flute', HarmoniumProfile.softFlute),
+  _HarmonicsProfileOption('Mellow Harmonium', HarmoniumProfile.mellowHarmonium),
+];
+
+class _HarmonicsProfileOption {
+  const _HarmonicsProfileOption(this.label, this.profile);
+
+  final String label;
+  final HarmoniumProfile profile;
+}
+
+HarmoniumProfile _resolveHarmonicsProfile(HarmoniumProfile profile) {
+  final valid = _harmonicsProfileOptions
+      .map((option) => option.profile)
+      .contains(profile);
+  return valid ? profile : HarmoniumProfile.softFlute;
+}
+
 class _GroupSettings {
   const _GroupSettings({
     required this.bpm,
     required this.rootSemitone,
     required this.ragaName,
+    required this.harmonicsProfile,
   });
 
   final int bpm;
   final int rootSemitone;
   final String ragaName;
+  final HarmoniumProfile harmonicsProfile;
 }
 
 class _MiniEqualizer extends StatefulWidget {

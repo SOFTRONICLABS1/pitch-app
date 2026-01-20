@@ -31,6 +31,7 @@ class VocalTrackerScreen extends StatefulWidget {
     this.initialTanpuraEnabled = false,
     this.initialCarnaticRootSemitone = 0,
     this.initialRagaName,
+    this.harmonicsProfile = HarmoniumProfile.softFlute,
   });
 
   final RecordingEntry recording;
@@ -41,6 +42,7 @@ class VocalTrackerScreen extends StatefulWidget {
   final bool initialTanpuraEnabled;
   final int initialCarnaticRootSemitone;
   final String? initialRagaName;
+  final HarmoniumProfile harmonicsProfile;
 
   @override
   State<VocalTrackerScreen> createState() => _VocalTrackerScreenState();
@@ -100,6 +102,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   int? _filteredHistoryStartMs;
   int? _filteredHistoryEndMs;
   int? _filteredHistoryMidi;
+  late HarmoniumProfile _harmonicsProfile;
 
   int _rowCountForSystem(String tuningSystem) {
     return _useExpandedRows(tuningSystem, _ragaName)
@@ -119,6 +122,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     super.initState();
     _recording = widget.recording;
     _pitchNotifier = context.read<PitchNotifier>();
+    _harmonicsProfile = widget.harmonicsProfile;
     _baseOctave = _pitchNotifier?.baseOctave ?? PitchNotifier.defaultBaseOctave;
     _rootSemitone = widget.initialCarnaticRootSemitone.clamp(0, 11);
     if (widget.initialRagaName != null &&
@@ -1425,6 +1429,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     final bytes = HarmoniumSynth.buildWavBytes(
       midi: block.midi,
       durationMs: duration.round(),
+      profile: _harmonicsProfile,
     );
     final fadeStepMs = _fadeStepMsForDuration(duration);
     final fadeToken = _nextHarmonicsFadeToken();

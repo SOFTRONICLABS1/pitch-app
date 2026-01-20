@@ -1,6 +1,11 @@
 import 'dart:math';
 import 'dart:typed_data';
 
+enum HarmoniumProfile {
+  softFlute,
+  mellowHarmonium,
+}
+
 class HarmoniumSynth {
   static const int _defaultSampleRate = 44100;
   static const int _bytesPerSample = 2;
@@ -9,6 +14,7 @@ class HarmoniumSynth {
     required int midi,
     required int durationMs,
     int sampleRate = _defaultSampleRate,
+    HarmoniumProfile profile = HarmoniumProfile.softFlute,
   }) {
     final clampedDurationMs = max(1, durationMs);
     final totalSamples =
@@ -16,16 +22,18 @@ class HarmoniumSynth {
     final pcm = Int16List(totalSamples);
 
     final frequency = 440.0 * pow(2.0, (midi - 69) / 12.0);
-    const harmonics = [1.0, 0.35, 0.22, 0.12, 0.08, 0.04];
+    final config = _profileConfig(profile);
+    final harmonics = config.harmonics;
     final weightSum = harmonics.fold<double>(0.0, (sum, v) => sum + v);
-    final gain = 0.75 / max(0.001, weightSum);
+    final gain = config.gain / max(0.001, weightSum);
 
-    final attackSamples = max(1, (sampleRate * 0.03).round());
-    final releaseSamples = max(1, (sampleRate * 0.06).round());
-    const vibratoHz = 4.5;
-    const vibratoDepth = 0.004;
-    const tremoloHz = 5.0;
-    const tremoloDepth = 0.035;
+    final attackSamples = max(1, (sampleRate * config.attackSeconds).round());
+    final releaseSamples =
+        max(1, (sampleRate * config.releaseSeconds).round());
+    final vibratoHz = config.vibratoHz;
+    final vibratoDepth = config.vibratoDepth;
+    final tremoloHz = config.tremoloHz;
+    final tremoloDepth = config.tremoloDepth;
 
     for (var i = 0; i < totalSamples; i++) {
       final t = i / sampleRate;
@@ -72,6 +80,36 @@ class HarmoniumSynth {
     return wav.toBytes();
   }
 
+  static _HarmoniumProfileConfig _profileConfig(
+    HarmoniumProfile profile,
+  ) {
+    switch (profile) {
+      case HarmoniumProfile.mellowHarmonium:
+        return const _HarmoniumProfileConfig(
+          harmonics: [1.0, 0.4, 0.25, 0.12, 0.06],
+          gain: 0.7,
+          attackSeconds: 0.035,
+          releaseSeconds: 0.06,
+          vibratoHz: 4.2,
+          vibratoDepth: 0.004,
+          tremoloHz: 4.0,
+          tremoloDepth: 0.03,
+        );
+      case HarmoniumProfile.softFlute:
+      default:
+        return const _HarmoniumProfileConfig(
+          harmonics: [1.0, 0.08, 0.03],
+          gain: 0.6,
+          attackSeconds: 0.06,
+          releaseSeconds: 0.08,
+          vibratoHz: 5.2,
+          vibratoDepth: 0.006,
+          tremoloHz: 3.5,
+          tremoloDepth: 0.02,
+        );
+    }
+  }
+
   static Uint8List _asciiBytes(String value) {
     return Uint8List.fromList(value.codeUnits);
   }
@@ -85,4 +123,26 @@ class HarmoniumSynth {
     final data = ByteData(4)..setUint32(0, value, Endian.little);
     return data.buffer.asUint8List();
   }
+}
+
+class _HarmoniumProfileConfig {
+  const _HarmoniumProfileConfig({
+    required this.harmonics,
+    required this.gain,
+    required this.attackSeconds,
+    required this.releaseSeconds,
+    required this.vibratoHz,
+    required this.vibratoDepth,
+    required this.tremoloHz,
+    required this.tremoloDepth,
+  });
+
+  final List<double> harmonics;
+  final double gain;
+  final double attackSeconds;
+  final double releaseSeconds;
+  final double vibratoHz;
+  final double vibratoDepth;
+  final double tremoloHz;
+  final double tremoloDepth;
 }
