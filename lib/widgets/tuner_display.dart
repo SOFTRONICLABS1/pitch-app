@@ -559,7 +559,7 @@ class _TunerPainter extends CustomPainter {
   static const lineStrokeWidth = 1.0;
   static const lineSmoothingAlpha = 0.35;
   static const _trackWindowMs = 6400.0;
-  static const _blockHeightFactor = 1.0;
+  static const _blockHeightFactor = 1.5;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1018,7 +1018,7 @@ _NoteRow _noteRowForMidi(
   final baseStyle = labelTextStyle ??
       TextStyle(
         color: isSharp ? Colors.white : Colors.black87,
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: FontWeight.w600,
       );
   final resolvedStyle = baseStyle.copyWith(

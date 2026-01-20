@@ -69,6 +69,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   int _viewportBaseMidi = 33;
   double _viewportOffset = 0.0;
   static const _viewportRowCount = 48;
+  static const _liveRowHeightFactor = 1.5;
   bool _harmonicsEnabled = false;
   bool _editMode = false;
   List<RecordedNote>? _editNotes;
@@ -102,6 +103,12 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     return _useExpandedRows(tuningSystem, _ragaName)
         ? (_viewportRowCount ~/ 12) * 16
         : _viewportRowCount;
+  }
+
+  int _rowCountForLiveView(String tuningSystem) {
+    final base = _rowCountForSystem(tuningSystem);
+    final scaled = (base / _liveRowHeightFactor).round();
+    return max(1, scaled);
   }
 
 
@@ -729,7 +736,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     final midi = _targets[index].midi;
     final bottom = _viewportBaseMidi;
     final rowCount =
-        _rowCountForSystem(_pitchNotifier?.tuningSystem ?? 'western');
+        _rowCountForLiveView(_pitchNotifier?.tuningSystem ?? 'western');
     final top = _viewportBaseMidi + rowCount - 1;
     final tuningSystem = _pitchNotifier?.tuningSystem ?? 'western';
     final useExpanded = _useExpandedRows(tuningSystem, _ragaName);
@@ -765,7 +772,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     const minMidi = 21.0;
     const maxMidi = 108.0;
     final tuningSystem = _pitchNotifier?.tuningSystem ?? 'western';
-    final rowCount = _rowCountForSystem(tuningSystem);
+    final rowCount = _rowCountForLiveView(tuningSystem);
     final useExpanded = _useExpandedRows(tuningSystem, _ragaName);
     final targetRow = useExpanded
         ? _expandedRowIndexForMidi(targetMidi, tuningSystem, _ragaName)
@@ -828,7 +835,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
         .toList();
     final useExpandedRows =
         _useExpandedRows(state.tuningSystem, _ragaName);
-    final rowCount = _rowCountForSystem(state.tuningSystem);
+    final editRowCount = _rowCountForSystem(state.tuningSystem);
+    final liveRowCount = _rowCountForLiveView(state.tuningSystem);
     final minRowIndex = useExpandedRows
         ? _expandedRowIndexForMidi(21, state.tuningSystem, _ragaName)
         : null;
@@ -896,7 +904,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                         notes: _editNotes ?? _recording.notes,
                         tuningSystem: state.tuningSystem,
                         baseMidi: 21,
-                        rowCount: rowCount,
+                        rowCount: editRowCount,
                         baseOffset: 0.0,
                         labelWidth: _tunerLabelWidth,
                         rootSemitone: rootSemitoneForView,
@@ -964,7 +972,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                                   nowOverride: _running ? null : _frozenAt,
                                   noteLabels: noteLabels,
                                   labelTextStyle: labelStyle,
-                                  rowCount: rowCount,
+                                  rowCount: liveRowCount,
                                   targetBlocks: tunerTargets,
                                   targetElapsed: _effectiveTargetElapsed(),
                                   targetTotalDurationMs: _totalDurationMs,
@@ -4270,7 +4278,7 @@ class _TargetNotePainter extends CustomPainter {
   static const _labelWidth = 58.0;
   static const _trackWindowMs = 6400.0;
   static const _blockColor = Color(0xFF2B6BFF);
-  static const _blockHeightFactor = 1.0;
+  static const _blockHeightFactor = 1.5;
 
   @override
   void paint(Canvas canvas, Size size) {
