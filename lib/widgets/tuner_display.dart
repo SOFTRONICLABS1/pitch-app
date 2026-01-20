@@ -23,6 +23,20 @@ const _westernNoteLabels = [
 ];
 const _defaultRowCount = 30;
 
+class TunerTargetBlock {
+  const TunerTargetBlock({
+    required this.midi,
+    required this.label,
+    required this.durationMs,
+    required this.startOffsetMs,
+  });
+
+  final int midi;
+  final String label;
+  final int durationMs;
+  final int startOffsetMs;
+}
+
 class TunerDisplayController {
   void Function(int midi, double alignment)? _scrollToMidi;
 
@@ -59,6 +73,13 @@ class TunerDisplay extends StatefulWidget {
     this.guidelineOffset = -15.0,
     this.rowCount = _defaultRowCount,
     this.rootSemitone = 0,
+    this.targetBlocks = const [],
+    this.targetElapsed = Duration.zero,
+    this.targetTotalDurationMs = 0,
+    this.targetBpm = 60,
+    this.targetRunning = false,
+    this.targetLabelResolver,
+    this.targetLabelTextStyle,
     this.minRowIndex,
     this.maxRowIndex,
     this.rowIndexForMidi,
@@ -81,6 +102,13 @@ class TunerDisplay extends StatefulWidget {
   final double guidelineOffset;
   final int rowCount;
   final int rootSemitone;
+  final List<TunerTargetBlock> targetBlocks;
+  final Duration targetElapsed;
+  final int targetTotalDurationMs;
+  final int targetBpm;
+  final bool targetRunning;
+  final String Function(String label)? targetLabelResolver;
+  final TextStyle? targetLabelTextStyle;
   final int? minRowIndex;
   final int? maxRowIndex;
   final int Function(int midi)? rowIndexForMidi;
@@ -307,6 +335,14 @@ class _TunerDisplayState extends State<TunerDisplay>
                 guidelineOffset: widget.guidelineOffset,
                 showLabels: widget.showLabels,
                 rootSemitone: widget.rootSemitone,
+                targetBlocks: widget.targetBlocks,
+                targetElapsed: widget.targetElapsed,
+                targetTotalDurationMs: widget.targetTotalDurationMs,
+                targetBpm: widget.targetBpm,
+                targetRunning: widget.targetRunning,
+                targetLabelResolver: widget.targetLabelResolver,
+                targetLabelTextStyle: widget.targetLabelTextStyle,
+                rowIndexForMidi: widget.rowIndexForMidi,
                 labelForRowIndex: widget.labelForRowIndex,
                 midiForRowIndex: widget.midiForRowIndex,
               ),
@@ -481,6 +517,14 @@ class _TunerPainter extends CustomPainter {
     required this.guidelineOffset,
     required this.showLabels,
     required this.rootSemitone,
+    required this.targetBlocks,
+    required this.targetElapsed,
+    required this.targetTotalDurationMs,
+    required this.targetBpm,
+    required this.targetRunning,
+    this.targetLabelResolver,
+    this.targetLabelTextStyle,
+    this.rowIndexForMidi,
     this.labelForRowIndex,
     this.midiForRowIndex,
   });
@@ -498,6 +542,14 @@ class _TunerPainter extends CustomPainter {
   final double guidelineOffset;
   final bool showLabels;
   final int rootSemitone;
+  final List<TunerTargetBlock> targetBlocks;
+  final Duration targetElapsed;
+  final int targetTotalDurationMs;
+  final int targetBpm;
+  final bool targetRunning;
+  final String Function(String label)? targetLabelResolver;
+  final TextStyle? targetLabelTextStyle;
+  final int Function(int midi)? rowIndexForMidi;
   final String Function(int rowIndex)? labelForRowIndex;
   final int Function(int rowIndex)? midiForRowIndex;
 
@@ -506,6 +558,8 @@ class _TunerPainter extends CustomPainter {
   static const lineWidth = 2.0;
   static const lineStrokeWidth = 1.0;
   static const lineSmoothingAlpha = 0.35;
+  static const _trackWindowMs = 6400.0;
+  static const _blockHeightFactor = 1.0;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -521,13 +575,22 @@ class _TunerPainter extends CustomPainter {
 
     final rowShift = baseOffset * rowHeight;
 
-    // Background stripes
+    // Background rows, keyed to the same note rows as the labels.
     for (var i = -1; i <= rows.length; i++) {
-      final isEven = i % 2 == 0;
+      final row = _rowForIndex(
+        i,
+        rows,
+        noteLabels,
+        labelTextStyle,
+        labelForRowIndex,
+        midiForRowIndex,
+      );
       final top = (i * rowHeight) + rowShift;
       final rect = Rect.fromLTWH(0, top, size.width, rowHeight);
       final paint = Paint()
-        ..color = isEven ? const Color(0xFF2A2F33) : const Color(0xFF343A3F);
+        ..color = row.isSharp
+            ? const Color(0xFF2A2F33)
+            : const Color(0xFF343A3F);
       canvas.drawRect(rect, paint);
     }
 
@@ -648,6 +711,92 @@ class _TunerPainter extends CustomPainter {
       plotPaint,
     );
 
+    if (targetRunning &&
+        targetBlocks.isNotEmpty &&
+        targetTotalDurationMs > 0) {
+      final plotWidth = size.width - labelWidth - plotRightPadding;
+      if (plotWidth > 0) {
+        final speed = plotWidth / _trackWindowMs;
+        final elapsedMs = targetElapsed.inMilliseconds.toDouble();
+        final scale = 60.0 / max(1, targetBpm).toDouble();
+        final loopMs = max(1, targetTotalDurationMs).toDouble() * scale;
+        final windowMs = _trackWindowMs.toDouble();
+        final paint =
+            Paint()..color = const Color(0xFF2B6BFF).withOpacity(0.4);
+        final textStyle = targetLabelTextStyle ??
+            const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            );
+        final rowIndexLookup = <int, int>{
+          for (var i = 0; i < rows.length; i++) rows[i].rowIndex: i,
+        };
+        final rowIndexForMidi = this.rowIndexForMidi;
+        canvas.save();
+        canvas.clipRect(
+          Rect.fromLTWH(labelWidth, 0, plotWidth, size.height),
+        );
+        final minCycle = 0;
+        final maxCycle = ((elapsedMs + windowMs) / loopMs).ceil() + 1;
+        for (var k = minCycle; k <= maxCycle; k++) {
+          final cycleOffset = k * loopMs;
+          for (final block in targetBlocks) {
+            final blockWidth = block.durationMs * scale * speed;
+            if (blockWidth <= 0) {
+              continue;
+            }
+            final end = block.startOffsetMs * scale +
+                cycleOffset +
+                (block.durationMs * scale);
+            final rightEdge = nowX - speed * (elapsedMs - end);
+            final leftEdge = rightEdge - blockWidth;
+            if (rightEdge < labelWidth || leftEdge > labelWidth + plotWidth) {
+              continue;
+            }
+            final rowIndex = rowIndexForMidi == null
+                ? rowIndexLookup[block.midi] ??
+                    rowIndexLookup[
+                      midiForRowIndex?.call(block.midi) ?? block.midi
+                    ] ??
+                    0
+                : _rowPositionForMidi(
+                    block.midi.toDouble(),
+                    rows,
+                    rowIndexForMidi: rowIndexForMidi,
+                  ).$1;
+            final blockHeight = rowHeight * _blockHeightFactor;
+            final top = (rowIndex + baseOffset) * rowHeight -
+                (blockHeight - rowHeight) / 2;
+            final rect = Rect.fromLTWH(leftEdge, top, blockWidth, blockHeight);
+            canvas.drawRect(rect, paint);
+            final outline = Paint()
+              ..color = Colors.white.withOpacity(0.4)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 0.5;
+            canvas.drawRect(rect, outline);
+            final label = targetLabelResolver != null
+                ? targetLabelResolver!(block.label)
+                : block.label;
+            final textPainter = TextPainter(
+              text: TextSpan(text: label, style: textStyle),
+              textDirection: TextDirection.ltr,
+              maxLines: 1,
+              ellipsis: '…',
+            )..layout(maxWidth: max(0, rect.width - 6));
+            if (textPainter.width > 0 && textPainter.height > 0) {
+              final textOffset = Offset(
+                rect.left + (rect.width - textPainter.width) / 2,
+                rect.top + (rect.height - textPainter.height) / 2,
+              );
+              textPainter.paint(canvas, textOffset);
+            }
+          }
+        }
+        canvas.restore();
+      }
+    }
+
     if (history.isNotEmpty) {
       final now = nowOverride ?? DateTime.now();
       final startTime = now.subtract(timeSpan);
@@ -678,7 +827,11 @@ class _TunerPainter extends CustomPainter {
           smoothedY = null;
         }
         final midi = _midiFromFrequency(point.frequency);
-        final (rowIndex, ratio) = _rowPositionForMidi(midi, rows);
+        final (rowIndex, ratio) = _rowPositionForMidi(
+          midi,
+          rows,
+          rowIndexForMidi: rowIndexForMidi,
+        );
         final yNorm = ((rowIndex + (1 - ratio) + baseOffset) / rows.length)
             .clamp(0.0, 1.0)
             .toDouble();

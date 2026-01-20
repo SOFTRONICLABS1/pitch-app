@@ -45,6 +45,7 @@ class VocalTrackerScreen extends StatefulWidget {
   State<VocalTrackerScreen> createState() => _VocalTrackerScreenState();
 }
 
+
 class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
@@ -68,7 +69,6 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   int _viewportBaseMidi = 33;
   double _viewportOffset = 0.0;
   static const _viewportRowCount = 48;
-  static const _normalRowHeightFactor = 1.25;
   bool _harmonicsEnabled = false;
   bool _editMode = false;
   List<RecordedNote>? _editNotes;
@@ -104,11 +104,6 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
         : _viewportRowCount;
   }
 
-  int _normalRowCountForSystem(String tuningSystem) {
-    final baseRows = _rowCountForSystem(tuningSystem);
-    final scaled = baseRows / _normalRowHeightFactor;
-    return max(1, scaled.round());
-  }
 
   @override
   void initState() {
@@ -734,7 +729,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     final midi = _targets[index].midi;
     final bottom = _viewportBaseMidi;
     final rowCount =
-        _normalRowCountForSystem(_pitchNotifier?.tuningSystem ?? 'western');
+        _rowCountForSystem(_pitchNotifier?.tuningSystem ?? 'western');
     final top = _viewportBaseMidi + rowCount - 1;
     final tuningSystem = _pitchNotifier?.tuningSystem ?? 'western';
     final useExpanded = _useExpandedRows(tuningSystem, _ragaName);
@@ -770,7 +765,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     const minMidi = 21.0;
     const maxMidi = 108.0;
     final tuningSystem = _pitchNotifier?.tuningSystem ?? 'western';
-    final rowCount = _normalRowCountForSystem(tuningSystem);
+    final rowCount = _rowCountForSystem(tuningSystem);
     final useExpanded = _useExpandedRows(tuningSystem, _ragaName);
     final targetRow = useExpanded
         ? _expandedRowIndexForMidi(targetMidi, tuningSystem, _ragaName)
@@ -807,10 +802,33 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       ragaName: _ragaName,
     );
     final labelStyle = _labelStyleForSystem(state.tuningSystem);
+    final targetLabelStyle = (state.tuningSystem == 'carnatic'
+            ? const TextStyle(
+                fontFamily: 'RobotoMono',
+                fontFeatures: [FontFeature.tabularFigures()],
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              )
+            : const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+              ))
+        .copyWith(color: Colors.white);
+    final tunerTargets = _targets
+        .map(
+          (block) => TunerTargetBlock(
+            midi: block.midi,
+            label: block.label,
+            durationMs: block.durationMs,
+            startOffsetMs: block.startOffsetMs,
+          ),
+        )
+        .toList();
     final useExpandedRows =
         _useExpandedRows(state.tuningSystem, _ragaName);
-    final editRowCount = _rowCountForSystem(state.tuningSystem);
-    final normalRowCount = _normalRowCountForSystem(state.tuningSystem);
+    final rowCount = _rowCountForSystem(state.tuningSystem);
     final minRowIndex = useExpandedRows
         ? _expandedRowIndexForMidi(21, state.tuningSystem, _ragaName)
         : null;
@@ -878,7 +896,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                         notes: _editNotes ?? _recording.notes,
                         tuningSystem: state.tuningSystem,
                         baseMidi: 21,
-                        rowCount: editRowCount,
+                        rowCount: rowCount,
                         baseOffset: 0.0,
                         labelWidth: _tunerLabelWidth,
                         rootSemitone: rootSemitoneForView,
@@ -946,7 +964,19 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                                   nowOverride: _running ? null : _frozenAt,
                                   noteLabels: noteLabels,
                                   labelTextStyle: labelStyle,
-                                  rowCount: normalRowCount,
+                                  rowCount: rowCount,
+                                  targetBlocks: tunerTargets,
+                                  targetElapsed: _effectiveTargetElapsed(),
+                                  targetTotalDurationMs: _totalDurationMs,
+                                  targetBpm: _bpm,
+                                  targetRunning: _running,
+                                  targetLabelResolver: (label) => _displayLabel(
+                                    label,
+                                    state.tuningSystem,
+                                    rootSemitoneForView,
+                                    ragaName: _ragaName,
+                                  ),
+                                  targetLabelTextStyle: targetLabelStyle,
                                   minRowIndex: minRowIndex,
                                   maxRowIndex: maxRowIndex,
                                   rowIndexForMidi: useExpandedRows
@@ -965,27 +995,11 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
                                   rootSemitone: rootSemitoneForView,
                                   onViewportChanged: (base, offset) {
                                     if (!mounted) return;
-                                    setState(() {
-                                      _viewportBaseMidi = base;
-                                      _viewportOffset = offset;
-                                    });
+                                    _viewportBaseMidi = base;
+                                    _viewportOffset = offset;
                                   },
                                 ),
-                                _TargetNoteTrack(
-                                  targets: _targets,
-                                  elapsed: _effectiveTargetElapsed(),
-                                  totalDurationMs: _totalDurationMs,
-                                  running: _running,
-                                  bpm: _bpm,
-                                  baseMidi: _viewportBaseMidi,
-                                  rowCount: normalRowCount,
-                                  baseOffset: _viewportOffset,
-                                  tuningSystem: state.tuningSystem,
-                                  rootSemitone: rootSemitoneForView,
-                                  ragaName: _ragaName,
-                                  guidelineFraction: _guidelineFraction,
-                                  guidelineOffset: _guidelineOffset,
-                                ),
+                                const SizedBox.shrink(),
                               ],
                             ),
                           ),
