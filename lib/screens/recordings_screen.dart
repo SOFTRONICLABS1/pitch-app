@@ -784,6 +784,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       MaterialPageRoute(
         builder: (_) => VocalTrackerScreen(
           recording: mappedEntry,
+          initialBpm: settings.bpm,
           initialCarnaticRootSemitone: settings.rootSemitone,
           initialRagaName: settings.ragaName,
         ),
