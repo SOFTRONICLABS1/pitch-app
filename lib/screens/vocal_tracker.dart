@@ -1430,6 +1430,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       midi: block.midi,
       durationMs: duration.round(),
       profile: _harmonicsProfile,
+      steady: duration >= 300,
     );
     final fadeStepMs = _fadeStepMsForDuration(duration);
     final fadeToken = _nextHarmonicsFadeToken();

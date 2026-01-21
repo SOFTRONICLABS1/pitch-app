@@ -295,6 +295,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
     final bytes = HarmoniumSynth.buildWavBytes(
       midi: block.midi,
       durationMs: duration.round(),
+      steady: duration >= 300,
     );
     _harmonicsPlayer.stop();
     _harmonicsPlayer.play(BytesSource(bytes), volume: 1.0);

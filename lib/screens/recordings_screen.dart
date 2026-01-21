@@ -1063,6 +1063,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       midi: block.midi,
       durationMs: duration.round(),
       profile: _inlineHarmonicsProfile,
+      steady: duration >= 300,
     );
     await _fadeOutAndStopPlayer(_inlinePlayer, 1.0);
     await _inlinePlayer.setVolume(0.0);

@@ -15,6 +15,7 @@ class HarmoniumSynth {
     required int durationMs,
     int sampleRate = _defaultSampleRate,
     HarmoniumProfile profile = HarmoniumProfile.softFlute,
+    bool steady = false,
   }) {
     final clampedDurationMs = max(1, durationMs);
     final totalSamples =
@@ -31,9 +32,9 @@ class HarmoniumSynth {
     final releaseSamples =
         max(1, (sampleRate * config.releaseSeconds).round());
     final vibratoHz = config.vibratoHz;
-    final vibratoDepth = config.vibratoDepth;
+    final vibratoDepth = steady ? 0.0 : config.vibratoDepth;
     final tremoloHz = config.tremoloHz;
-    final tremoloDepth = config.tremoloDepth;
+    final tremoloDepth = steady ? 0.0 : config.tremoloDepth;
 
     for (var i = 0; i < totalSamples; i++) {
       final t = i / sampleRate;
