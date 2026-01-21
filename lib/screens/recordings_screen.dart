@@ -123,6 +123,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   int? _inlineHarmonicsKey;
   Timer? _inlineHarmonicsStopTimer;
   static const int _inlineFadeSteps = 5;
+  static const double _inlineHarmonicsVolume = 10.0;
   double _inlineLastHarmonicsDurationMs = 0.0;
   int _inlineFadeToken = 0;
   double _inlineScale = 1.0;
@@ -1074,7 +1075,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     _inlineLastHarmonicsDurationMs = duration;
     await _fadeOutAndStopPlayer(
       _inlinePlayer,
-      1.0,
+      _inlineHarmonicsVolume,
       steps: steps,
       stepMs: fadeStepMs,
       fadeToken: fadeToken,
@@ -1086,7 +1087,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     await _inlinePlayer.play(BytesSource(bytes), volume: 0.0);
     unawaited(_fadeInPlayer(
       _inlinePlayer,
-      1.0,
+      _inlineHarmonicsVolume,
       steps: steps,
       stepMs: fadeStepMs,
       fadeToken: fadeToken,
@@ -1106,7 +1107,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         _fadeStepMsForDuration(_inlineLastHarmonicsDurationMs, steps: steps);
     unawaited(_fadeOutAndStopPlayer(
       _inlinePlayer,
-      1.0,
+      _inlineHarmonicsVolume,
       steps: steps,
       stepMs: fadeStepMs,
       fadeToken: fadeToken,
@@ -1120,7 +1121,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     int stepMs = 20,
     int? fadeToken,
   }) async {
-    final clamped = targetVolume.clamp(0.0, 2.0);
+    final clamped = targetVolume.clamp(0.0, 10.0);
     for (var i = 1; i <= steps; i++) {
       if (fadeToken != null && fadeToken != _inlineFadeToken) {
         return;
@@ -1137,7 +1138,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     int stepMs = 20,
     int? fadeToken,
   }) async {
-    final clamped = fromVolume.clamp(0.0, 2.0);
+    final clamped = fromVolume.clamp(0.0, 10.0);
     for (var i = steps - 1; i >= 0; i--) {
       if (fadeToken != null && fadeToken != _inlineFadeToken) {
         return;

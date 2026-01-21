@@ -33,7 +33,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
   Timer? _tickTimer;
   Timer? _harmonicsStopTimer;
   static const int _harmonicsFadeSteps = 5;
-  static const double _harmonicsVolume = 1.0;
+  static const double _harmonicsVolume = 10.0;
   int _harmonicsFadeToken = 0;
   double _lastHarmonicsDurationMs = 0.0;
   List<_GameTargetBlock> _targets = [];
@@ -362,7 +362,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
     int stepMs = 20,
     int? fadeToken,
   }) async {
-    final clamped = targetVolume.clamp(0.0, 2.0);
+    final clamped = targetVolume.clamp(0.0, 10.0);
     for (var i = 1; i <= steps; i++) {
       if (fadeToken != null && fadeToken != _harmonicsFadeToken) {
         return;
@@ -379,7 +379,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
     int stepMs = 20,
     int? fadeToken,
   }) async {
-    final clamped = fromVolume.clamp(0.0, 2.0);
+    final clamped = fromVolume.clamp(0.0, 10.0);
     for (var i = steps - 1; i >= 0; i--) {
       if (fadeToken != null && fadeToken != _harmonicsFadeToken) {
         return;

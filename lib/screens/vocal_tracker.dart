@@ -1500,7 +1500,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     int stepMs = 20,
     int? fadeToken,
   }) async {
-    final clamped = targetVolume.clamp(0.0, 2.0);
+    final clamped = targetVolume.clamp(0.0, 10.0);
     for (var i = 1; i <= steps; i++) {
       if (fadeToken != null && fadeToken != _harmonicsFadeToken) {
         return;
@@ -1517,7 +1517,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     int stepMs = 20,
     int? fadeToken,
   }) async {
-    final clamped = fromVolume.clamp(0.0, 2.0);
+    final clamped = fromVolume.clamp(0.0, 10.0);
     for (var i = steps - 1; i >= 0; i--) {
       if (fadeToken != null && fadeToken != _harmonicsFadeToken) {
         return;
