@@ -122,6 +122,9 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   double _inlineLastTargetElapsedMs = 0.0;
   int? _inlineHarmonicsKey;
   Timer? _inlineHarmonicsStopTimer;
+  static const int _inlineFadeSteps = 5;
+  double _inlineLastHarmonicsDurationMs = 0.0;
+  int _inlineFadeToken = 0;
   double _inlineScale = 1.0;
   String? _playingId;
   int _inlinePlaybackToken = 0;
@@ -1065,20 +1068,49 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       profile: _inlineHarmonicsProfile,
       steady: duration >= 300,
     );
-    await _fadeOutAndStopPlayer(_inlinePlayer, 1.0);
+    const steps = _inlineFadeSteps;
+    final fadeStepMs = _fadeStepMsForDuration(duration, steps: steps);
+    final fadeToken = _nextInlineFadeToken();
+    _inlineLastHarmonicsDurationMs = duration;
+    await _fadeOutAndStopPlayer(
+      _inlinePlayer,
+      1.0,
+      steps: steps,
+      stepMs: fadeStepMs,
+      fadeToken: fadeToken,
+    );
+    if (fadeToken != _inlineFadeToken) {
+      return;
+    }
     await _inlinePlayer.setVolume(0.0);
     await _inlinePlayer.play(BytesSource(bytes), volume: 0.0);
-    unawaited(_fadeInPlayer(_inlinePlayer, 1.0));
+    unawaited(_fadeInPlayer(
+      _inlinePlayer,
+      1.0,
+      steps: steps,
+      stepMs: fadeStepMs,
+      fadeToken: fadeToken,
+    ));
     _inlineHarmonicsStopTimer =
         Timer(Duration(milliseconds: duration.round()), () {
-      if (_inlinePlaying) {
+      if (_inlinePlaying && fadeToken == _inlineFadeToken) {
         _fadeOutAndStopInlinePlayer();
       }
     });
   }
 
   void _fadeOutAndStopInlinePlayer() {
-    unawaited(_fadeOutAndStopPlayer(_inlinePlayer, 1.0));
+    final fadeToken = _nextInlineFadeToken();
+    const steps = _inlineFadeSteps;
+    final fadeStepMs =
+        _fadeStepMsForDuration(_inlineLastHarmonicsDurationMs, steps: steps);
+    unawaited(_fadeOutAndStopPlayer(
+      _inlinePlayer,
+      1.0,
+      steps: steps,
+      stepMs: fadeStepMs,
+      fadeToken: fadeToken,
+    ));
   }
 
   Future<void> _fadeInPlayer(
@@ -1086,9 +1118,13 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     double targetVolume, {
     int steps = 4,
     int stepMs = 20,
+    int? fadeToken,
   }) async {
     final clamped = targetVolume.clamp(0.0, 2.0);
     for (var i = 1; i <= steps; i++) {
+      if (fadeToken != null && fadeToken != _inlineFadeToken) {
+        return;
+      }
       await player.setVolume((clamped * i) / steps);
       await Future<void>.delayed(Duration(milliseconds: stepMs));
     }
@@ -1099,13 +1135,27 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     double fromVolume, {
     int steps = 3,
     int stepMs = 20,
+    int? fadeToken,
   }) async {
     final clamped = fromVolume.clamp(0.0, 2.0);
     for (var i = steps - 1; i >= 0; i--) {
+      if (fadeToken != null && fadeToken != _inlineFadeToken) {
+        return;
+      }
       await player.setVolume((clamped * i) / steps);
       await Future<void>.delayed(Duration(milliseconds: stepMs));
     }
     await player.stop();
+  }
+
+  int _nextInlineFadeToken() {
+    _inlineFadeToken++;
+    return _inlineFadeToken;
+  }
+
+  int _fadeStepMsForDuration(double durationMs, {int steps = 3}) {
+    final totalMs = min(80.0, max(20.0, durationMs * 0.2));
+    return max(4, (totalMs / max(1, steps)).round());
   }
 
   Future<void> _preloadInlineHarmonics(

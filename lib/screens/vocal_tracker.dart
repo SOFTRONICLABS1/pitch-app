@@ -79,7 +79,8 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   bool _editDirty = false;
   bool _tanpuraEnabled = false;
   final AudioPlayer _harmonicsPlayer = AudioPlayer();
-  static const double _harmonicsVolume = 2.0;
+  static const double _harmonicsVolume = 10.0;
+  static const int _harmonicsFadeSteps = 5;
   Timer? _harmonicsStopTimer;
   int _harmonicsFadeToken = 0;
   int? _currentHarmonicsKey;
@@ -95,6 +96,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   DateTime? _harmonicsWindowStart;
   DateTime? _harmonicsWindowEnd;
   int? _harmonicsMidi;
+  double _lastHarmonicsDurationMs = 0.0;
   List<PitchPoint>? _historySnapshot;
   List<PitchPoint>? _filteredHistoryCache;
   int _filteredHistorySourceLength = 0;
@@ -1432,13 +1434,15 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
       profile: _harmonicsProfile,
       steady: duration >= 300,
     );
-    final fadeStepMs = _fadeStepMsForDuration(duration);
+    const steps = _harmonicsFadeSteps;
+    final fadeStepMs = _fadeStepMsForDuration(duration, steps: steps);
     final fadeToken = _nextHarmonicsFadeToken();
     _harmonicsStopTimer?.cancel();
+    _lastHarmonicsDurationMs = duration;
     await _fadeOutAndStopPlayer(
       _harmonicsPlayer,
       _harmonicsVolume,
-      steps: 3,
+      steps: steps,
       stepMs: fadeStepMs,
       fadeToken: fadeToken,
     );
@@ -1450,7 +1454,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     unawaited(_fadeInPlayer(
       _harmonicsPlayer,
       _harmonicsVolume,
-      steps: 3,
+      steps: steps,
       stepMs: fadeStepMs,
       fadeToken: fadeToken,
     ));
@@ -1477,11 +1481,14 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
 
   void _fadeOutAndStopHarmonics() {
     final fadeToken = _nextHarmonicsFadeToken();
+    const steps = _harmonicsFadeSteps;
+    final fadeStepMs =
+        _fadeStepMsForDuration(_lastHarmonicsDurationMs, steps: steps);
     unawaited(_fadeOutAndStopPlayer(
       _harmonicsPlayer,
       _harmonicsVolume,
-      steps: 3,
-      stepMs: 20,
+      steps: steps,
+      stepMs: fadeStepMs,
       fadeToken: fadeToken,
     ));
   }
@@ -1526,9 +1533,9 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
     return _harmonicsFadeToken;
   }
 
-  int _fadeStepMsForDuration(double durationMs) {
-    final totalMs = min(60.0, max(12.0, durationMs * 0.25));
-    return max(4, (totalMs / 3).round());
+  int _fadeStepMsForDuration(double durationMs, {int steps = 3}) {
+    final totalMs = min(80.0, max(20.0, durationMs * 0.2));
+    return max(4, (totalMs / max(1, steps)).round());
   }
 
   List<PitchPoint> _filteredHistory(List<PitchPoint> history) {

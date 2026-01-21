@@ -32,6 +32,10 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
   final Stopwatch _stopwatch = Stopwatch();
   Timer? _tickTimer;
   Timer? _harmonicsStopTimer;
+  static const int _harmonicsFadeSteps = 5;
+  static const double _harmonicsVolume = 1.0;
+  int _harmonicsFadeToken = 0;
+  double _lastHarmonicsDurationMs = 0.0;
   List<_GameTargetBlock> _targets = [];
   int _totalDurationMs = 0;
   bool _running = false;
@@ -286,10 +290,10 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
       }
     }
     _currentHarmonicsKey = key;
-    _playHarmonic(_targets[index], effectiveDuration);
+    unawaited(_playHarmonic(_targets[index], effectiveDuration));
   }
 
-  void _playHarmonic(_GameTargetBlock block, double durationMs) {
+  Future<void> _playHarmonic(_GameTargetBlock block, double durationMs) async {
     _harmonicsStopTimer?.cancel();
     final duration = durationMs.clamp(50, 600000).toDouble();
     final bytes = HarmoniumSynth.buildWavBytes(
@@ -297,11 +301,36 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
       durationMs: duration.round(),
       steady: duration >= 300,
     );
-    _harmonicsPlayer.stop();
-    _harmonicsPlayer.play(BytesSource(bytes), volume: 1.0);
+    const steps = _harmonicsFadeSteps;
+    final fadeStepMs = _fadeStepMsForDuration(duration, steps: steps);
+    final fadeToken = _nextHarmonicsFadeToken();
+    _lastHarmonicsDurationMs = duration;
+    await _fadeOutAndStopPlayer(
+      _harmonicsPlayer,
+      _harmonicsVolume,
+      steps: steps,
+      stepMs: fadeStepMs,
+      fadeToken: fadeToken,
+    );
+    if (fadeToken != _harmonicsFadeToken) {
+      return;
+    }
+    await _harmonicsPlayer.setVolume(0.0);
+    await _harmonicsPlayer.play(BytesSource(bytes), volume: 0.0);
+    unawaited(_fadeInPlayer(
+      _harmonicsPlayer,
+      _harmonicsVolume,
+      steps: steps,
+      stepMs: fadeStepMs,
+      fadeToken: fadeToken,
+    ));
     _harmonicsStopTimer = Timer(
       Duration(milliseconds: duration.round()),
-      () => _harmonicsPlayer.stop(),
+      () {
+        if (fadeToken == _harmonicsFadeToken) {
+          _fadeOutAndStopHarmonics();
+        }
+      },
     );
   }
 
@@ -309,7 +338,66 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
     _harmonicsStopTimer?.cancel();
     _harmonicsStopTimer = null;
     _currentHarmonicsKey = null;
-    _harmonicsPlayer.stop();
+    _fadeOutAndStopHarmonics();
+  }
+
+  void _fadeOutAndStopHarmonics() {
+    final fadeToken = _nextHarmonicsFadeToken();
+    const steps = _harmonicsFadeSteps;
+    final fadeStepMs =
+        _fadeStepMsForDuration(_lastHarmonicsDurationMs, steps: steps);
+    unawaited(_fadeOutAndStopPlayer(
+      _harmonicsPlayer,
+      _harmonicsVolume,
+      steps: steps,
+      stepMs: fadeStepMs,
+      fadeToken: fadeToken,
+    ));
+  }
+
+  Future<void> _fadeInPlayer(
+    AudioPlayer player,
+    double targetVolume, {
+    int steps = 4,
+    int stepMs = 20,
+    int? fadeToken,
+  }) async {
+    final clamped = targetVolume.clamp(0.0, 2.0);
+    for (var i = 1; i <= steps; i++) {
+      if (fadeToken != null && fadeToken != _harmonicsFadeToken) {
+        return;
+      }
+      await player.setVolume((clamped * i) / steps);
+      await Future<void>.delayed(Duration(milliseconds: stepMs));
+    }
+  }
+
+  Future<void> _fadeOutAndStopPlayer(
+    AudioPlayer player,
+    double fromVolume, {
+    int steps = 3,
+    int stepMs = 20,
+    int? fadeToken,
+  }) async {
+    final clamped = fromVolume.clamp(0.0, 2.0);
+    for (var i = steps - 1; i >= 0; i--) {
+      if (fadeToken != null && fadeToken != _harmonicsFadeToken) {
+        return;
+      }
+      await player.setVolume((clamped * i) / steps);
+      await Future<void>.delayed(Duration(milliseconds: stepMs));
+    }
+    await player.stop();
+  }
+
+  int _nextHarmonicsFadeToken() {
+    _harmonicsFadeToken++;
+    return _harmonicsFadeToken;
+  }
+
+  int _fadeStepMsForDuration(double durationMs, {int steps = 3}) {
+    final totalMs = min(80.0, max(20.0, durationMs * 0.2));
+    return max(4, (totalMs / max(1, steps)).round());
   }
 
   bool _isMatching(int targetMidi) {
