@@ -21,6 +21,7 @@ class HarmoniumSynth {
     final totalSamples =
         max(1, (clampedDurationMs * sampleRate / 1000).round());
     final pcm = Int16List(totalSamples);
+    final buffer = Float64List(totalSamples);
 
     final frequency = 440.0 * pow(2.0, (midi - 69) / 12.0);
     final config = _profileConfig(profile);
@@ -36,6 +37,7 @@ class HarmoniumSynth {
     final tremoloHz = config.tremoloHz;
     final tremoloDepth = steady ? 0.0 : config.tremoloDepth;
 
+    var peak = 0.0;
     for (var i = 0; i < totalSamples; i++) {
       final t = i / sampleRate;
       final vibrato = 1.0 + (vibratoDepth * sin(2 * pi * vibratoHz * t));
@@ -51,7 +53,17 @@ class HarmoniumSynth {
       } else if (i > totalSamples - releaseSamples) {
         envelope = (totalSamples - i) / releaseSamples;
       }
-      final scaled = _softLimit(sample * gain * envelope * tremolo);
+      final scaled = sample * gain * envelope * tremolo;
+      buffer[i] = scaled;
+      final magnitude = scaled.abs();
+      if (magnitude > peak) {
+        peak = magnitude;
+      }
+    }
+    const targetPeak = 0.98;
+    final normalize = peak > 0.0 ? min(1.0, targetPeak / peak) : 1.0;
+    for (var i = 0; i < totalSamples; i++) {
+      final scaled = (buffer[i] * normalize).clamp(-1.0, 1.0);
       pcm[i] = (scaled * 32767).round().clamp(-32767, 32767);
     }
 
@@ -125,16 +137,6 @@ class HarmoniumSynth {
     return data.buffer.asUint8List();
   }
 
-  static double _softLimit(double value) {
-    const threshold = 0.92;
-    final magnitude = value.abs();
-    if (magnitude <= threshold) {
-      return value;
-    }
-    final excess = magnitude - threshold;
-    final compressed = threshold + (1 - threshold) * (1 - exp(-3 * excess));
-    return value.isNegative ? -compressed : compressed;
-  }
 }
 
 class _HarmoniumProfileConfig {
