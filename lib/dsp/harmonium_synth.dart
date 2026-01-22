@@ -99,14 +99,14 @@ class HarmoniumSynth {
       case HarmoniumProfile.softFlute:
       default:
         return const _HarmoniumProfileConfig(
-          harmonics: [1.0, 0.06, 0.02],
-          gain: 1.5,
+          harmonics: [1.0, 0.06, 0.03, 0.015, 0.008],
+          gain: 1.65,
           attackSeconds: 0.08,
           releaseSeconds: 0.14,
-          vibratoHz: 4.8,
-          vibratoDepth: 0.004,
-          tremoloHz: 3.0,
-          tremoloDepth: 0.015,
+          vibratoHz: 5.2,
+          vibratoDepth: 0.0032,
+          tremoloHz: 2.6,
+          tremoloDepth: 0.006,
         );
     }
   }
@@ -126,13 +126,13 @@ class HarmoniumSynth {
   }
 
   static double _softLimit(double value) {
-    const threshold = 0.92;
+    const threshold = 0.84;
     final magnitude = value.abs();
     if (magnitude <= threshold) {
       return value;
     }
     final excess = magnitude - threshold;
-    final compressed = threshold + (1 - threshold) * (1 - exp(-3 * excess));
+    final compressed = threshold + (1 - threshold) * (1 - exp(-6 * excess));
     return value.isNegative ? -compressed : compressed;
   }
 }
