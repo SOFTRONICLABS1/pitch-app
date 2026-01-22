@@ -123,7 +123,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   int? _inlineHarmonicsKey;
   Timer? _inlineHarmonicsStopTimer;
   static const int _inlineFadeSteps = 5;
-  static const double _inlineHarmonicsVolume = 10.0;
+  static const double _inlineHarmonicsVolume = 25.0;
   double _inlineLastHarmonicsDurationMs = 0.0;
   int _inlineFadeToken = 0;
   double _inlineScale = 1.0;

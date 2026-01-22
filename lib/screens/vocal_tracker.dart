@@ -79,7 +79,7 @@ class _VocalTrackerScreenState extends State<VocalTrackerScreen>
   bool _editDirty = false;
   bool _tanpuraEnabled = false;
   final AudioPlayer _harmonicsPlayer = AudioPlayer();
-  static const double _harmonicsVolume = 10.0;
+  static const double _harmonicsVolume = 25.0;
   static const int _harmonicsFadeSteps = 5;
   Timer? _harmonicsStopTimer;
   int _harmonicsFadeToken = 0;

@@ -33,7 +33,7 @@ class _GamifiedVocalTrackerScreenState extends State<GamifiedVocalTrackerScreen>
   Timer? _tickTimer;
   Timer? _harmonicsStopTimer;
   static const int _harmonicsFadeSteps = 5;
-  static const double _harmonicsVolume = 10.0;
+  static const double _harmonicsVolume = 25.0;
   int _harmonicsFadeToken = 0;
   double _lastHarmonicsDurationMs = 0.0;
   List<_GameTargetBlock> _targets = [];

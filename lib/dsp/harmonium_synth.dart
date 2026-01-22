@@ -51,7 +51,7 @@ class HarmoniumSynth {
       } else if (i > totalSamples - releaseSamples) {
         envelope = (totalSamples - i) / releaseSamples;
       }
-      final scaled = (sample * gain * envelope * tremolo).clamp(-1.0, 1.0);
+      final scaled = _softLimit(sample * gain * envelope * tremolo);
       pcm[i] = (scaled * 32767).round().clamp(-32767, 32767);
     }
 
@@ -88,7 +88,7 @@ class HarmoniumSynth {
       case HarmoniumProfile.mellowHarmonium:
         return const _HarmoniumProfileConfig(
           harmonics: [1.0, 0.4, 0.25, 0.12, 0.06],
-          gain: 0.7,
+          gain: 1.75,
           attackSeconds: 0.035,
           releaseSeconds: 0.06,
           vibratoHz: 4.2,
@@ -100,7 +100,7 @@ class HarmoniumSynth {
       default:
         return const _HarmoniumProfileConfig(
           harmonics: [1.0, 0.08, 0.03],
-          gain: 0.6,
+          gain: 1.5,
           attackSeconds: 0.06,
           releaseSeconds: 0.08,
           vibratoHz: 5.2,
@@ -123,6 +123,17 @@ class HarmoniumSynth {
   static Uint8List _uint32le(int value) {
     final data = ByteData(4)..setUint32(0, value, Endian.little);
     return data.buffer.asUint8List();
+  }
+
+  static double _softLimit(double value) {
+    const threshold = 0.92;
+    final magnitude = value.abs();
+    if (magnitude <= threshold) {
+      return value;
+    }
+    final excess = magnitude - threshold;
+    final compressed = threshold + (1 - threshold) * (1 - exp(-3 * excess));
+    return value.isNegative ? -compressed : compressed;
   }
 }
 
