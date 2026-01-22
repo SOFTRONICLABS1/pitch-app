@@ -87,26 +87,26 @@ class HarmoniumSynth {
     switch (profile) {
       case HarmoniumProfile.mellowHarmonium:
         return const _HarmoniumProfileConfig(
-          harmonics: [1.0, 0.4, 0.25, 0.12, 0.06],
+          harmonics: [1.0, 0.3, 0.18, 0.08, 0.04],
           gain: 1.75,
-          attackSeconds: 0.035,
-          releaseSeconds: 0.06,
-          vibratoHz: 4.2,
-          vibratoDepth: 0.004,
-          tremoloHz: 4.0,
-          tremoloDepth: 0.03,
+          attackSeconds: 0.06,
+          releaseSeconds: 0.12,
+          vibratoHz: 4.0,
+          vibratoDepth: 0.003,
+          tremoloHz: 3.2,
+          tremoloDepth: 0.02,
         );
       case HarmoniumProfile.softFlute:
       default:
         return const _HarmoniumProfileConfig(
-          harmonics: [1.0, 0.08, 0.03],
+          harmonics: [1.0, 0.06, 0.02],
           gain: 1.5,
-          attackSeconds: 0.06,
-          releaseSeconds: 0.08,
-          vibratoHz: 5.2,
-          vibratoDepth: 0.006,
-          tremoloHz: 3.5,
-          tremoloDepth: 0.02,
+          attackSeconds: 0.08,
+          releaseSeconds: 0.14,
+          vibratoHz: 4.8,
+          vibratoDepth: 0.004,
+          tremoloHz: 3.0,
+          tremoloDepth: 0.015,
         );
     }
   }
