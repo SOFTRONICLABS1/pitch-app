@@ -124,6 +124,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
   Timer? _inlineHarmonicsStopTimer;
   static const int _inlineFadeSteps = 5;
   static const double _inlineHarmonicsVolume = 10.0;
+  double _inlineHarmonicsGain = 1.0;
   double _inlineLastHarmonicsDurationMs = 0.0;
   int _inlineFadeToken = 0;
   double _inlineScale = 1.0;
@@ -892,6 +893,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     });
     _inlineScale = 60.0 / settings.bpm.toDouble();
     _inlineHarmonicsProfile = settings.harmonicsProfile;
+    _inlineHarmonicsGain = settings.harmonicsGain;
     _inlineLastTargetElapsedMs = 0.0;
     _inlineHarmonicsKey = null;
     _inlineStopwatch = Stopwatch()..start();
@@ -1068,6 +1070,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
       durationMs: duration.round(),
       profile: _inlineHarmonicsProfile,
       steady: duration >= 300,
+      harmonicsGain: _inlineHarmonicsGain,
     );
     const steps = _inlineFadeSteps;
     final fadeStepMs = _fadeStepMsForDuration(duration, steps: steps);
@@ -1483,6 +1486,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
         rootSemitone: 0,
         ragaName: 'Mayamalavagowla',
         harmonicsProfile: HarmoniumProfile.softFlute,
+        harmonicsGain: 1.0,
       ),
     );
   }
@@ -1662,6 +1666,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
     var rootSemitone = current.rootSemitone;
     var ragaName = current.ragaName;
     var harmonicsProfile = _resolveHarmonicsProfile(current.harmonicsProfile);
+    var harmonicsGain = current.harmonicsGain;
     showModalBottomSheet<void>(
       context: context,
       backgroundColor: const Color(0xFF23272B),
@@ -1869,6 +1874,26 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                     },
                   ),
                   const SizedBox(height: 12),
+                  Text(
+                    'Harmonics boost: ${harmonicsGain.toStringAsFixed(2)}x',
+                    style: Theme.of(context)
+                        .textTheme
+                        .labelLarge
+                        ?.copyWith(color: Colors.white70),
+                  ),
+                  Slider(
+                    value: harmonicsGain,
+                    min: 0.0,
+                    max: 2.5,
+                    divisions: 25,
+                    label: '${harmonicsGain.toStringAsFixed(2)}x',
+                    onChanged: (value) {
+                      setSheetState(() {
+                        harmonicsGain = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                       Expanded(
@@ -1887,6 +1912,7 @@ class _RecordingsScreenState extends State<RecordingsScreen> {
                                 rootSemitone: rootSemitone,
                                 ragaName: ragaName,
                                 harmonicsProfile: harmonicsProfile,
+                                harmonicsGain: harmonicsGain,
                               );
                             });
                             _applyInlineBpmIfNeeded(groupName, bpm);
@@ -2177,12 +2203,14 @@ class _GroupSettings {
     required this.rootSemitone,
     required this.ragaName,
     required this.harmonicsProfile,
+    required this.harmonicsGain,
   });
 
   final int bpm;
   final int rootSemitone;
   final String ragaName;
   final HarmoniumProfile harmonicsProfile;
+  final double harmonicsGain;
 }
 
 class _MiniEqualizer extends StatefulWidget {

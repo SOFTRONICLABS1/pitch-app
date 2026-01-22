@@ -1,6 +1,8 @@
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'harmonics_processor.dart';
+
 enum HarmoniumProfile {
   softFlute,
   mellowHarmonium,
@@ -16,6 +18,10 @@ class HarmoniumSynth {
     int sampleRate = _defaultSampleRate,
     HarmoniumProfile profile = HarmoniumProfile.softFlute,
     bool steady = false,
+    double harmonicsGain = 1.0,
+    CompressorSettings compressorSettings = const CompressorSettings(),
+    double limiterCeiling = HarmonicsProcessor.defaultLimiterCeiling,
+    bool debugMetering = false,
   }) {
     final clampedDurationMs = max(1, durationMs);
     final totalSamples =
@@ -35,13 +41,23 @@ class HarmoniumSynth {
     final vibratoDepth = steady ? 0.0 : config.vibratoDepth;
     final tremoloHz = config.tremoloHz;
     final tremoloDepth = steady ? 0.0 : config.tremoloDepth;
+    final processor = HarmonicsProcessor(
+      sampleRate: sampleRate,
+      harmonicsGain: harmonicsGain,
+      compressorSettings: compressorSettings,
+      limiterCeiling: limiterCeiling,
+    );
 
     for (var i = 0; i < totalSamples; i++) {
       final t = i / sampleRate;
       final vibrato = 1.0 + (vibratoDepth * sin(2 * pi * vibratoHz * t));
       final tremolo = 1.0 + (tremoloDepth * sin(2 * pi * tremoloHz * t));
       double sample = 0.0;
-      for (var h = 0; h < harmonics.length; h++) {
+      final maxHarmonic = min(
+        harmonics.length,
+        (sampleRate * 0.5 / (frequency * vibrato)).floor(),
+      );
+      for (var h = 0; h < maxHarmonic; h++) {
         sample += harmonics[h] *
             sin(2 * pi * frequency * vibrato * (h + 1) * t);
       }
@@ -51,8 +67,19 @@ class HarmoniumSynth {
       } else if (i > totalSamples - releaseSamples) {
         envelope = (totalSamples - i) / releaseSamples;
       }
-      final scaled = (sample * gain * envelope * tremolo).clamp(-1.0, 1.0);
+      final processed =
+          processor.processSample(sample * gain * envelope * tremolo);
+      final scaled = processed.clamp(-1.0, 1.0);
       pcm[i] = (scaled * 32767).round().clamp(-32767, 32767);
+    }
+    if (debugMetering) {
+      final metering = processor.metering;
+      // ignore: avoid_print
+      print(
+        'Harmonics meter rms=${metering.rms.toStringAsFixed(4)} '
+        'peak=${metering.peak.toStringAsFixed(4)} '
+        'maxPeak=${metering.maxPeak.toStringAsFixed(4)}',
+      );
     }
 
     final dataBytes = pcm.buffer.asUint8List();
